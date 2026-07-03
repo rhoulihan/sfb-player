@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SFB Online — SSD Damage</title>
+<style>
+  :root{--blue:#2563eb;--slate:#334155;--muted:#64748b;}
+  *{box-sizing:border-box}
+  body{margin:0;font:14px/1.4 "Segoe UI",system-ui,sans-serif;color:#0f172a;background:#e2e8f0;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+  header{background:#1e293b;color:#f8fafc;padding:8px 14px;display:flex;align-items:center;gap:14px;border-bottom:3px solid #C74634;flex:none}
+  header b{font-size:15px;letter-spacing:.3px}
+  header .sub{color:#94a3b8;font-size:12px}
+  header .spacer{flex:1}
+  header select,header input,header button{font:inherit}
+  main{flex:1;display:flex;min-height:0}
+  #stage{flex:1;position:relative;overflow:auto;background:#f8fafc;display:flex;align-items:flex-start;justify-content:center;padding:16px}
+  #wrap{position:relative}
+  #img{display:block;max-width:none}
+  #ovl{position:absolute;inset:0}
+  aside{width:320px;flex:none;background:#fff;border-left:1px solid #cbd5e1;padding:14px;overflow:auto}
+  aside h3{margin:2px 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted)}
+  .panel{border:1px solid #e2e8f0;border-radius:8px;padding:12px;margin-bottom:14px}
+  label{display:block;font-size:12px;color:var(--slate);margin:8px 0 3px;font-weight:600}
+  select,input[type=number]{width:100%;padding:6px 8px;border:1px solid #cbd5e1;border-radius:6px}
+  .row{display:flex;gap:8px;align-items:center}
+  .row>*{flex:1}
+  .chk{display:flex;align-items:center;gap:6px;font-weight:600;color:var(--slate);margin-top:10px}
+  .chk input{flex:none}
+  button.go{background:var(--blue);color:#fff;border:0;border-radius:6px;padding:9px;font-weight:600;cursor:pointer;width:100%;margin-top:12px}
+  button.go:disabled{opacity:.5;cursor:default}
+  button.reset{background:#fff;color:var(--slate);border:1px solid #cbd5e1;border-radius:6px;padding:8px;cursor:pointer;width:100%;margin-top:8px}
+  .shields{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+  .sh{border:1px solid #e2e8f0;border-radius:6px;padding:5px 7px;font-size:12px;text-align:center}
+  .sh b{display:block;font-size:11px;color:var(--muted)}
+  .sh.hit{outline:2px solid var(--blue)}
+  .sh .n{font-weight:700;font-size:15px}
+  .sh .down{color:#C74634}
+  #summary{font-size:12px;color:var(--slate);white-space:pre-wrap;line-height:1.5}
+  #banner{display:none;background:#7f1d1d;color:#fff;text-align:center;font-weight:700;padding:6px;letter-spacing:1px}
+  .hint{color:var(--muted);font-size:11.5px}
+</style></head>
+<body>
+<header>
+  <b id="ttl">SSD DAMAGE</b><span class="sub" id="sub"></span>
+  <span class="spacer"></span>
+  <span class="sub">shields → armor → internal DAC (D3.6–D4.4)</span>
+</header>
+<div id="banner">◈ SHIP DESTROYED ◈</div>
+<main>
+  <div id="stage"><div id="wrap"><img id="img" alt="SSD"><svg id="ovl" xmlns="http://www.w3.org/2000/svg"></svg></div></div>
+  <aside>
+    <div class="panel">
+      <h3>Apply damage</h3>
+      <label>Struck shield</label>
+      <select id="shield"><option value="1">#1 (front)</option><option value="2">#2 (fwd-right)</option><option value="3">#3 (rear-right)</option><option value="4">#4 (rear)</option><option value="5">#5 (rear-left)</option><option value="6">#6 (fwd-left)</option></select>
+      <label>Volley size (damage points)</label>
+      <input type="number" id="points" value="20" min="1" max="200">
+      <div class="chk"><input type="checkbox" id="leaky"><label for="leaky" style="margin:0">Leaky shields (D3.6)</label>
+        <select id="rate" style="flex:none;width:auto" disabled><option value="4">every 4th</option><option value="6">every 6th</option><option value="10">every 10th</option></select></div>
+      <label>Application speed</label>
+      <select id="speed"><option value="150">Medium</option><option value="400">Slow</option><option value="40">Fast</option><option value="0">Instant</option></select>
+      <button class="go" id="apply">⚡ Apply damage</button>
+      <button class="reset" id="reset">↺ Reset ship</button>
+    </div>
+    <div class="panel">
+      <h3>Shields</h3>
+      <div class="shields" id="shReadout"></div>
+    </div>
+    <div class="panel">
+      <h3>Last volley</h3>
+      <div id="summary" class="hint">No damage applied yet.</div>
+    </div>
+  </aside>
+</main>
+
+<script type="module">
+import * as E from "./ssd-engine.js";
+import { buildShipModel } from "./ship-model.js";
+import { applyVolley, makeDice } from "./dac-allocator.js";
+const SVGNS="http://www.w3.org/2000/svg";
+const el=(t,a)=>{const e=document.createElementNS(SVGNS,t);for(const k in a)e.setAttribute(k,a[k]);return e;};
+const ship=new URLSearchParams(location.search).get("ship")||"FED-CA";
+
+let DET,IMGW,IMGH,boxIndex={},groupOf={},allBoxes=[],labels={},model,status={},CELL={w:24,h:24},verifiedData=null;
+
+async function load(){
+  DET=await (await fetch(`../data/${ship}/detection.json`)).json();
+  IMGW=DET.pxWidth; IMGH=DET.pxHeight;
+  const img=document.getElementById("img");
+  img.src=`../data/${ship}/image.png`; img.width=IMGW; img.height=IMGH;
+  document.getElementById("ovl").setAttribute("viewBox",`0 0 ${IMGW} ${IMGH}`);
+  document.getElementById("ovl").setAttribute("width",IMGW); document.getElementById("ovl").setAttribute("height",IMGH);
+  document.getElementById("ttl").textContent="SSD DAMAGE · "+ship.replace("-"," ");
+  document.getElementById("sub").textContent=` — ${DET.orientationClass} · ${IMGW}×${IMGH}`;
+  let verified=null; try{const r=await fetch(`../data/${ship}/verified.json`); if(r.ok)verified=await r.json();}catch(e){}
+  if(!verified){document.getElementById("summary").textContent="No verified.json for this ship — damage needs a verified inventory.";return;}
+  verifiedData=verified;
+  const deleted=new Set(verified.deleted||[]);
+  DET.boxes.forEach(b=>boxIndex[b.id]=b);
+  (verified.extraBoxes||[]).forEach(b=>boxIndex[b.id]=b);
+  allBoxes=DET.boxes.concat(verified.extraBoxes||[]).filter(b=>!deleted.has(b.id));
+  verified.groups.forEach(g=>g.boxIds.forEach(id=>groupOf[id]=g));
+  model=buildShipModel(verified,DET);
+  fetch(`/api/labels/${ship}`).then(r=>r.json()).then(m=>{if(m&&!m.error){labels=m;render();}}).catch(()=>{});
+  render(); renderShields();
+}
+const labelText=id=>labels[id]||"";
+
+function render(){
+  const ovl=document.getElementById("ovl"); ovl.innerHTML="";
+  CELL=E.globalCell(allBoxes,IMGW,IMGH);
+  const layouts={}; const seen=new Set();
+  allBoxes.forEach(b=>{const g=groupOf[b.id]; if(g&&!seen.has(g.id)){seen.add(g.id);layouts[g.id]=E.layoutGroup(g.boxIds,boxIndex,IMGW,IMGH);}});
+  allBoxes.forEach(b=>{
+    const g=groupOf[b.id]; const fam=g?g.family:"markers";
+    const dead=status[b.id]==="destroyed";
+    const wide=E.isWide(b,CELL.w,IMGW);
+    const {x,y,w,h}=E.boxRect(b,g?layouts[g.id]:null,CELL,wide,IMGW,IMGH);
+    const col=dead?"#334155":(E.FAMCOL[fam]||"#94a3b8");
+    ovl.appendChild(el("rect",{x,y,width:w,height:h,fill:col,"fill-opacity":dead?0.85:1,stroke:"rgba(15,23,42,0.55)","stroke-width":1.25,"vector-effect":"non-scaling-stroke"}));
+    if(wide) ovl.appendChild(el("line",{x1:x+w/2,y1:y+1,x2:x+w/2,y2:y+h-1,stroke:"rgba(15,23,42,0.55)","stroke-width":1.25,"stroke-dasharray":"3 3","vector-effect":"non-scaling-stroke"}));
+    if(dead){ // red ✕ over destroyed boxes
+      const o={stroke:"#ef4444","stroke-width":2,"vector-effect":"non-scaling-stroke","pointer-events":"none"};
+      ovl.appendChild(el("line",{x1:x+2,y1:y+2,x2:x+w-2,y2:y+h-2,...o}));
+      ovl.appendChild(el("line",{x1:x+w-2,y1:y+2,x2:x+2,y2:y+h-2,...o}));
+    } else {
+      const lab=labelText(b.id);
+      if(lab){const fs=Math.max(7,Math.round(Math.min(h*0.62,(w*0.85)/Math.max(1,lab.length*0.6))));
+        const t=el("text",{x:x+w/2,y:y+h/2,"text-anchor":"middle","dominant-baseline":"central","font-size":fs,"font-family":"Menlo,Consolas,monospace","font-weight":"700",fill:E.inkFor(col),"pointer-events":"none"});
+        t.textContent=lab; ovl.appendChild(t);}
+    }
+  });
+}
+
+function renderShields(){
+  const box=document.getElementById("shReadout"); box.innerHTML="";
+  const hit=+document.getElementById("shield").value;
+  for(let n=1;n<=6;n++){
+    const s=model&&model.shields[n]; const max=s?s.max:0, down=s?s.down:0;
+    const d=document.createElement("div"); d.className="sh"+(n===hit?" hit":"");
+    d.innerHTML=`<b>#${n}</b><span class="n ${down?'down':''}">${max-down}</span><span class="hint">/${max}</span>`;
+    box.appendChild(d);
+  }
+}
+
+const FAMNAME=E.FAMNAME;
+async function apply(){
+  if(!model)return;
+  const shield=+document.getElementById("shield").value;
+  const points=Math.max(1,+document.getElementById("points").value||0);
+  const leaky=document.getElementById("leaky").checked;
+  const leakRate=+document.getElementById("rate").value;
+  const speed=+document.getElementById("speed").value;
+  const btn=document.getElementById("apply"); btn.disabled=true;
+  const effects=applyVolley(model,{shield,points,leaky,leakRate},makeDice());
+  // play the effects at the chosen rate
+  const tally={}; let shHit=0, armorHit=0, destroyed=false;
+  for(const fx of effects){
+    if(fx.type==="shield"){status[fx.box]="destroyed";shHit++;}
+    else if(fx.type==="armor"){status[fx.box]="destroyed";armorHit++;}
+    else if(fx.type==="destroy"){status[fx.boxId]="destroyed";tally[fx.token]=(tally[fx.token]||0)+1;}
+    else if(fx.type==="shipDestroyed"){destroyed=true;}
+    if(speed>0){render();renderShields();await new Promise(r=>setTimeout(r,speed));}
+  }
+  render();renderShields();
+  document.getElementById("banner").style.display=destroyed?"block":"none";
+  const internal=Object.values(tally).reduce((a,b)=>a+b,0);
+  const parts=Object.entries(tally).sort((a,b)=>b[1]-a[1]).map(([t,n])=>`${n} ${t.toLowerCase().replace(/_/g,'-')}`);
+  document.getElementById("summary").textContent =
+    `Shield #${shield}: ${shHit} boxes down`+(armorHit?` · armor: ${armorHit}`:"")+
+    `\nInternal (${internal}): `+(parts.join(", ")||"—")+(destroyed?"\n\n◈ SHIP DESTROYED":"");
+  btn.disabled=false;
+}
+
+function reset(){ status={}; if(verifiedData)model=buildShipModel(verifiedData,DET); document.getElementById("banner").style.display="none"; document.getElementById("summary").textContent="No damage applied yet."; render(); renderShields(); }
+
+document.getElementById("leaky").onchange=e=>{document.getElementById("rate").disabled=!e.target.checked;};
+document.getElementById("shield").onchange=renderShields;
+document.getElementById("apply").onclick=apply;
+document.getElementById("reset").onclick=reset;
+load();
+</script>
+</body></html>
