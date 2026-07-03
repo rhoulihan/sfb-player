@@ -1,0 +1,176 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 800" width="1280" height="800" font-family="'Segoe UI', Segoe, Tahoma, sans-serif">
+  <defs>
+    <pattern id="hexgrid" width="120" height="69.28" patternUnits="userSpaceOnUse">
+      <path d="M40 0 L20 34.64 L-20 34.64 L-40 0 L-20 -34.64 L20 -34.64 Z" fill="none" stroke="#e2e8f0" stroke-width="1"/>
+      <path d="M100 34.64 L80 69.28 L40 69.28 L20 34.64 L40 0 L80 0 Z" fill="none" stroke="#e2e8f0" stroke-width="1"/>
+    </pattern>
+    <marker id="rangeArrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#334155"/>
+    </marker>
+    <clipPath id="mapClip">
+      <rect x="24" y="112" width="778" height="664" rx="6"/>
+    </clipPath>
+  </defs>
+
+  <!-- background -->
+  <rect x="0" y="0" width="1280" height="800" fill="#ffffff"/>
+
+  <!-- header -->
+  <rect x="18" y="18" width="1244" height="42" rx="8" fill="#334155"/>
+  <text x="32" y="44" fill="#ffffff" font-size="20" font-weight="700">Assisted Targeting &amp; Combat</text>
+  <text x="1246" y="40" fill="#e2e8f0" font-size="12" text-anchor="end">SFB Online</text>
+  <text x="1246" y="53" fill="#cbd5e1" font-size="11" text-anchor="end">Turn 12  ·  Impulse 8  ·  Direct-Fire Phase</text>
+
+  <!-- ============ LEFT: TACTICAL MAP PANEL ============ -->
+  <rect x="18" y="68" width="792" height="714" rx="10" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+  <text x="32" y="96" fill="#334155" font-size="16" font-weight="700">Tactical Map — Firing Solution</text>
+  <rect x="32" y="104" width="190" height="3" rx="1.5" fill="#2563eb"/>
+  <text x="794" y="96" fill="#64748b" font-size="12" text-anchor="end">excerpt · 1 step = 1 hex</text>
+
+  <!-- map drawing surface -->
+  <g clip-path="url(#mapClip)">
+    <rect x="24" y="112" width="778" height="664" fill="#f8fafc"/>
+    <rect x="24" y="112" width="778" height="664" fill="url(#hexgrid)"/>
+
+    <!-- firing arcs (shaded wedges from firing ship) -->
+    <path d="M 300.0 470.0 L 405.1 146.6 A 340.0 340.0 0 0 1 639.8 458.1 Z" fill="#2563eb" fill-opacity="0.10" stroke="#2563eb" stroke-opacity="0.45" stroke-width="1" stroke-dasharray="5 4"/>
+    <path d="M 300.0 470.0 L 539.9 461.6 A 240.0 240.0 0 0 1 447.8 659.1 Z" fill="#C74634" fill-opacity="0.08" stroke="#C74634" stroke-opacity="0.40" stroke-width="1" stroke-dasharray="5 4"/>
+    <text x="503.0" y="312.0" fill="#2563eb" font-size="12" font-weight="600" text-anchor="middle">Forward arc (FA)</text>
+    <text x="437.0" y="540.0" fill="#C74634" font-size="12" font-weight="600" text-anchor="middle">Right arc (RF)</text>
+
+    <!-- range line with hex-count dots -->
+    <line x1="337.3" y1="444.8" x2="602.7" y2="265.2" stroke="#334155" stroke-width="2" marker-end="url(#rangeArrow)"/>
+    <circle cx="381.5" cy="414.9" r="3.2" fill="#334155"/>
+    <circle cx="425.8" cy="384.9" r="3.2" fill="#334155"/>
+    <circle cx="470.0" cy="355.0" r="3.2" fill="#334155"/>
+    <circle cx="514.2" cy="325.1" r="3.2" fill="#334155"/>
+    <circle cx="558.5" cy="295.1" r="3.2" fill="#334155"/>
+    <rect x="392" y="362" width="116" height="24" rx="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="1"/>
+    <text x="450" y="378" fill="#334155" font-size="12" font-weight="700" text-anchor="middle">Range: 6 hexes</text>
+
+    <!-- firing ship -->
+    <polygon points="319.9 456.6 294.6 490.6 295.0 473.4 278.9 467.4" fill="#2563eb" stroke="#1e40af" stroke-width="1.5"/>
+    <rect x="232" y="503" width="136" height="22" rx="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="1"/>
+    <text x="300" y="518" fill="#334155" font-size="12" font-weight="600" text-anchor="middle">Your ship — CA-12</text>
+
+    <!-- enemy ship + shield facings -->
+    <polygon points="674.0 240.0 657.0 269.4 623.0 269.4 606.0 240.0 623.0 210.6 657.0 210.6" fill="#fee2e2" stroke="#C74634" stroke-width="1.5"/>
+    <!-- exposed shield #3 (glow + bright) -->
+    <line x1="616.9" y1="272.9" x2="599.9" y2="243.5" stroke="#16a34a" stroke-width="14" stroke-linecap="round" stroke-opacity="0.30"/>
+    <line x1="616.9" y1="272.9" x2="599.9" y2="243.5" stroke="#16a34a" stroke-width="7" stroke-linecap="round"/>
+    <!-- dimmed shields -->
+    <line x1="599.9" y1="236.5" x2="616.9" y2="207.1" stroke="#94a3b8" stroke-width="4" stroke-linecap="round" stroke-opacity="0.55"/>
+    <line x1="623.0" y1="203.6" x2="657.0" y2="203.6" stroke="#94a3b8" stroke-width="4" stroke-linecap="round" stroke-opacity="0.55"/>
+    <line x1="663.1" y1="207.1" x2="680.1" y2="236.5" stroke="#94a3b8" stroke-width="4" stroke-linecap="round" stroke-opacity="0.55"/>
+    <line x1="680.1" y1="243.5" x2="663.1" y2="272.9" stroke="#94a3b8" stroke-width="4" stroke-linecap="round" stroke-opacity="0.55"/>
+    <line x1="657.0" y1="276.4" x2="623.0" y2="276.4" stroke="#94a3b8" stroke-width="4" stroke-linecap="round" stroke-opacity="0.55"/>
+    <!-- shield numbers -->
+    <text x="591.5" y="271" fill="#16a34a" font-size="12" font-weight="700" text-anchor="middle">3</text>
+    <text x="591.5" y="216" fill="#94a3b8" font-size="11" text-anchor="middle">4</text>
+    <text x="640.0" y="188" fill="#94a3b8" font-size="11" text-anchor="middle">5</text>
+    <text x="688.5" y="216" fill="#94a3b8" font-size="11" text-anchor="middle">6</text>
+    <text x="688.5" y="272" fill="#94a3b8" font-size="11" text-anchor="middle">1</text>
+    <text x="640.0" y="299" fill="#94a3b8" font-size="11" text-anchor="middle">2</text>
+
+    <!-- enemy label -->
+    <rect x="588" y="150" width="104" height="22" rx="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="1"/>
+    <text x="640" y="165" fill="#C74634" font-size="12" font-weight="700" text-anchor="middle">Enemy CA-77</text>
+
+    <!-- exposed-shield callout -->
+    <line x1="576" y1="262" x2="603" y2="258" stroke="#16a34a" stroke-width="1.5"/>
+    <rect x="430" y="250" width="146" height="24" rx="6" fill="#dcfce7" stroke="#16a34a" stroke-width="1.2"/>
+    <text x="503" y="266" fill="#15803d" font-size="12" font-weight="700" text-anchor="middle">Shield #3 — EXPOSED</text>
+
+    <!-- legend -->
+    <rect x="32" y="612" width="312" height="156" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1"/>
+    <text x="44" y="634" fill="#334155" font-size="12" font-weight="700">Legend</text>
+    <rect x="44" y="648" width="22" height="10" rx="2" fill="#2563eb" fill-opacity="0.18" stroke="#2563eb" stroke-opacity="0.5"/>
+    <text x="74" y="657" fill="#475569" font-size="12">Forward firing arc (target in-arc)</text>
+    <rect x="44" y="672" width="22" height="10" rx="2" fill="#C74634" fill-opacity="0.14" stroke="#C74634" stroke-opacity="0.5"/>
+    <text x="74" y="681" fill="#475569" font-size="12">Secondary firing arc</text>
+    <line x1="45" y1="704" x2="67" y2="704" stroke="#16a34a" stroke-width="6" stroke-linecap="round"/>
+    <text x="74" y="708" fill="#475569" font-size="12">Exposed shield (impact facing)</text>
+    <line x1="45" y1="728" x2="67" y2="728" stroke="#94a3b8" stroke-width="4" stroke-linecap="round" stroke-opacity="0.6"/>
+    <text x="74" y="732" fill="#475569" font-size="12">Shielded / dimmed facings</text>
+    <line x1="45" y1="752" x2="67" y2="752" stroke="#334155" stroke-width="2"/>
+    <circle cx="56" cy="752" r="2.6" fill="#334155"/>
+    <text x="74" y="756" fill="#475569" font-size="12">Range &amp; hex count</text>
+  </g>
+
+  <!-- ============ RIGHT: FIRE CONTROL PANEL ============ -->
+  <rect x="828" y="68" width="434" height="714" rx="10" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+  <text x="844" y="96" fill="#334155" font-size="16" font-weight="700">Fire Control</text>
+  <rect x="844" y="104" width="120" height="3" rx="1.5" fill="#C74634"/>
+  <text x="1246" y="96" fill="#64748b" font-size="12" text-anchor="end">3 weapon types</text>
+
+  <!-- target summary -->
+  <rect x="844" y="120" width="402" height="40" rx="8" fill="#fef2f2" stroke="#C74634" stroke-width="1.2"/>
+  <text x="858" y="138" fill="#7f1d1d" font-size="12" font-weight="700">TARGET</text>
+  <text x="858" y="153" fill="#334155" font-size="12">Enemy CA-77  ·  facing Shield #3 (exposed)</text>
+  <text x="1232" y="146" fill="#C74634" font-size="13" font-weight="700" text-anchor="end">Rng 6</text>
+
+  <!-- weapons heading -->
+  <text x="844" y="184" fill="#64748b" font-size="12" font-weight="700">WEAPONS — check to assign</text>
+
+  <!-- ===== Card 1: Photon (selected) ===== -->
+  <rect x="844" y="192" width="402" height="84" rx="8" fill="#ecfdf5" stroke="#16a34a" stroke-width="1.4"/>
+  <rect x="844" y="192" width="5" height="84" rx="2.5" fill="#16a34a"/>
+  <rect x="862" y="210" width="24" height="24" rx="5" fill="#16a34a" stroke="#15803d" stroke-width="1.2"/>
+  <polyline points="867,222 872,227 881,215" fill="none" stroke="#ffffff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="900" y="221" fill="#334155" font-size="15" font-weight="700">Photon Torpedo</text>
+  <text x="900" y="240" fill="#64748b" font-size="12">2 armed  ·  overload available</text>
+  <text x="900" y="262" fill="#15803d" font-size="12" font-weight="600">Expected damage ≈ 16</text>
+  <rect x="1078" y="206" width="68" height="22" rx="11" fill="#dcfce7" stroke="#16a34a" stroke-width="1"/>
+  <text x="1112" y="221" fill="#15803d" font-size="11" font-weight="700" text-anchor="middle">IN ARC</text>
+  <rect x="1154" y="206" width="92" height="22" rx="11" fill="#dcfce7" stroke="#16a34a" stroke-width="1"/>
+  <text x="1200" y="221" fill="#15803d" font-size="11" font-weight="700" text-anchor="middle">IN RANGE</text>
+  <text x="1232" y="262" fill="#334155" font-size="13" font-weight="700" text-anchor="end">x2</text>
+
+  <!-- ===== Card 2: Phaser-1 (selected) ===== -->
+  <rect x="844" y="288" width="402" height="84" rx="8" fill="#ecfdf5" stroke="#16a34a" stroke-width="1.4"/>
+  <rect x="844" y="288" width="5" height="84" rx="2.5" fill="#16a34a"/>
+  <rect x="862" y="306" width="24" height="24" rx="5" fill="#16a34a" stroke="#15803d" stroke-width="1.2"/>
+  <polyline points="867,318 872,323 881,311" fill="none" stroke="#ffffff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="900" y="317" fill="#334155" font-size="15" font-weight="700">Phaser-1</text>
+  <text x="900" y="336" fill="#64748b" font-size="12">4 available  ·  Ph-1 damage table</text>
+  <text x="900" y="358" fill="#15803d" font-size="12" font-weight="600">Expected damage ≈ 12</text>
+  <rect x="1078" y="302" width="68" height="22" rx="11" fill="#dcfce7" stroke="#16a34a" stroke-width="1"/>
+  <text x="1112" y="317" fill="#15803d" font-size="11" font-weight="700" text-anchor="middle">IN ARC</text>
+  <rect x="1154" y="302" width="92" height="22" rx="11" fill="#dcfce7" stroke="#16a34a" stroke-width="1"/>
+  <text x="1200" y="317" fill="#15803d" font-size="11" font-weight="700" text-anchor="middle">IN RANGE</text>
+  <text x="1232" y="358" fill="#334155" font-size="13" font-weight="700" text-anchor="end">x4</text>
+
+  <!-- ===== Card 3: Disruptor (out of arc, disabled) ===== -->
+  <rect x="844" y="384" width="402" height="84" rx="8" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1.4"/>
+  <rect x="844" y="384" width="5" height="84" rx="2.5" fill="#94a3b8"/>
+  <rect x="862" y="402" width="24" height="24" rx="5" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.2"/>
+  <text x="900" y="413" fill="#64748b" font-size="15" font-weight="700">Disruptor</text>
+  <text x="900" y="432" fill="#94a3b8" font-size="12">2 available  ·  cannot bear on target</text>
+  <text x="900" y="454" fill="#94a3b8" font-size="12" font-weight="600">Expected damage —</text>
+  <rect x="1118" y="398" width="128" height="22" rx="11" fill="#fee2e2" stroke="#C74634" stroke-width="1"/>
+  <text x="1182" y="413" fill="#C74634" font-size="11" font-weight="700" text-anchor="middle">OUT OF ARC</text>
+  <text x="1232" y="454" fill="#94a3b8" font-size="13" font-weight="700" text-anchor="end">x2</text>
+
+  <!-- volley summary -->
+  <rect x="844" y="480" width="402" height="64" rx="8" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.2"/>
+  <text x="858" y="508" fill="#334155" font-size="13" font-weight="700">Volley vs Shield #3</text>
+  <text x="858" y="528" fill="#64748b" font-size="12">2 Photon + 4 Phaser-1 → down + ~12 internal</text>
+  <text x="1232" y="515" fill="#C74634" font-size="22" font-weight="800" text-anchor="end">≈28</text>
+  <text x="1232" y="533" fill="#64748b" font-size="11" text-anchor="end">total damage</text>
+
+  <!-- group-target hint -->
+  <rect x="844" y="556" width="402" height="72" rx="8" fill="#eff6ff" stroke="#2563eb" stroke-width="1.2"/>
+  <rect x="844" y="556" width="5" height="72" rx="2.5" fill="#2563eb"/>
+  <text x="862" y="578" fill="#1d4ed8" font-size="12" font-weight="700">Group target</text>
+  <text x="862" y="596" fill="#334155" font-size="12">Shift-click weapons to fire them as one volley at a</text>
+  <text x="862" y="612" fill="#334155" font-size="12">single shield. Current group → Enemy CA-77, Shield #3.</text>
+
+  <!-- action buttons -->
+  <rect x="844" y="644" width="266" height="56" rx="10" fill="#C74634"/>
+  <text x="977" y="678" fill="#ffffff" font-size="17" font-weight="800" text-anchor="middle">DECLARE FIRE</text>
+  <rect x="1122" y="644" width="124" height="56" rx="10" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+  <text x="1184" y="678" fill="#334155" font-size="14" font-weight="700" text-anchor="middle">Hold Fire</text>
+
+  <!-- footer hint -->
+  <text x="844" y="726" fill="#94a3b8" font-size="11">Space = declare volley   ·   Esc = hold   ·   resolution is simultaneous</text>
+</svg>

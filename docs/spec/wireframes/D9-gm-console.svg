@@ -1,0 +1,265 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 800" font-family="'Segoe UI', sans-serif">
+  <defs>
+    <filter id="softShadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#334155" flood-opacity="0.18"/>
+    </filter>
+  </defs>
+
+  <!-- background -->
+  <rect x="0" y="0" width="1280" height="800" fill="#ffffff"/>
+
+  <!-- ============================== TOP: GM BANNER ============================== -->
+  <g filter="url(#softShadow)">
+    <rect x="24" y="24" width="1232" height="60" rx="10" fill="#334155"/>
+  </g>
+  <text x="44" y="61" font-size="22" font-weight="700" fill="#ffffff">GM &amp; Spectator Console</text>
+
+  <!-- GM MODE badge -->
+  <rect x="360" y="38" width="96" height="32" rx="16" fill="#C74634"/>
+  <text x="408" y="59" font-size="13" font-weight="700" fill="#ffffff" text-anchor="middle">GM MODE</text>
+
+  <!-- session info -->
+  <text x="480" y="59" font-size="13" fill="#cbd5e1">Match #4821  ·  Turn 7  ·  Live</text>
+  <circle cx="666" cy="54" r="5" fill="#16a34a"/>
+
+  <!-- spectator view toggle (top-right) -->
+  <text x="1126" y="58" font-size="13" fill="#e2e8f0" text-anchor="end">Spectator View</text>
+  <rect x="1140" y="42" width="92" height="24" rx="12" fill="#16a34a"/>
+  <circle cx="1220" cy="54" r="9" fill="#ffffff"/>
+  <text x="1162" y="58" font-size="11" font-weight="700" fill="#ffffff" text-anchor="middle">ON</text>
+
+  <!-- ============================== LEFT: OVERRIDE PANEL ============================== -->
+  <g filter="url(#softShadow)">
+    <rect x="24" y="104" width="356" height="672" rx="10" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1"/>
+  </g>
+  <rect x="44" y="126" width="10" height="10" rx="2" fill="#C74634"/>
+  <text x="62" y="135" font-size="15" font-weight="700" fill="#334155">Override Panel</text>
+  <line x1="44" y1="146" x2="200" y2="146" stroke="#C74634" stroke-width="2"/>
+  <text x="44" y="164" font-size="12" fill="#64748b">Force a value onto any game entity</text>
+
+  <!-- Target selector -->
+  <text x="44" y="190" font-size="12" font-weight="600" fill="#334155">Target</text>
+  <rect x="44" y="198" width="312" height="40" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="58" y="223" font-size="13" fill="#334155">Unit · Bravo Squad</text>
+  <path d="M 332 213 l 12 0 l -6 8 z" fill="#64748b"/>
+
+  <!-- Override value -->
+  <text x="44" y="270" font-size="12" font-weight="600" fill="#334155">Override Value</text>
+  <rect x="44" y="278" width="312" height="40" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="58" y="303" font-size="13" fill="#334155">HP = 75%</text>
+
+  <!-- Reason text -->
+  <text x="44" y="350" font-size="12" font-weight="600" fill="#334155">Reason</text>
+  <rect x="44" y="358" width="312" height="148" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="58" y="382" font-size="13" fill="#94a3b8">Reason for this override…</text>
+  <line x1="58" y1="402" x2="342" y2="402" stroke="#e2e8f0"/>
+  <line x1="58" y1="424" x2="342" y2="424" stroke="#e2e8f0"/>
+  <line x1="58" y1="446" x2="342" y2="446" stroke="#e2e8f0"/>
+  <line x1="58" y1="468" x2="280" y2="468" stroke="#e2e8f0"/>
+
+  <!-- Apply Override button -->
+  <rect x="44" y="528" width="312" height="48" rx="8" fill="#C74634"/>
+  <text x="200" y="558" font-size="15" font-weight="700" fill="#ffffff" text-anchor="middle">Apply Override</text>
+
+  <!-- note -->
+  <rect x="44" y="600" width="312" height="56" rx="6" fill="#e2e8f0"/>
+  <text x="58" y="622" font-size="11" fill="#475569">All overrides are recorded to the</text>
+  <text x="58" y="640" font-size="11" fill="#475569">event timeline and shown to spectators.</text>
+
+  <!-- recent override chip -->
+  <text x="44" y="688" font-size="12" font-weight="600" fill="#334155">Last applied</text>
+  <rect x="44" y="698" width="312" height="58" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+  <circle cx="62" cy="727" r="5" fill="#C74634"/>
+  <text x="76" y="722" font-size="12" fill="#334155">Bravo Squad · HP → 75%</text>
+  <text x="76" y="740" font-size="11" fill="#94a3b8">04:32 · by GM</text>
+
+  <!-- ============================== CENTER: EVENT TIMELINE ============================== -->
+  <g filter="url(#softShadow)">
+    <rect x="400" y="104" width="520" height="672" rx="10" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1"/>
+  </g>
+  <rect x="420" y="126" width="10" height="10" rx="2" fill="#2563eb"/>
+  <text x="438" y="135" font-size="15" font-weight="700" fill="#334155">Event Timeline</text>
+  <line x1="420" y1="146" x2="560" y2="146" stroke="#2563eb" stroke-width="2"/>
+  <text x="420" y="164" font-size="12" fill="#64748b">Drag the handle to rewind / jump to an event</text>
+
+  <!-- timeline track -->
+  <!-- handle label box -->
+  <rect x="628" y="178" width="112" height="26" rx="6" fill="#2563eb"/>
+  <text x="684" y="196" font-size="11" font-weight="700" fill="#ffffff" text-anchor="middle">Turn 7 · 04:32</text>
+  <path d="M 678 204 l 12 0 l -6 8 z" fill="#2563eb"/>
+
+  <!-- track bar -->
+  <rect x="440" y="226" width="440" height="8" rx="4" fill="#cbd5e1"/>
+  <rect x="440" y="226" width="244" height="8" rx="4" fill="#2563eb"/>
+
+  <!-- turn ticks -->
+  <g stroke="#94a3b8" stroke-width="1">
+    <line x1="440" y1="238" x2="440" y2="244"/>
+    <line x1="480" y1="238" x2="480" y2="244"/>
+    <line x1="520" y1="238" x2="520" y2="244"/>
+    <line x1="560" y1="238" x2="560" y2="244"/>
+    <line x1="600" y1="238" x2="600" y2="244"/>
+    <line x1="640" y1="238" x2="640" y2="244"/>
+    <line x1="720" y1="238" x2="720" y2="244"/>
+    <line x1="760" y1="238" x2="760" y2="244"/>
+    <line x1="800" y1="238" x2="800" y2="244"/>
+    <line x1="840" y1="238" x2="840" y2="244"/>
+    <line x1="880" y1="238" x2="880" y2="244"/>
+  </g>
+
+  <!-- event dots on track -->
+  <circle cx="520" cy="230" r="5" fill="#C74634"/>
+  <circle cx="600" cy="230" r="5" fill="#2563eb"/>
+  <circle cx="760" cy="230" r="5" fill="#16a34a"/>
+  <circle cx="840" cy="230" r="5" fill="#334155"/>
+
+  <!-- rewind handle -->
+  <line x1="684" y1="212" x2="684" y2="252" stroke="#2563eb" stroke-width="2"/>
+  <circle cx="684" cy="230" r="11" fill="#ffffff" stroke="#2563eb" stroke-width="3"/>
+  <path d="M 684 226 l -5 4 l 5 4 z" fill="#2563eb"/>
+  <path d="M 689 226 l -5 4 l 5 4 z" fill="#2563eb"/>
+
+  <!-- axis labels -->
+  <text x="440" y="266" font-size="11" fill="#64748b">Turn 1</text>
+  <text x="660" y="266" font-size="11" fill="#64748b" text-anchor="middle">Turn 6</text>
+  <text x="880" y="266" font-size="11" fill="#64748b" text-anchor="end">Turn 12</text>
+
+  <!-- events list -->
+  <rect x="420" y="284" width="10" height="10" rx="2" fill="#2563eb"/>
+  <text x="438" y="293" font-size="13" font-weight="700" fill="#334155">Events</text>
+  <text x="900" y="293" font-size="11" fill="#64748b" text-anchor="end">newest first</text>
+
+  <rect x="420" y="304" width="480" height="456" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+
+  <!-- current row highlight -->
+  <rect x="422" y="306" width="476" height="62" rx="6" fill="#eff6ff"/>
+
+  <!-- row 1 (current) -->
+  <rect x="436" y="325" width="56" height="24" rx="4" fill="#dbeafe"/>
+  <text x="464" y="341" font-size="11" font-weight="600" fill="#1e3a8a" text-anchor="middle">04:32</text>
+  <circle cx="508" cy="337" r="5" fill="#C74634"/>
+  <text x="522" y="342" font-size="13" fill="#334155">Override: Bravo HP set to 75%</text>
+  <rect x="816" y="326" width="62" height="22" rx="11" fill="#C74634"/>
+  <text x="847" y="341" font-size="10" font-weight="700" fill="#ffffff" text-anchor="middle">NOW</text>
+  <line x1="436" y1="368" x2="884" y2="368" stroke="#e2e8f0"/>
+
+  <!-- row 2 -->
+  <rect x="436" y="387" width="56" height="24" rx="4" fill="#e2e8f0"/>
+  <text x="464" y="403" font-size="11" font-weight="600" fill="#475569" text-anchor="middle">04:10</text>
+  <circle cx="508" cy="399" r="5" fill="#C74634"/>
+  <text x="522" y="404" font-size="13" fill="#334155">Side A artillery fire → grid C4</text>
+  <line x1="436" y1="430" x2="884" y2="430" stroke="#e2e8f0"/>
+
+  <!-- row 3 -->
+  <rect x="436" y="449" width="56" height="24" rx="4" fill="#e2e8f0"/>
+  <text x="464" y="465" font-size="11" font-weight="600" fill="#475569" text-anchor="middle">03:48</text>
+  <circle cx="508" cy="461" r="5" fill="#334155"/>
+  <text x="522" y="466" font-size="13" fill="#334155">Fog reveal: Side B (GM action)</text>
+  <line x1="436" y1="492" x2="884" y2="492" stroke="#e2e8f0"/>
+
+  <!-- row 4 -->
+  <rect x="436" y="511" width="56" height="24" rx="4" fill="#e2e8f0"/>
+  <text x="464" y="527" font-size="11" font-weight="600" fill="#475569" text-anchor="middle">03:21</text>
+  <circle cx="508" cy="523" r="5" fill="#2563eb"/>
+  <text x="522" y="528" font-size="13" fill="#334155">Unit Alpha moved to G7</text>
+  <line x1="436" y1="554" x2="884" y2="554" stroke="#e2e8f0"/>
+
+  <!-- row 5 -->
+  <rect x="436" y="573" width="56" height="24" rx="4" fill="#e2e8f0"/>
+  <text x="464" y="589" font-size="11" font-weight="600" fill="#475569" text-anchor="middle">02:55</text>
+  <circle cx="508" cy="585" r="5" fill="#C74634"/>
+  <text x="522" y="590" font-size="13" fill="#334155">Combat resolved — 2 casualties</text>
+  <line x1="436" y1="616" x2="884" y2="616" stroke="#e2e8f0"/>
+
+  <!-- row 6 -->
+  <rect x="436" y="635" width="56" height="24" rx="4" fill="#e2e8f0"/>
+  <text x="464" y="651" font-size="11" font-weight="600" fill="#475569" text-anchor="middle">02:30</text>
+  <circle cx="508" cy="647" r="5" fill="#16a34a"/>
+  <text x="522" y="652" font-size="13" fill="#334155">Turn 6 started</text>
+  <line x1="436" y1="678" x2="884" y2="678" stroke="#e2e8f0"/>
+
+  <!-- row 7 -->
+  <rect x="436" y="697" width="56" height="24" rx="4" fill="#e2e8f0"/>
+  <text x="464" y="713" font-size="11" font-weight="600" fill="#475569" text-anchor="middle">01:58</text>
+  <circle cx="508" cy="709" r="5" fill="#334155"/>
+  <text x="522" y="714" font-size="13" fill="#334155">Spectator joined session</text>
+
+  <!-- ============================== RIGHT: FOG / CONTROLS ============================== -->
+  <g filter="url(#softShadow)">
+    <rect x="940" y="104" width="316" height="672" rx="10" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1"/>
+  </g>
+  <rect x="960" y="126" width="10" height="10" rx="2" fill="#16a34a"/>
+  <text x="978" y="135" font-size="15" font-weight="700" fill="#334155">Fog of War</text>
+  <line x1="960" y1="146" x2="1080" y2="146" stroke="#16a34a" stroke-width="2"/>
+  <text x="960" y="164" font-size="12" fill="#64748b">Per-side visibility (affects spectators)</text>
+
+  <!-- Reveal Side A -->
+  <rect x="960" y="176" width="276" height="46" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+  <ellipse cx="984" cy="199" rx="9" ry="5.5" fill="none" stroke="#2563eb" stroke-width="1.5"/>
+  <circle cx="984" cy="199" r="2.4" fill="#2563eb"/>
+  <text x="1002" y="204" font-size="13" font-weight="600" fill="#334155">Reveal Side A</text>
+  <rect x="1158" y="187" width="66" height="24" rx="12" fill="#e2e8f0"/>
+  <text x="1191" y="203" font-size="11" font-weight="600" fill="#64748b" text-anchor="middle">Hidden</text>
+
+  <!-- Reveal Side B -->
+  <rect x="960" y="230" width="276" height="46" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+  <ellipse cx="984" cy="253" rx="9" ry="5.5" fill="none" stroke="#2563eb" stroke-width="1.5"/>
+  <circle cx="984" cy="253" r="2.4" fill="#2563eb"/>
+  <text x="1002" y="258" font-size="13" font-weight="600" fill="#334155">Reveal Side B</text>
+  <rect x="1150" y="241" width="74" height="24" rx="12" fill="#dcfce7"/>
+  <text x="1187" y="257" font-size="11" font-weight="700" fill="#16a34a" text-anchor="middle">Revealed</text>
+
+  <!-- Reveal All -->
+  <rect x="960" y="284" width="276" height="46" rx="8" fill="#16a34a"/>
+  <ellipse cx="984" cy="307" rx="9" ry="5.5" fill="none" stroke="#ffffff" stroke-width="1.5"/>
+  <circle cx="984" cy="307" r="2.4" fill="#ffffff"/>
+  <text x="1002" y="312" font-size="13" font-weight="700" fill="#ffffff">Reveal All</text>
+
+  <line x1="960" y1="354" x2="1236" y2="354" stroke="#cbd5e1"/>
+
+  <!-- Game Controls -->
+  <rect x="960" y="372" width="10" height="10" rx="2" fill="#334155"/>
+  <text x="978" y="381" font-size="15" font-weight="700" fill="#334155">Game Controls</text>
+  <line x1="960" y1="392" x2="1110" y2="392" stroke="#334155" stroke-width="2"/>
+
+  <!-- Force Editor button -->
+  <rect x="960" y="404" width="276" height="50" rx="8" fill="#ffffff" stroke="#334155" stroke-width="1.5"/>
+  <circle cx="986" cy="429" r="8" fill="none" stroke="#334155" stroke-width="1.5"/>
+  <circle cx="986" cy="429" r="2.5" fill="#334155"/>
+  <text x="1006" y="434" font-size="14" font-weight="600" fill="#334155">Force Editor</text>
+  <path d="M 1210 425 l 10 0 l -5 7 z" fill="#64748b"/>
+
+  <!-- Pause Game button -->
+  <rect x="960" y="466" width="276" height="50" rx="8" fill="#C74634"/>
+  <rect x="982" y="481" width="5" height="20" rx="1.5" fill="#ffffff"/>
+  <rect x="991" y="481" width="5" height="20" rx="1.5" fill="#ffffff"/>
+  <text x="1014" y="496" font-size="14" font-weight="700" fill="#ffffff">Pause Game</text>
+
+  <line x1="960" y1="540" x2="1236" y2="540" stroke="#cbd5e1"/>
+
+  <!-- Spectators -->
+  <rect x="960" y="558" width="10" height="10" rx="2" fill="#2563eb"/>
+  <text x="978" y="567" font-size="15" font-weight="700" fill="#334155">Spectators</text>
+  <line x1="960" y1="578" x2="1090" y2="578" stroke="#2563eb" stroke-width="2"/>
+  <rect x="1176" y="552" width="60" height="22" rx="11" fill="#dbeafe"/>
+  <text x="1206" y="567" font-size="11" font-weight="700" fill="#1e3a8a" text-anchor="middle">3 live</text>
+
+  <rect x="960" y="588" width="276" height="170" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+
+  <circle cx="980" cy="612" r="5" fill="#16a34a"/>
+  <text x="996" y="617" font-size="12" fill="#334155">Analyst-01</text>
+  <text x="1222" y="617" font-size="11" fill="#94a3b8" text-anchor="end">watching</text>
+  <line x1="976" y1="630" x2="1220" y2="630" stroke="#e2e8f0"/>
+
+  <circle cx="980" cy="650" r="5" fill="#16a34a"/>
+  <text x="996" y="655" font-size="12" fill="#334155">Observer-K</text>
+  <text x="1222" y="655" font-size="11" fill="#94a3b8" text-anchor="end">watching</text>
+  <line x1="976" y1="668" x2="1220" y2="668" stroke="#e2e8f0"/>
+
+  <circle cx="980" cy="688" r="5" fill="#16a34a"/>
+  <text x="996" y="693" font-size="12" fill="#334155">Caster-Mike</text>
+  <text x="1222" y="693" font-size="11" fill="#94a3b8" text-anchor="end">casting</text>
+
+  <rect x="976" y="712" width="244" height="34" rx="6" fill="#f1f5f9"/>
+  <text x="990" y="734" font-size="11" fill="#475569">Spectator view broadcasts current fog</text>
+</svg>

@@ -1,0 +1,180 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 800" font-family="'Segoe UI', sans-serif">
+  <!-- background -->
+  <rect x="0" y="0" width="1280" height="800" fill="#ffffff"/>
+
+  <!-- ============ APP HEADER ============ -->
+  <rect x="24" y="24" width="1232" height="48" rx="8" fill="#334155"/>
+  <text x="44" y="54" font-size="18" font-weight="700" fill="#ffffff">SFB Online &#183; Rules Reference Browser</text>
+  <rect x="1140" y="36" width="96" height="24" rx="6" fill="#C74634"/>
+  <text x="1188" y="52" font-size="12" font-weight="700" fill="#ffffff" text-anchor="middle">WIREFRAME</text>
+
+  <!-- ============ LEFT PANEL: RULE TREE NAV ============ -->
+  <rect x="24" y="88" width="260" height="688" rx="10" fill="#ffffff" stroke="#cbd5e1"/>
+  <rect x="24" y="88" width="260" height="36" rx="10" fill="#f1f5f9"/>
+  <rect x="24" y="118" width="260" height="6" fill="#f1f5f9"/>
+  <line x1="24" y1="124" x2="284" y2="124" stroke="#cbd5e1"/>
+  <rect x="40" y="100" width="10" height="10" rx="3" fill="#334155"/>
+  <text x="58" y="111" font-size="13" font-weight="700" fill="#334155" letter-spacing="0.5">RULE TREE</text>
+
+  <!-- A General -->
+  <polygon points="40,149 40,157 46,153" fill="#64748b"/>
+  <text x="56" y="158" font-size="13" fill="#334155">A. General Rules</text>
+  <!-- B How to Play -->
+  <polygon points="40,183 40,191 46,187" fill="#64748b"/>
+  <text x="56" y="192" font-size="13" fill="#334155">B. How to Play</text>
+
+  <!-- C Movement (expanded) -->
+  <rect x="32" y="205" width="240" height="28" rx="5" fill="#e2e8f0"/>
+  <polygon points="40,218 48,218 44,224" fill="#334155"/>
+  <text x="56" y="226" font-size="13" font-weight="700" fill="#334155">C. Movement</text>
+
+  <!-- C1 -->
+  <circle cx="64" cy="256" r="2.5" fill="#94a3b8"/>
+  <text x="76" y="260" font-size="13" fill="#475569">C1. Movement Basics</text>
+  <!-- C3 (expanded sub) -->
+  <polygon points="60,286 68,286 64,292" fill="#475569"/>
+  <text x="76" y="294" font-size="13" font-weight="600" fill="#475569">C3. Turn Modes</text>
+  <!-- C3.1 -->
+  <circle cx="88" cy="324" r="2.5" fill="#94a3b8"/>
+  <text x="100" y="328" font-size="13" fill="#475569">C3.1 Turn Cost</text>
+  <!-- C3.2 (selected) -->
+  <rect x="32" y="341" width="240" height="28" rx="5" fill="#dbeafe"/>
+  <rect x="32" y="341" width="4" height="28" rx="2" fill="#2563eb"/>
+  <circle cx="88" cy="358" r="2.5" fill="#2563eb"/>
+  <text x="100" y="362" font-size="13" font-weight="700" fill="#2563eb">C3.2 Turn Mode</text>
+  <!-- C3.3 -->
+  <circle cx="88" cy="392" r="2.5" fill="#94a3b8"/>
+  <text x="100" y="396" font-size="13" fill="#475569">C3.3 Turn Mode Chart</text>
+  <!-- C7 -->
+  <circle cx="64" cy="426" r="2.5" fill="#94a3b8"/>
+  <text x="76" y="430" font-size="13" fill="#475569">C7. Acceleration / Decel</text>
+
+  <!-- D Combat -->
+  <polygon points="40,455 40,463 46,459" fill="#64748b"/>
+  <text x="56" y="464" font-size="13" fill="#334155">D. Combat</text>
+  <!-- E Ship Operations -->
+  <polygon points="40,489 40,497 46,493" fill="#64748b"/>
+  <text x="56" y="498" font-size="13" fill="#334155">E. Ship Operations</text>
+  <!-- F Fighters & PFs -->
+  <polygon points="40,523 40,531 46,527" fill="#64748b"/>
+  <text x="56" y="532" font-size="13" fill="#334155">F. Fighters &amp; PFs</text>
+  <!-- G Scenarios -->
+  <polygon points="40,557 40,565 46,561" fill="#64748b"/>
+  <text x="56" y="566" font-size="13" fill="#334155">G. Scenarios</text>
+
+  <!-- Legend box -->
+  <rect x="32" y="672" width="240" height="88" rx="8" fill="#f8fafc" stroke="#cbd5e1"/>
+  <text x="44" y="692" font-size="12" font-weight="700" fill="#64748b" letter-spacing="0.5">LEGEND</text>
+  <rect x="44" y="700" width="14" height="14" rx="3" fill="#dbeafe" stroke="#2563eb"/>
+  <text x="66" y="712" font-size="12" fill="#475569">Selected rule</text>
+  <rect x="44" y="724" width="14" height="14" rx="3" fill="#e2e8f0" stroke="#cbd5e1"/>
+  <text x="66" y="736" font-size="12" fill="#475569">Expanded section</text>
+
+  <!-- ============ CENTER PANEL: SEARCH + RESULTS ============ -->
+  <rect x="296" y="88" width="440" height="688" rx="10" fill="#ffffff" stroke="#cbd5e1"/>
+  <rect x="296" y="88" width="440" height="36" rx="10" fill="#f1f5f9"/>
+  <rect x="296" y="118" width="440" height="6" fill="#f1f5f9"/>
+  <line x1="296" y1="124" x2="736" y2="124" stroke="#cbd5e1"/>
+  <rect x="312" y="100" width="10" height="10" rx="3" fill="#2563eb"/>
+  <text x="330" y="111" font-size="13" font-weight="700" fill="#334155" letter-spacing="0.5">SEARCH &amp; RESULTS</text>
+
+  <!-- Search bar -->
+  <rect x="312" y="136" width="408" height="40" rx="8" fill="#ffffff" stroke="#94a3b8"/>
+  <circle cx="332" cy="154" r="6" fill="none" stroke="#64748b" stroke-width="2"/>
+  <line x1="336.5" y1="158.5" x2="342" y2="164" stroke="#64748b" stroke-width="2"/>
+  <text x="354" y="161" font-size="14" fill="#94a3b8">search rules&#8230;</text>
+  <rect x="654" y="146" width="56" height="20" rx="5" fill="#2563eb"/>
+  <text x="682" y="160" font-size="12" font-weight="600" fill="#ffffff" text-anchor="middle">Search</text>
+
+  <!-- Results count -->
+  <text x="312" y="200" font-size="12" fill="#64748b">4 results for &#8220;turn mode&#8221;</text>
+
+  <!-- Result card 1 (selected) -->
+  <rect x="312" y="210" width="408" height="84" rx="8" fill="#dbeafe" stroke="#2563eb"/>
+  <rect x="312" y="210" width="4" height="84" rx="2" fill="#2563eb"/>
+  <rect x="324" y="226" width="52" height="22" rx="5" fill="#2563eb"/>
+  <text x="350" y="241" font-size="12" font-weight="700" fill="#ffffff" text-anchor="middle">C3.2</text>
+  <text x="388" y="241" font-size="14" font-weight="700" fill="#1e3a8a">Turn Mode</text>
+  <text x="324" y="264" font-size="12" fill="#475569">A ship&#8217;s turn mode is the number of hexes it must move</text>
+  <text x="324" y="282" font-size="12" fill="#475569">in a straight line before it may turn one hexside.</text>
+
+  <!-- Result card 2 -->
+  <rect x="312" y="306" width="408" height="84" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+  <rect x="324" y="322" width="52" height="22" rx="5" fill="#e2e8f0"/>
+  <text x="350" y="337" font-size="12" font-weight="700" fill="#334155" text-anchor="middle">C3.1</text>
+  <text x="388" y="337" font-size="14" font-weight="700" fill="#334155">Turn Cost</text>
+  <text x="324" y="360" font-size="12" fill="#64748b">Some ships pay extra movement points to make a turn &#8212;</text>
+  <text x="324" y="378" font-size="12" fill="#64748b">see the turn cost chart for each size class.</text>
+
+  <!-- Result card 3 -->
+  <rect x="312" y="402" width="408" height="84" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+  <rect x="324" y="418" width="52" height="22" rx="5" fill="#e2e8f0"/>
+  <text x="350" y="433" font-size="12" font-weight="700" fill="#334155" text-anchor="middle">C7.0</text>
+  <text x="388" y="433" font-size="14" font-weight="700" fill="#334155">Acceleration / Deceleration</text>
+  <text x="324" y="456" font-size="12" fill="#64748b">Procedures for changing speed during movement, plus</text>
+  <text x="324" y="474" font-size="12" fill="#64748b">the limits on acceleration and deceleration each turn.</text>
+
+  <!-- Result card 4 -->
+  <rect x="312" y="498" width="408" height="84" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+  <rect x="324" y="514" width="52" height="22" rx="5" fill="#e2e8f0"/>
+  <text x="350" y="529" font-size="12" font-weight="700" fill="#334155" text-anchor="middle">C2.3</text>
+  <text x="388" y="529" font-size="14" font-weight="700" fill="#334155">High Energy Turn</text>
+  <text x="324" y="552" font-size="12" fill="#64748b">An optional maneuver allowing a sharper turn than the</text>
+  <text x="324" y="570" font-size="12" fill="#64748b">turn mode normally permits, at an added energy cost.</text>
+
+  <!-- Footer hint -->
+  <line x1="312" y1="602" x2="720" y2="602" stroke="#e2e8f0"/>
+  <text x="312" y="624" font-size="12" fill="#94a3b8">Showing 4 of 27 matches &#183; refine search to narrow results</text>
+
+  <!-- ============ RIGHT PANEL: READING PANE ============ -->
+  <rect x="748" y="88" width="508" height="688" rx="10" fill="#ffffff" stroke="#cbd5e1"/>
+  <rect x="748" y="88" width="508" height="36" rx="10" fill="#f1f5f9"/>
+  <rect x="748" y="118" width="508" height="6" fill="#f1f5f9"/>
+  <line x1="748" y1="124" x2="1256" y2="124" stroke="#cbd5e1"/>
+  <rect x="764" y="100" width="10" height="10" rx="3" fill="#16a34a"/>
+  <text x="782" y="111" font-size="13" font-weight="700" fill="#334155" letter-spacing="0.5">READING PANE</text>
+
+  <!-- Breadcrumb context -->
+  <rect x="764" y="134" width="262" height="28" rx="14" fill="#f1f5f9" stroke="#cbd5e1"/>
+  <polygon points="784,148 779,143 779,153" fill="#64748b"/>
+  <text x="794" y="152" font-size="12" fill="#475569">opened from:  SSD &#8212; Warp Box</text>
+
+  <!-- Rule heading -->
+  <text x="764" y="194" font-size="22" font-weight="700" fill="#334155">(C3.2) Turn Mode</text>
+  <text x="764" y="216" font-size="13" fill="#64748b">Section C &#8212; Movement  &#8250;  Turn Modes</text>
+  <line x1="764" y1="230" x2="1240" y2="230" stroke="#e2e8f0"/>
+
+  <!-- Body (paraphrased) -->
+  <text x="764" y="258" font-size="13" fill="#334155">A ship&#8217;s turn mode is the number of hexes it must move in a straight line</text>
+  <text x="764" y="280" font-size="13" fill="#334155">before it may change facing by one hexside.</text>
+
+  <text x="764" y="314" font-size="13" fill="#334155">Turn mode is set by the ship&#8217;s current speed and size class. Faster or</text>
+  <text x="764" y="336" font-size="13" fill="#334155">larger ships have a higher turn mode, so they turn less sharply.</text>
+
+  <text x="764" y="370" font-size="13" fill="#334155">A ship may always turn once it has satisfied its turn mode, but it is</text>
+  <text x="764" y="392" font-size="13" fill="#334155">never required to. Unused straight movement does not carry over to</text>
+  <text x="764" y="414" font-size="13" fill="#334155">the next turn.</text>
+
+  <text x="764" y="446" font-size="12" font-style="italic" fill="#94a3b8">Paraphrased for quick reference &#8212; consult the rulebook for exact wording.</text>
+
+  <!-- Related rules / cross-link chips -->
+  <text x="764" y="484" font-size="13" font-weight="700" fill="#334155">Related rules</text>
+
+  <rect x="764" y="498" width="130" height="28" rx="14" fill="#eff6ff" stroke="#2563eb"/>
+  <text x="829" y="516" font-size="12" font-weight="600" fill="#2563eb" text-anchor="middle">(C3.0) Turn Modes</text>
+  <rect x="906" y="498" width="130" height="28" rx="14" fill="#eff6ff" stroke="#2563eb"/>
+  <text x="971" y="516" font-size="12" font-weight="600" fill="#2563eb" text-anchor="middle">(C3.1) Turn Cost</text>
+  <rect x="1048" y="498" width="130" height="28" rx="14" fill="#eff6ff" stroke="#2563eb"/>
+  <text x="1113" y="516" font-size="12" font-weight="600" fill="#2563eb" text-anchor="middle">(C7.0) Accel/Decel</text>
+
+  <rect x="764" y="538" width="130" height="28" rx="14" fill="#eff6ff" stroke="#2563eb"/>
+  <text x="829" y="556" font-size="12" font-weight="600" fill="#2563eb" text-anchor="middle">(C2.0) Movement</text>
+  <rect x="906" y="538" width="150" height="28" rx="14" fill="#eff6ff" stroke="#2563eb"/>
+  <text x="981" y="556" font-size="12" font-weight="600" fill="#2563eb" text-anchor="middle">(C2.3) Hi-Energy Turn</text>
+
+  <!-- See also in SSD -->
+  <line x1="764" y1="584" x2="1240" y2="584" stroke="#e2e8f0"/>
+  <rect x="764" y="602" width="270" height="28" rx="14" fill="#dcfce7" stroke="#16a34a"/>
+  <polygon points="784,616 779,611 779,621" fill="#16a34a"/>
+  <text x="794" y="620" font-size="12" font-weight="600" fill="#15803d">Open in SSD:  Warp Box  (R1.34)</text>
+</svg>

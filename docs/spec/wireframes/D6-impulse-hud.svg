@@ -1,0 +1,242 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 800" font-family="Segoe UI, sans-serif">
+  <!-- ============ background ============ -->
+  <rect x="0" y="0" width="1280" height="800" fill="#ffffff"/>
+
+  <!-- arrow marker for connectors -->
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#94a3b8"/>
+    </marker>
+  </defs>
+
+  <!-- ============ title ============ -->
+  <text x="32" y="44" font-size="22" font-weight="700" fill="#334155">SFB Online — Impulse / Turn HUD</text>
+  <text x="32" y="66" font-size="13" fill="#64748b">Wireframe mockup · in-game heads-up display bar (top of battle screen)</text>
+
+  <!-- ===================================================================== -->
+  <!-- TOP HUD BAR -->
+  <!-- ===================================================================== -->
+  <rect x="32" y="88" width="1216" height="148" rx="10" fill="#f1f5f9" stroke="#cbd5e1"/>
+  <rect x="32" y="88" width="6" height="148" rx="3" fill="#2563eb"/>
+  <text x="52" y="110" font-size="12" font-weight="700" fill="#2563eb" letter-spacing="0.5">HUD BAR</text>
+
+  <!-- Turn / Impulse clock dial (left) -->
+  <rect x="56" y="120" width="232" height="100" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="72" y="140" font-size="11" font-weight="700" fill="#64748b" letter-spacing="0.5">TURN / IMPULSE</text>
+
+  <!-- clock dial -->
+  <circle cx="108" cy="180" r="32" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+  <!-- 12 tick marks -->
+  <g stroke="#cbd5e1" stroke-width="2">
+    <line x1="108" y1="151" x2="108" y2="157"/>
+    <line x1="137" y1="180" x2="131" y2="180"/>
+    <line x1="108" y1="209" x2="108" y2="203"/>
+    <line x1="79"  y1="180" x2="85"  y2="180"/>
+  </g>
+  <!-- progress arc (impulse 12 of 32) -->
+  <path d="M 108 148 A 32 32 0 1 1 88.5 207.7" fill="none" stroke="#2563eb" stroke-width="4" stroke-linecap="round"/>
+  <!-- dial hand -->
+  <line x1="108" y1="180" x2="126" y2="162" stroke="#C74634" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="108" cy="180" r="4" fill="#C74634"/>
+
+  <text x="156" y="172" font-size="14" font-weight="700" fill="#334155">Turn 3</text>
+  <text x="156" y="194" font-size="13" fill="#475569">Impulse</text>
+  <text x="156" y="212" font-size="20" font-weight="700" fill="#2563eb">12<tspan font-size="13" fill="#64748b" font-weight="400"> / 32</tspan></text>
+
+  <!-- Sequence-of-Play stepper (center) -->
+  <rect x="304" y="120" width="640" height="100" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="320" y="140" font-size="11" font-weight="700" fill="#64748b" letter-spacing="0.5">SEQUENCE OF PLAY</text>
+
+  <!-- connector rail -->
+  <line x1="356" y1="180" x2="900" y2="180" stroke="#cbd5e1" stroke-width="2"/>
+
+  <!-- step 1: Energy Alloc (done) -->
+  <circle cx="356" cy="180" r="14" fill="#16a34a"/>
+  <path d="M350 180 l4 4 l8 -9" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="356" y="210" font-size="11" fill="#475569" text-anchor="middle">Energy</text>
+
+  <!-- step 2: Movement (done) -->
+  <circle cx="492" cy="180" r="14" fill="#16a34a"/>
+  <path d="M486 180 l4 4 l8 -9" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="492" y="210" font-size="11" fill="#475569" text-anchor="middle">Movement</text>
+
+  <!-- step 3: Direct Fire (ACTIVE) -->
+  <circle cx="628" cy="180" r="18" fill="#2563eb" stroke="#bfdbfe" stroke-width="4"/>
+  <text x="628" y="185" font-size="12" font-weight="700" fill="#ffffff" text-anchor="middle">3</text>
+  <text x="628" y="214" font-size="12" font-weight="700" fill="#2563eb" text-anchor="middle">Direct Fire</text>
+
+  <!-- step 4: Seeking (pending) -->
+  <circle cx="764" cy="180" r="14" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="764" y="185" font-size="11" fill="#94a3b8" text-anchor="middle">4</text>
+  <text x="764" y="210" font-size="11" fill="#94a3b8" text-anchor="middle">Seeking</text>
+
+  <!-- step 5: EOT (pending) -->
+  <circle cx="900" cy="180" r="14" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="900" y="185" font-size="11" fill="#94a3b8" text-anchor="middle">5</text>
+  <text x="900" y="210" font-size="11" fill="#94a3b8" text-anchor="middle">EOT</text>
+
+  <!-- Transport / step controls (right) -->
+  <rect x="960" y="120" width="272" height="100" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="976" y="140" font-size="11" font-weight="700" fill="#64748b" letter-spacing="0.5">CONTROLS</text>
+
+  <!-- pause/resume button -->
+  <rect x="976" y="152" width="58" height="52" rx="8" fill="#f1f5f9" stroke="#cbd5e1"/>
+  <rect x="993" y="166" width="7" height="24" rx="2" fill="#334155"/>
+  <rect x="1010" y="166" width="7" height="24" rx="2" fill="#334155"/>
+  <text x="1005" y="217" font-size="10" fill="#64748b" text-anchor="middle">Pause</text>
+
+  <!-- resume / play button -->
+  <rect x="1042" y="152" width="58" height="52" rx="8" fill="#16a34a"/>
+  <path d="M1063 166 l18 12 l-18 12 z" fill="#ffffff"/>
+  <text x="1071" y="217" font-size="10" fill="#64748b" text-anchor="middle">Resume</text>
+
+  <!-- step button -->
+  <rect x="1108" y="152" width="58" height="52" rx="8" fill="#f1f5f9" stroke="#cbd5e1"/>
+  <path d="M1127 167 l13 11 l-13 11 z" fill="#334155"/>
+  <rect x="1143" y="167" width="6" height="22" rx="1" fill="#334155"/>
+  <text x="1137" y="217" font-size="10" fill="#64748b" text-anchor="middle">Step</text>
+
+  <!-- speed selector -->
+  <rect x="1174" y="152" width="50" height="52" rx="8" fill="#f1f5f9" stroke="#cbd5e1"/>
+  <text x="1199" y="174" font-size="13" font-weight="700" fill="#334155" text-anchor="middle">1x</text>
+  <text x="1199" y="189" font-size="9" fill="#94a3b8" text-anchor="middle">speed</text>
+  <text x="1199" y="217" font-size="10" fill="#64748b" text-anchor="middle">Rate</text>
+
+  <!-- ===================================================================== -->
+  <!-- PER-SIDE READY / LOCK CHIPS -->
+  <!-- ===================================================================== -->
+  <rect x="32" y="252" width="600" height="186" rx="10" fill="#f1f5f9" stroke="#cbd5e1"/>
+  <rect x="32" y="252" width="6" height="186" rx="3" fill="#334155"/>
+  <text x="52" y="276" font-size="12" font-weight="700" fill="#334155" letter-spacing="0.5">PER-SIDE READY / LOCK STATUS</text>
+
+  <!-- Federation chip (LOCKED) -->
+  <rect x="56" y="292" width="264" height="124" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+  <rect x="56" y="292" width="6" height="124" rx="3" fill="#2563eb"/>
+  <text x="80" y="318" font-size="14" font-weight="700" fill="#334155">Federation</text>
+  <text x="80" y="338" font-size="11" fill="#64748b">USS Enterprise · CA</text>
+
+  <!-- locked status pill -->
+  <rect x="80" y="354" width="120" height="34" rx="17" fill="#16a34a"/>
+  <!-- lock glyph -->
+  <rect x="98" y="366" width="14" height="11" rx="2" fill="#ffffff"/>
+  <path d="M100 366 v-3 a5 5 0 0 1 10 0 v3" fill="none" stroke="#ffffff" stroke-width="2"/>
+  <text x="124" y="376" font-size="13" font-weight="700" fill="#ffffff">LOCKED</text>
+  <text x="80" y="408" font-size="10" fill="#94a3b8">Orders committed · awaiting resolution</text>
+
+  <!-- Klingon chip (thinking) -->
+  <rect x="344" y="292" width="264" height="124" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+  <rect x="344" y="292" width="6" height="124" rx="3" fill="#C74634"/>
+  <text x="368" y="318" font-size="14" font-weight="700" fill="#334155">Klingon</text>
+  <text x="368" y="338" font-size="11" fill="#64748b">IKS Devastator · D7</text>
+
+  <!-- thinking status pill -->
+  <rect x="368" y="354" width="130" height="34" rx="17" fill="#fef3c7" stroke="#fbbf24"/>
+  <circle cx="388" cy="371" r="3" fill="#C74634"/>
+  <circle cx="399" cy="371" r="3" fill="#C74634" opacity="0.6"/>
+  <circle cx="410" cy="371" r="3" fill="#C74634" opacity="0.3"/>
+  <text x="422" y="376" font-size="13" font-weight="700" fill="#b45309">thinking…</text>
+  <text x="368" y="408" font-size="10" fill="#94a3b8">Selecting fire orders · not yet locked</text>
+
+  <!-- ===================================================================== -->
+  <!-- SCROLLING DICE LOG -->
+  <!-- ===================================================================== -->
+  <rect x="648" y="252" width="600" height="186" rx="10" fill="#f1f5f9" stroke="#cbd5e1"/>
+  <rect x="648" y="252" width="6" height="186" rx="3" fill="#C74634"/>
+  <text x="668" y="276" font-size="12" font-weight="700" fill="#334155" letter-spacing="0.5">DICE / COMBAT LOG</text>
+  <text x="1232" y="276" font-size="10" fill="#94a3b8" text-anchor="end">auto-scroll ▾</text>
+
+  <!-- log surface -->
+  <rect x="672" y="288" width="552" height="134" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+
+  <!-- log entries -->
+  <line x1="688" y1="312" x2="1208" y2="312" stroke="#f1f5f9"/>
+  <text x="688" y="308" font-size="12" fill="#94a3b8" font-family="Consolas, monospace">[I-11] Fed Phaser-1 x4: 5,6,3,1 → 9 dmg</text>
+
+  <line x1="688" y1="338" x2="1208" y2="338" stroke="#f1f5f9"/>
+  <text x="688" y="334" font-size="12" fill="#94a3b8" font-family="Consolas, monospace">[I-11] Shield-2 holds · 3 boxes remaining</text>
+
+  <line x1="688" y1="364" x2="1208" y2="364" stroke="#f1f5f9"/>
+  <text x="688" y="360" font-size="13" font-weight="700" fill="#C74634" font-family="Consolas, monospace">[I-12] Klingon DIS x2: 8,8 → 12 dmg</text>
+
+  <text x="688" y="388" font-size="12" fill="#475569" font-family="Consolas, monospace">[I-12] Fed Shield-4 down · 4 internals!</text>
+
+  <!-- newest entry highlight -->
+  <rect x="680" y="396" width="536" height="20" rx="4" fill="#eff6ff"/>
+  <text x="688" y="411" font-size="12" font-weight="700" fill="#2563eb" font-family="Consolas, monospace">[I-12] ▶ resolving direct-fire impacts…</text>
+
+  <!-- scrollbar hint -->
+  <rect x="1212" y="296" width="6" height="118" rx="3" fill="#e2e8f0"/>
+  <rect x="1212" y="372" width="6" height="42" rx="3" fill="#94a3b8"/>
+
+  <!-- ===================================================================== -->
+  <!-- ANNOTATIONS PANEL -->
+  <!-- ===================================================================== -->
+  <rect x="32" y="454" width="1216" height="314" rx="10" fill="#ffffff" stroke="#cbd5e1"/>
+  <rect x="32" y="454" width="6" height="314" rx="3" fill="#16a34a"/>
+  <text x="52" y="480" font-size="13" font-weight="700" fill="#334155" letter-spacing="0.5">REGION NOTES (reviewer reference)</text>
+
+  <!-- note: clock -->
+  <circle cx="64" cy="510" r="9" fill="#2563eb"/>
+  <text x="64" y="514" font-size="11" font-weight="700" fill="#ffffff" text-anchor="middle">1</text>
+  <text x="84" y="508" font-size="13" font-weight="700" fill="#334155">Turn / Impulse clock dial</text>
+  <text x="84" y="526" font-size="12" fill="#64748b">Radial gauge fills as the 32-impulse turn advances; hand marks current impulse (12/32).</text>
+
+  <!-- note: SoP -->
+  <circle cx="64" cy="556" r="9" fill="#2563eb"/>
+  <text x="64" y="560" font-size="11" font-weight="700" fill="#ffffff" text-anchor="middle">2</text>
+  <text x="84" y="554" font-size="13" font-weight="700" fill="#334155">Sequence-of-Play stepper</text>
+  <text x="84" y="572" font-size="12" fill="#64748b">Five phases per impulse. Green = complete, blue = active (Direct Fire), grey = pending.</text>
+
+  <!-- note: controls -->
+  <circle cx="64" cy="602" r="9" fill="#2563eb"/>
+  <text x="64" y="606" font-size="11" font-weight="700" fill="#ffffff" text-anchor="middle">3</text>
+  <text x="84" y="600" font-size="13" font-weight="700" fill="#334155">Transport controls</text>
+  <text x="84" y="618" font-size="12" fill="#64748b">Pause / Resume, single-step, and playback rate for replay and slow-walk resolution.</text>
+
+  <!-- note: chips -->
+  <circle cx="660" cy="510" r="9" fill="#334155"/>
+  <text x="660" y="514" font-size="11" font-weight="700" fill="#ffffff" text-anchor="middle">4</text>
+  <text x="680" y="508" font-size="13" font-weight="700" fill="#334155">Per-side ready / lock chips</text>
+  <text x="680" y="526" font-size="12" fill="#64748b">Each side shows commit state: Federation LOCKED (orders final); Klingon still thinking.</text>
+
+  <!-- note: dice log -->
+  <circle cx="660" cy="556" r="9" fill="#C74634"/>
+  <text x="660" y="560" font-size="11" font-weight="700" fill="#ffffff" text-anchor="middle">5</text>
+  <text x="680" y="554" font-size="13" font-weight="700" fill="#334155">Scrolling dice / combat log</text>
+  <text x="680" y="572" font-size="12" fill="#64748b">Append-only feed of rolls and results, e.g. "Klingon DIS x2: 8,8 → 12 dmg"; auto-scrolls.</text>
+
+  <!-- legend -->
+  <text x="680" y="606" font-size="13" font-weight="700" fill="#334155">Status legend</text>
+  <circle cx="688" cy="628" r="8" fill="#16a34a"/>
+  <text x="704" y="632" font-size="12" fill="#64748b">Complete / Locked</text>
+  <circle cx="848" cy="628" r="8" fill="#2563eb"/>
+  <text x="864" y="632" font-size="12" fill="#64748b">Active phase</text>
+  <rect x="972" y="620" width="16" height="16" rx="8" fill="#fef3c7" stroke="#fbbf24"/>
+  <text x="996" y="632" font-size="12" fill="#64748b">Thinking / waiting</text>
+  <circle cx="1136" cy="628" r="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="1152" y="632" font-size="12" fill="#64748b">Pending</text>
+
+  <!-- flow strip: how HUD updates -->
+  <rect x="56" y="660" width="1168" height="88" rx="8" fill="#f1f5f9" stroke="#cbd5e1"/>
+  <text x="72" y="682" font-size="11" font-weight="700" fill="#64748b" letter-spacing="0.5">IMPULSE RESOLUTION FLOW</text>
+
+  <rect x="72" y="696" width="170" height="38" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="157" y="720" font-size="12" fill="#334155" text-anchor="middle">Both sides lock</text>
+
+  <rect x="290" y="696" width="170" height="38" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="375" y="720" font-size="12" fill="#334155" text-anchor="middle">Resolve phase</text>
+
+  <rect x="508" y="696" width="170" height="38" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="593" y="720" font-size="12" fill="#334155" text-anchor="middle">Roll dice → log</text>
+
+  <rect x="726" y="696" width="170" height="38" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="811" y="720" font-size="12" fill="#334155" text-anchor="middle">Apply damage</text>
+
+  <rect x="944" y="696" width="200" height="38" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="1044" y="720" font-size="12" fill="#334155" text-anchor="middle">Advance impulse / clock</text>
+
+  <line x1="242" y1="715" x2="288" y2="715" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="460" y1="715" x2="506" y2="715" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="678" y1="715" x2="724" y2="715" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="896" y1="715" x2="942" y2="715" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrow)"/>
+</svg>

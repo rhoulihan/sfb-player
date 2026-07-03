@@ -1,0 +1,23 @@
+# Copyrighted source material — owner's SFB PDFs (huge, do not commit)
+SFB/
+
+# Tooling / test artifacts
+.playwright-mcp/
+node_modules/
+
+# Stray screenshots at repo root (from Playwright verification runs)
+/*.png
+
+# Regenerable intermediate SSD render (keep image.png; raw is pre-rotation)
+ssd-pipeline/data/*/raw.png
+
+# Python / OS / editor cruft
+__pycache__/
+*.pyc
+.DS_Store
+Thumbs.db
+*.swp
+
+# Copyrighted SSD page images — regenerate locally via ssd-pipeline/extract_images.py
+ssd-pipeline/data/*/image.png
+docs/spec/wireframes/assets/

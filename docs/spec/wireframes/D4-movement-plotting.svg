@@ -1,0 +1,208 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 800" font-family="Segoe UI, Segoe, Roboto, Helvetica, Arial, sans-serif">
+<rect x="0" y="0" width="1280" height="800" fill="#ffffff"/>
+<defs>
+<marker id="arrB" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 L3,5 z" fill="#2563eb"/></marker>
+<marker id="arrR" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 L3,5 z" fill="#C74634"/></marker>
+</defs>
+<rect x="24" y="24" width="1240" height="52" rx="10" fill="#ffffff" stroke="#cbd5e1" stroke-width="1"/>
+<rect x="24" y="24" width="7" height="52" rx="10" fill="#C74634"/>
+<rect x="28" y="28" width="6" height="44" fill="#C74634"/>
+<text x="50" y="48" font-size="18" fill="#334155" font-weight="700">SFB ONLINE</text>
+<text x="50" y="66" font-size="12" fill="#64748b">Movement Plotting</text>
+<line x1="196" y1="34" x2="196" y2="66" stroke="#cbd5e1" stroke-width="1"/>
+<rect x="214" y="36" width="92" height="28" rx="8" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1"/>
+<text x="260" y="54" font-size="13" fill="#334155" text-anchor="middle" font-weight="600">TURN 4</text>
+<rect x="316" y="36" width="178" height="28" rx="8" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1"/>
+<text x="405" y="54" font-size="13" fill="#334155" text-anchor="middle" font-weight="600">MOVEMENT PHASE</text>
+<rect x="504" y="36" width="252" height="28" rx="8" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1"/>
+<text x="630" y="54" font-size="13" fill="#334155" text-anchor="middle" font-weight="600">Ship: USS Constellation · CA</text>
+<text x="1096" y="54" font-size="12" fill="#64748b" text-anchor="end">Player: Federation</text>
+<rect x="1108" y="36" width="110" height="28" rx="14" fill="#dbeafe" stroke="#2563eb" stroke-width="1"/>
+<circle cx="1126" cy="50" r="4" fill="#2563eb"/>
+<text x="1168" y="54" font-size="12" fill="#2563eb" text-anchor="middle" font-weight="700">PLOTTING</text>
+<rect x="1226" y="43" width="22" height="2.6" rx="1.3" fill="#94a3b8"/>
+<rect x="1226" y="49" width="22" height="2.6" rx="1.3" fill="#94a3b8"/>
+<rect x="1226" y="55" width="22" height="2.6" rx="1.3" fill="#94a3b8"/>
+<rect x="24" y="86" width="880" height="618" rx="10" fill="#ffffff" stroke="#cbd5e1" stroke-width="1"/>
+<rect x="24" y="86" width="880" height="6" rx="10" fill="#334155"/>
+<rect x="24" y="89" width="880" height="3" fill="#334155"/>
+<g stroke="#cbd5e1" stroke-width="1">
+<polygon points="135.0,140.0 115.0,174.6 75.0,174.6 55.0,140.0 75.0,105.4 115.0,105.4" fill="#f8fafc"/>
+<polygon points="135.0,209.3 115.0,243.9 75.0,243.9 55.0,209.3 75.0,174.6 115.0,174.6" fill="#f8fafc"/>
+<polygon points="135.0,278.6 115.0,313.2 75.0,313.2 55.0,278.6 75.0,243.9 115.0,243.9" fill="#f8fafc"/>
+<polygon points="135.0,347.8 115.0,382.5 75.0,382.5 55.0,347.8 75.0,313.2 115.0,313.2" fill="#f8fafc"/>
+<polygon points="135.0,417.1 115.0,451.8 75.0,451.8 55.0,417.1 75.0,382.5 115.0,382.5" fill="#f8fafc"/>
+<polygon points="135.0,486.4 115.0,521.1 75.0,521.1 55.0,486.4 75.0,451.8 115.0,451.8" fill="#f8fafc"/>
+<polygon points="135.0,555.7 115.0,590.3 75.0,590.3 55.0,555.7 75.0,521.1 115.0,521.1" fill="#f8fafc"/>
+<polygon points="135.0,625.0 115.0,659.6 75.0,659.6 55.0,625.0 75.0,590.3 115.0,590.3" fill="#f8fafc"/>
+<polygon points="195.0,174.6 175.0,209.3 135.0,209.3 115.0,174.6 135.0,140.0 175.0,140.0" fill="#f8fafc"/>
+<polygon points="195.0,243.9 175.0,278.6 135.0,278.6 115.0,243.9 135.0,209.3 175.0,209.3" fill="#f8fafc"/>
+<polygon points="195.0,313.2 175.0,347.8 135.0,347.8 115.0,313.2 135.0,278.6 175.0,278.6" fill="#f8fafc"/>
+<polygon points="195.0,382.5 175.0,417.1 135.0,417.1 115.0,382.5 135.0,347.8 175.0,347.8" fill="#f8fafc"/>
+<polygon points="195.0,451.8 175.0,486.4 135.0,486.4 115.0,451.8 135.0,417.1 175.0,417.1" fill="#f8fafc"/>
+<polygon points="195.0,521.1 175.0,555.7 135.0,555.7 115.0,521.1 135.0,486.4 175.0,486.4" fill="#f8fafc"/>
+<polygon points="195.0,590.3 175.0,625.0 135.0,625.0 115.0,590.3 135.0,555.7 175.0,555.7" fill="#f8fafc"/>
+<polygon points="195.0,659.6 175.0,694.3 135.0,694.3 115.0,659.6 135.0,625.0 175.0,625.0" fill="#f8fafc"/>
+<polygon points="255.0,140.0 235.0,174.6 195.0,174.6 175.0,140.0 195.0,105.4 235.0,105.4" fill="#f8fafc"/>
+<polygon points="255.0,209.3 235.0,243.9 195.0,243.9 175.0,209.3 195.0,174.6 235.0,174.6" fill="#f8fafc"/>
+<polygon points="255.0,278.6 235.0,313.2 195.0,313.2 175.0,278.6 195.0,243.9 235.0,243.9" fill="#f8fafc"/>
+<polygon points="255.0,347.8 235.0,382.5 195.0,382.5 175.0,347.8 195.0,313.2 235.0,313.2" fill="#f8fafc"/>
+<polygon points="255.0,417.1 235.0,451.8 195.0,451.8 175.0,417.1 195.0,382.5 235.0,382.5" fill="#f8fafc"/>
+<polygon points="255.0,486.4 235.0,521.1 195.0,521.1 175.0,486.4 195.0,451.8 235.0,451.8" fill="#f8fafc"/>
+<polygon points="255.0,625.0 235.0,659.6 195.0,659.6 175.0,625.0 195.0,590.3 235.0,590.3" fill="#f8fafc"/>
+<polygon points="315.0,174.6 295.0,209.3 255.0,209.3 235.0,174.6 255.0,140.0 295.0,140.0" fill="#f8fafc"/>
+<polygon points="315.0,243.9 295.0,278.6 255.0,278.6 235.0,243.9 255.0,209.3 295.0,209.3" fill="#f8fafc"/>
+<polygon points="315.0,313.2 295.0,347.8 255.0,347.8 235.0,313.2 255.0,278.6 295.0,278.6" fill="#f8fafc"/>
+<polygon points="315.0,382.5 295.0,417.1 255.0,417.1 235.0,382.5 255.0,347.8 295.0,347.8" fill="#f8fafc"/>
+<polygon points="315.0,451.8 295.0,486.4 255.0,486.4 235.0,451.8 255.0,417.1 295.0,417.1" fill="#f8fafc"/>
+<polygon points="315.0,590.3 295.0,625.0 255.0,625.0 235.0,590.3 255.0,555.7 295.0,555.7" fill="#f8fafc"/>
+<polygon points="315.0,659.6 295.0,694.3 255.0,694.3 235.0,659.6 255.0,625.0 295.0,625.0" fill="#f8fafc"/>
+<polygon points="375.0,140.0 355.0,174.6 315.0,174.6 295.0,140.0 315.0,105.4 355.0,105.4" fill="#f8fafc"/>
+<polygon points="375.0,209.3 355.0,243.9 315.0,243.9 295.0,209.3 315.0,174.6 355.0,174.6" fill="#f8fafc"/>
+<polygon points="375.0,278.6 355.0,313.2 315.0,313.2 295.0,278.6 315.0,243.9 355.0,243.9" fill="#f8fafc"/>
+<polygon points="375.0,417.1 355.0,451.8 315.0,451.8 295.0,417.1 315.0,382.5 355.0,382.5" fill="#f8fafc"/>
+<polygon points="375.0,555.7 355.0,590.3 315.0,590.3 295.0,555.7 315.0,521.1 355.0,521.1" fill="#f8fafc"/>
+<polygon points="375.0,625.0 355.0,659.6 315.0,659.6 295.0,625.0 315.0,590.3 355.0,590.3" fill="#f8fafc"/>
+<polygon points="435.0,174.6 415.0,209.3 375.0,209.3 355.0,174.6 375.0,140.0 415.0,140.0" fill="#f8fafc"/>
+<polygon points="435.0,243.9 415.0,278.6 375.0,278.6 355.0,243.9 375.0,209.3 415.0,209.3" fill="#f8fafc"/>
+<polygon points="435.0,313.2 415.0,347.8 375.0,347.8 355.0,313.2 375.0,278.6 415.0,278.6" fill="#f8fafc"/>
+<polygon points="435.0,521.1 415.0,555.7 375.0,555.7 355.0,521.1 375.0,486.4 415.0,486.4" fill="#f8fafc"/>
+<polygon points="435.0,590.3 415.0,625.0 375.0,625.0 355.0,590.3 375.0,555.7 415.0,555.7" fill="#f8fafc"/>
+<polygon points="435.0,659.6 415.0,694.3 375.0,694.3 355.0,659.6 375.0,625.0 415.0,625.0" fill="#f8fafc"/>
+<polygon points="495.0,140.0 475.0,174.6 435.0,174.6 415.0,140.0 435.0,105.4 475.0,105.4" fill="#f8fafc"/>
+<polygon points="495.0,209.3 475.0,243.9 435.0,243.9 415.0,209.3 435.0,174.6 475.0,174.6" fill="#f8fafc"/>
+<polygon points="495.0,278.6 475.0,313.2 435.0,313.2 415.0,278.6 435.0,243.9 475.0,243.9" fill="#f8fafc"/>
+<polygon points="495.0,347.8 475.0,382.5 435.0,382.5 415.0,347.8 435.0,313.2 475.0,313.2" fill="#f8fafc"/>
+<polygon points="495.0,417.1 475.0,451.8 435.0,451.8 415.0,417.1 435.0,382.5 475.0,382.5" fill="#f8fafc"/>
+<polygon points="495.0,486.4 475.0,521.1 435.0,521.1 415.0,486.4 435.0,451.8 475.0,451.8" fill="#f8fafc"/>
+<polygon points="495.0,555.7 475.0,590.3 435.0,590.3 415.0,555.7 435.0,521.1 475.0,521.1" fill="#f8fafc"/>
+<polygon points="495.0,625.0 475.0,659.6 435.0,659.6 415.0,625.0 435.0,590.3 475.0,590.3" fill="#f8fafc"/>
+<polygon points="555.0,174.6 535.0,209.3 495.0,209.3 475.0,174.6 495.0,140.0 535.0,140.0" fill="#f8fafc"/>
+<polygon points="555.0,243.9 535.0,278.6 495.0,278.6 475.0,243.9 495.0,209.3 535.0,209.3" fill="#f8fafc"/>
+<polygon points="555.0,313.2 535.0,347.8 495.0,347.8 475.0,313.2 495.0,278.6 535.0,278.6" fill="#f8fafc"/>
+<polygon points="555.0,382.5 535.0,417.1 495.0,417.1 475.0,382.5 495.0,347.8 535.0,347.8" fill="#f8fafc"/>
+<polygon points="555.0,451.8 535.0,486.4 495.0,486.4 475.0,451.8 495.0,417.1 535.0,417.1" fill="#f8fafc"/>
+<polygon points="555.0,521.1 535.0,555.7 495.0,555.7 475.0,521.1 495.0,486.4 535.0,486.4" fill="#f8fafc"/>
+<polygon points="555.0,590.3 535.0,625.0 495.0,625.0 475.0,590.3 495.0,555.7 535.0,555.7" fill="#f8fafc"/>
+<polygon points="555.0,659.6 535.0,694.3 495.0,694.3 475.0,659.6 495.0,625.0 535.0,625.0" fill="#f8fafc"/>
+<polygon points="615.0,140.0 595.0,174.6 555.0,174.6 535.0,140.0 555.0,105.4 595.0,105.4" fill="#f8fafc"/>
+<polygon points="615.0,209.3 595.0,243.9 555.0,243.9 535.0,209.3 555.0,174.6 595.0,174.6" fill="#f8fafc"/>
+<polygon points="615.0,278.6 595.0,313.2 555.0,313.2 535.0,278.6 555.0,243.9 595.0,243.9" fill="#f8fafc"/>
+<polygon points="615.0,347.8 595.0,382.5 555.0,382.5 535.0,347.8 555.0,313.2 595.0,313.2" fill="#f8fafc"/>
+<polygon points="615.0,417.1 595.0,451.8 555.0,451.8 535.0,417.1 555.0,382.5 595.0,382.5" fill="#f8fafc"/>
+<polygon points="615.0,486.4 595.0,521.1 555.0,521.1 535.0,486.4 555.0,451.8 595.0,451.8" fill="#f8fafc"/>
+<polygon points="615.0,555.7 595.0,590.3 555.0,590.3 535.0,555.7 555.0,521.1 595.0,521.1" fill="#f8fafc"/>
+<polygon points="615.0,625.0 595.0,659.6 555.0,659.6 535.0,625.0 555.0,590.3 595.0,590.3" fill="#f8fafc"/>
+<polygon points="675.0,174.6 655.0,209.3 615.0,209.3 595.0,174.6 615.0,140.0 655.0,140.0" fill="#f8fafc"/>
+<polygon points="675.0,243.9 655.0,278.6 615.0,278.6 595.0,243.9 615.0,209.3 655.0,209.3" fill="#f8fafc"/>
+<polygon points="675.0,313.2 655.0,347.8 615.0,347.8 595.0,313.2 615.0,278.6 655.0,278.6" fill="#f8fafc"/>
+<polygon points="675.0,382.5 655.0,417.1 615.0,417.1 595.0,382.5 615.0,347.8 655.0,347.8" fill="#f8fafc"/>
+<polygon points="675.0,451.8 655.0,486.4 615.0,486.4 595.0,451.8 615.0,417.1 655.0,417.1" fill="#f8fafc"/>
+<polygon points="675.0,521.1 655.0,555.7 615.0,555.7 595.0,521.1 615.0,486.4 655.0,486.4" fill="#f8fafc"/>
+<polygon points="675.0,590.3 655.0,625.0 615.0,625.0 595.0,590.3 615.0,555.7 655.0,555.7" fill="#f8fafc"/>
+<polygon points="675.0,659.6 655.0,694.3 615.0,694.3 595.0,659.6 615.0,625.0 655.0,625.0" fill="#f8fafc"/>
+</g>
+<polygon points="255.0,555.7 235.0,590.3 195.0,590.3 175.0,555.7 195.0,521.1 235.0,521.1" fill="#dbeafe" stroke="#93c5fd" stroke-width="1.5"/>
+<polygon points="315.0,521.1 295.0,555.7 255.0,555.7 235.0,521.1 255.0,486.4 295.0,486.4" fill="#dbeafe" stroke="#93c5fd" stroke-width="1.5"/>
+<polygon points="375.0,486.4 355.0,521.1 315.0,521.1 295.0,486.4 315.0,451.8 355.0,451.8" fill="#dbeafe" stroke="#93c5fd" stroke-width="1.5"/>
+<polygon points="435.0,382.5 415.0,417.1 375.0,417.1 355.0,382.5 375.0,347.8 415.0,347.8" fill="#dbeafe" stroke="#93c5fd" stroke-width="1.5"/>
+<polygon points="435.0,451.8 415.0,486.4 375.0,486.4 355.0,451.8 375.0,417.1 415.0,417.1" fill="#dbeafe" stroke="#93c5fd" stroke-width="1.5"/>
+<polygon points="435.0,451.8 415.0,486.4 375.0,486.4 355.0,451.8 375.0,417.1 415.0,417.1" fill="#dcfce7" stroke="#16a34a" stroke-width="2.6"/>
+<polygon points="375.0,347.8 355.0,382.5 315.0,382.5 295.0,347.8 315.0,313.2 355.0,313.2" fill="#fee2e2" stroke="#C74634" stroke-width="2.6" stroke-dasharray="6 4"/>
+<polygon points="255.0,555.7 235.0,590.3 195.0,590.3 175.0,555.7 195.0,521.1 235.0,521.1" fill="none" stroke="#334155" stroke-width="2.2"/>
+<line x1="215.0" y1="555.7" x2="275.0" y2="521.1" stroke="#2563eb" stroke-width="3" stroke-dasharray="7 5" stroke-linecap="round" marker-end="url(#arrB)"/>
+<line x1="275.0" y1="521.1" x2="335.0" y2="486.4" stroke="#2563eb" stroke-width="3" stroke-dasharray="7 5" stroke-linecap="round" marker-end="url(#arrB)"/>
+<line x1="335.0" y1="486.4" x2="395.0" y2="451.8" stroke="#2563eb" stroke-width="3" stroke-dasharray="7 5" stroke-linecap="round" marker-end="url(#arrB)"/>
+<line x1="395.0" y1="451.8" x2="395.0" y2="382.5" stroke="#2563eb" stroke-width="3" stroke-dasharray="7 5" stroke-linecap="round" marker-end="url(#arrB)"/>
+<line x1="395.0" y1="382.5" x2="335.0" y2="347.8" stroke="#C74634" stroke-width="3" stroke-dasharray="5 5" stroke-linecap="round" marker-end="url(#arrR)"/>
+<text x="395" y="457" font-size="20" fill="#16a34a" text-anchor="middle" font-weight="700">✓</text>
+<text x="335" y="354" font-size="20" fill="#C74634" text-anchor="middle" font-weight="700">✕</text>
+<polygon points="234.9,544.2 209.4,574.0 196.4,551.4" fill="#334155" stroke="#ffffff" stroke-width="1.2"/>
+<text x="688" y="112" font-size="13" fill="#334155" font-weight="700">TACTICAL DISPLAY</text>
+<text x="688" y="130" font-size="11.5" fill="#64748b">Drag from ship to plot a path</text>
+<text x="688" y="166" font-size="12" fill="#64748b" font-weight="700" letter-spacing="0.5">LEGEND</text>
+<rect x="688" y="176" width="206" height="50" rx="8" fill="#ffffff" stroke="#C74634" stroke-width="1.5"/>
+<rect x="688" y="176" width="4" height="50" rx="2" fill="#C74634"/>
+<rect x="703" y="192.0" width="18" height="18" rx="3" fill="#C74634"/>
+<text x="732" y="198" font-size="12.5" fill="#C74634" font-weight="700">ILLEGAL TURN</text>
+<text x="732" y="215" font-size="11.5" fill="#334155">Move 2 hexes first</text>
+<rect x="688" y="238" width="206" height="50" rx="8" fill="#ffffff" stroke="#16a34a" stroke-width="1.5"/>
+<rect x="688" y="238" width="4" height="50" rx="2" fill="#16a34a"/>
+<rect x="703" y="254.0" width="18" height="18" rx="3" fill="#16a34a"/>
+<text x="732" y="260" font-size="12.5" fill="#16a34a" font-weight="700">LEGAL TURN</text>
+<text x="732" y="277" font-size="11.5" fill="#334155">Turn mode satisfied</text>
+<rect x="688" y="300" width="206" height="50" rx="8" fill="#ffffff" stroke="#2563eb" stroke-width="1.5"/>
+<rect x="688" y="300" width="4" height="50" rx="2" fill="#2563eb"/>
+<line x1="702" y1="325.0" x2="722" y2="325.0" stroke="#2563eb" stroke-width="3" stroke-dasharray="4 3"/>
+<text x="732" y="322" font-size="12.5" fill="#2563eb" font-weight="700">PLOTTED PATH</text>
+<text x="732" y="339" font-size="11.5" fill="#334155">Arrows = 1 hex each</text>
+<rect x="688" y="362" width="206" height="50" rx="8" fill="#ffffff" stroke="#334155" stroke-width="1.5"/>
+<rect x="688" y="362" width="4" height="50" rx="2" fill="#334155"/>
+<polygon points="721,387.0 705,379.0 705,395.0" fill="#334155"/>
+<text x="732" y="384" font-size="12.5" fill="#334155" font-weight="700">SELECTED SHIP</text>
+<text x="732" y="401" font-size="11.5" fill="#334155">CA · facing NE</text>
+<rect x="688" y="436" width="206" height="206" rx="8" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1"/>
+<rect x="688" y="436" width="4" height="206" rx="2" fill="#334155"/>
+<text x="704" y="462" font-size="12" fill="#64748b" font-weight="700" letter-spacing="0.5">PLOT SUMMARY</text>
+<line x1="704" y1="472" x2="880" y2="472" stroke="#cbd5e1" stroke-width="1"/>
+<text x="704" y="496" font-size="12.5" fill="#334155">Hexes plotted</text>
+<text x="880" y="496" font-size="12.5" fill="#334155" text-anchor="end" font-weight="700">4</text>
+<text x="704" y="524" font-size="12.5" fill="#334155">Plotted speed</text>
+<text x="880" y="524" font-size="12.5" fill="#334155" text-anchor="end" font-weight="700">16</text>
+<text x="704" y="552" font-size="12.5" fill="#334155">Turns this run</text>
+<text x="880" y="552" font-size="12.5" fill="#334155" text-anchor="end" font-weight="700">1</text>
+<text x="704" y="580" font-size="12.5" fill="#334155">Legal turns</text>
+<text x="880" y="580" font-size="12.5" fill="#16a34a" text-anchor="end" font-weight="700">1</text>
+<text x="704" y="608" font-size="12.5" fill="#334155">Illegal turns</text>
+<text x="880" y="608" font-size="12.5" fill="#C74634" text-anchor="end" font-weight="700">1</text>
+<text x="704" y="632" font-size="11" fill="#64748b">Fix the red turn to commit plot.</text>
+<rect x="420" y="300" width="222" height="40" rx="7" fill="#334155" opacity="0.96"/>
+<polygon points="444,340 432,340 438,352" fill="#334155"/>
+<text x="434" y="325" font-size="12.5" fill="#ffffff" font-weight="600">Turn mode 1/2 not satisfied</text>
+<line x1="438" y1="352" x2="353" y2="336" stroke="#C74634" stroke-width="1.4" stroke-dasharray="4 3"/>
+<rect x="916" y="86" width="348" height="618" rx="10" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1"/>
+<rect x="916" y="86" width="348" height="6" rx="10" fill="#2563eb"/>
+<rect x="916" y="89" width="348" height="3" fill="#2563eb"/>
+<text x="932" y="116" font-size="15" fill="#334155" font-weight="700">MOVEMENT PLAN</text>
+<text x="932" y="134" font-size="12" fill="#64748b">USS Constellation · Heavy Cruiser</text>
+<rect x="928" y="144" width="324" height="128" rx="9" fill="#ffffff" stroke="#cbd5e1" stroke-width="1"/>
+<rect x="928" y="144" width="4" height="128" rx="2" fill="#2563eb"/>
+<text x="944" y="168" font-size="12" fill="#64748b" font-weight="700" letter-spacing="0.5">SPEED PLAN</text>
+<text x="944" y="196" font-size="13" fill="#334155">Plotted speed</text>
+<text x="1236" y="198" font-size="18" fill="#2563eb" text-anchor="end" font-weight="700">16</text>
+<rect x="944" y="208" width="292" height="12" rx="6" fill="#e2e8f0"/>
+<rect x="944" y="208" width="151" height="12" rx="6" fill="#2563eb"/>
+<text x="944" y="240" font-size="11" fill="#64748b">0</text>
+<text x="1236" y="240" font-size="11" fill="#64748b" text-anchor="end">max 31</text>
+<text x="944" y="262" font-size="12" fill="#334155">Impulse rate: 1 hex / 2 impulses</text>
+<rect x="928" y="284" width="324" height="104" rx="9" fill="#ffffff" stroke="#cbd5e1" stroke-width="1"/>
+<rect x="928" y="284" width="4" height="104" rx="2" fill="#334155"/>
+<text x="944" y="308" font-size="12" fill="#64748b" font-weight="700" letter-spacing="0.5">TURN MODE</text>
+<text x="944" y="348" font-size="28" fill="#334155" font-weight="700">1 / 2</text>
+<text x="1236" y="332" font-size="12" fill="#64748b" text-anchor="end">Hexes between turns</text>
+<text x="1236" y="350" font-size="12" fill="#334155" text-anchor="end" font-weight="700">Required: 2</text>
+<text x="944" y="376" font-size="12" fill="#334155">Since last turn: 1 hex <tspan fill="#C74634" font-weight="700">— too early</tspan></text>
+<rect x="928" y="400" width="324" height="96" rx="9" fill="#ffffff" stroke="#cbd5e1" stroke-width="1"/>
+<rect x="928" y="400" width="4" height="96" rx="2" fill="#334155"/>
+<text x="944" y="424" font-size="12" fill="#64748b" font-weight="700" letter-spacing="0.5">MANEUVERS</text>
+<rect x="944" y="432" width="142" height="40" rx="8" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1"/>
+<text x="1015" y="457" font-size="13" fill="#334155" text-anchor="middle" font-weight="700">Sideslip</text>
+<rect x="1094" y="432" width="142" height="40" rx="8" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1"/>
+<text x="1165" y="457" font-size="13" fill="#334155" text-anchor="middle" font-weight="700">HET</text>
+<text x="944" y="488" font-size="11" fill="#64748b">HET = High-Energy Turn (instant 180°)</text>
+<rect x="928" y="508" width="324" height="52" rx="9" fill="#fee2e2" stroke="#C74634" stroke-width="1.3"/>
+<rect x="928" y="508" width="4" height="52" rx="2" fill="#C74634"/>
+<polygon points="956,520 966,540 946,540" fill="none" stroke="#C74634" stroke-width="1.6"/>
+<text x="958" y="537" font-size="13" fill="#C74634" text-anchor="middle" font-weight="700">!</text>
+<text x="978" y="528" font-size="12.5" fill="#C74634" font-weight="700">Illegal turn in plot</text>
+<text x="978" y="545" font-size="11.5" fill="#C74634">Turn mode 1/2 not satisfied</text>
+<rect x="944" y="572" width="142" height="40" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1"/>
+<text x="1015" y="597" font-size="12.5" fill="#334155" text-anchor="middle" font-weight="500">Undo last hex</text>
+<rect x="1094" y="572" width="142" height="40" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1"/>
+<text x="1165" y="597" font-size="12.5" fill="#334155" text-anchor="middle" font-weight="500">Clear plot</text>
+<rect x="944" y="624" width="292" height="54" rx="10" fill="#94a3b8"/>
+<rect x="1006" y="644" width="13" height="11" rx="2" fill="#ffffff"/>
+<path d="M1008.5 644 v-3 a4 4 0 0 1 8 0 v3" fill="none" stroke="#ffffff" stroke-width="1.6"/>
+<text x="1032" y="656" font-size="15" fill="#ffffff" text-anchor="start" font-weight="700">Commit Plot</text>
+<text x="1090" y="694" font-size="11" fill="#64748b" text-anchor="middle">Disabled until all turns are legal</text>
+</svg>

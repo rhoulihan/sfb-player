@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>SFB Online — SSD Viewer (real page + control overlay)</title>
+<style>
+  :root{--red:#C74634;--green:#16a34a;--blue:#2563eb;--slate:#334155;--amber:#d97706;
+        --bg:#f1f5f9;--border:#cbd5e1;--ink:#1e293b;--muted:#64748b;}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;font-family:"Segoe UI",system-ui,sans-serif;color:var(--ink);background:var(--bg)}
+  .app{display:flex;flex-direction:column;height:100vh;min-height:680px}
+  .hud{display:flex;align-items:center;gap:16px;background:var(--slate);color:#fff;padding:8px 16px;border-bottom:3px solid var(--red)}
+  .hud .brand{font-weight:700;font-size:15px}.hud .brand small{display:block;font-weight:400;font-size:11px;color:#cbd5e1}
+  .spacer{flex:1}
+  .seg{display:flex;border:1px solid #64748b;border-radius:11px;overflow:hidden}
+  .seg button{font:inherit;font-size:12px;border:0;background:#475569;color:#cbd5e1;padding:5px 16px;cursor:pointer}
+  .seg button.on{background:var(--blue);color:#fff;font-weight:700}
+  .chip{font-size:11px;background:#14532d;color:#bbf7d0;padding:5px 12px;border-radius:11px}
+  .zoom{display:flex;align-items:center;gap:8px;background:#0f172a;border-radius:11px;padding:4px 10px;font-size:12px}
+  .zoom button{font:inherit;background:#334155;color:#e2e8f0;border:0;border-radius:6px;width:22px;height:20px;cursor:pointer}
+  .main{display:flex;flex:1;min-height:0}
+  .stage{flex:1;overflow:auto;background:#e9eef5;display:flex;align-items:flex-start;justify-content:center;padding:18px}
+  .ssd{position:relative;background:#fff;box-shadow:0 2px 12px rgba(15,23,42,.18);line-height:0}
+  .ssd img{display:block;width:100%;height:auto}
+  .ssd svg{position:absolute;inset:0;width:100%;height:100%}
+  .noimg{width:620px;aspect-ratio:1275/1650;border:2px dashed #94a3b8;background:#eef2f7;display:flex;align-items:center;justify-content:center;text-align:center;color:#64748b;font-size:13px;padding:30px;line-height:1.5}
+  .side{width:320px;flex:none;border-left:1px solid var(--border);background:#fff;overflow:auto;padding:14px}
+  .ptitle{font-size:11px;letter-spacing:.5px;color:var(--muted);text-transform:uppercase;font-weight:700;margin:0 0 8px}
+  .card{border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:14px;border-left:4px solid var(--blue)}
+  .leg{display:flex;align-items:center;gap:9px;font-size:12px;margin:7px 0;color:#475569}
+  .sw{width:22px;height:15px;border-radius:3px;flex:none;display:inline-block;position:relative}
+  .row{display:flex;justify-content:space-between;font-size:12px;padding:5px 0;border-bottom:1px solid #eef2f7}
+  .row b{font-weight:700}
+  .note{font-size:11.5px;color:#475569;margin:6px 0;display:flex;gap:7px}
+  .note::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--blue);margin-top:5px;flex:none}
+  .foot{font-size:11px;color:var(--muted);background:#f8fafc;border-top:1px solid var(--border);padding:10px 16px;display:flex;justify-content:space-between}
+  .tip{position:fixed;z-index:30;background:#0f172a;color:#fff;border-radius:8px;padding:8px 11px;font-size:12px;max-width:240px;pointer-events:none;opacity:0;transition:opacity .1s;box-shadow:0 4px 14px rgba(0,0,0,.3)}
+  .tip b{color:#fff}.tip .r{display:block;margin-top:4px;color:#93c5fd;font-size:11px}
+  .tip .h{display:block;margin-top:3px;color:#94a3b8;font-size:10.5px}
+  .hs{cursor:pointer}
+  .wf{position:absolute;right:10px;top:8px;background:var(--red);color:#fff;font-size:10px;letter-spacing:1px;padding:3px 8px;border-radius:5px;z-index:5}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="hud">
+    <div class="brand">SFB ONLINE — SSD VIEWER<small>USS Enterprise · Federation Heavy Cruiser (CA) · R2.4</small></div>
+    <div class="spacer"></div>
+    <div class="seg"><button class="on" id="mImage">Image</button><button id="mData">Data</button></div>
+    <div class="zoom"><button onclick="zoom(-1)">–</button><span id="zlbl">100%</span><button onclick="zoom(1)">+</button></div>
+    <div class="chip">● Owner · image unlocked</div>
+  </div>
+
+  <div class="main">
+    <div class="stage">
+      <div class="ssd" id="ssd" style="width:620px">
+        <span class="wf">WIREFRAME · D2</span>
+        <img id="ssdimg" src="../../../ssd-pipeline/data/FED-CA/image.png" alt="Federation CA SSD"
+             onerror="document.getElementById('ssd').classList.add('missing')"/>
+        <svg id="ovl" viewBox="0 0 1275 1650" preserveAspectRatio="none"></svg>
+      </div>
+    </div>
+
+    <div class="side">
+      <p class="ptitle">Overlay — live state markers</p>
+      <div class="card" style="border-left-color:#94a3b8">
+        <div class="leg"><span class="sw" id="lg-dead"></span> box destroyed (D8 / DAC)</div>
+        <div class="leg"><span class="sw" id="lg-dep"></span> shield/box depleted (D3.21)</div>
+        <div class="leg"><span class="sw" id="lg-crit"></span> active critical (D8.2)</div>
+        <div class="leg"><span class="sw" id="lg-load"></span> weapon armed / loaded</div>
+        <div class="leg"><span class="sw" id="lg-sel"></span> current selection</div>
+        <div class="leg"><span class="sw" id="lg-norm"></span> every box is a hotspot</div>
+      </div>
+      <p class="ptitle">Selected box</p>
+      <div class="card" id="selcard">
+        <div class="row"><span>Box</span><b id="s-box">— (click a box)</b></div>
+        <div class="row"><span>Type</span><b id="s-type">—</b></div>
+        <div class="row"><span>State</span><b id="s-state">—</b></div>
+        <div class="row"><span>Arc</span><b id="s-arc">—</b></div>
+        <div class="row" style="border:0"><span>Rule</span><b id="s-rule">—</b></div>
+      </div>
+      <p class="ptitle">How it works</p>
+      <div class="note">The display IS your scanned SSD page — nothing redrawn.</div>
+      <div class="note">Each hotspot binds to a content boxId (B3); live state is painted on top.</div>
+      <div class="note">Click → damage-marking / repair / target; hover → rule deep-link (B1).</div>
+      <div class="note">Hotspots are hand-mapped per ship in the B4 editor.</div>
+      <div class="note">Image served only to verified owners; non-owners get the Data view.</div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <span>Real SSD page (your owned scan) + interactive control overlay · status shown per box</span>
+    <span id="ftnote"></span>
+  </div>
+</div>
+<div class="tip" id="tip"></div>
+
+<script>
+"use strict";
+const IMGW=1275, IMGH=1650;
+// Hotspots in NORMALIZED coords (0..1 of the page). Hand-mapped to the Fed CA page; the full
+// per-box set is authored in the B4 editor — this prototype shows a representative overlay.
+const HOT=[
+  {id:"PHOT", t:"Photon Torpedo", rule:"E4.0", arc:"FA", st:"selected", x:0.315,y:0.243,w:0.047,h:0.020},
+  {id:"PH-1-FH", t:"Phaser-1 (FH)", rule:"E2.0", arc:"FH", st:"loaded", x:0.352,y:0.236,w:0.027,h:0.018},
+  {id:"BRIDGE", t:"Bridge / Control", rule:"G2.0", st:"critical", x:0.402,y:0.222,w:0.021,h:0.046},
+  {id:"IMPULSE-3", t:"Impulse Engine", rule:"H3.0", st:"destroyed", x:0.497,y:0.252,w:0.019,h:0.020},
+  {id:"IMPULSE-1", t:"Impulse Engine", rule:"H3.0", st:"normal", x:0.497,y:0.210,w:0.019,h:0.020},
+  {id:"IMPULSE-2", t:"Impulse Engine", rule:"H3.0", st:"normal", x:0.497,y:0.231,w:0.019,h:0.020},
+  {id:"TRAN", t:"Transporter", rule:"G8.0", st:"normal", x:0.370,y:0.190,w:0.027,h:0.038},
+  {id:"LAB-U", t:"Laboratory", rule:"G4.0", st:"normal", x:0.399,y:0.190,w:0.030,h:0.038},
+  {id:"F-HULL-1", t:"Forward Hull", rule:"G3.0", st:"destroyed", x:0.452,y:0.166,w:0.020,h:0.020},
+  {id:"F-HULL-2", t:"Forward Hull", rule:"G3.0", st:"normal", x:0.474,y:0.166,w:0.020,h:0.020},
+  {id:"BTTY-L", t:"Battery", rule:"H5.0", st:"normal", x:0.305,y:0.300,w:0.020,h:0.042},
+  {id:"DRONE", t:"Drone Rack", rule:"FD3.0", st:"normal", x:0.672,y:0.226,w:0.030,h:0.044},
+  {id:"PH-3-10", t:"Phaser-3", rule:"E2.0", arc:"360", st:"loaded", x:0.706,y:0.205,w:0.020,h:0.020},
+  {id:"PH-3-9", t:"Phaser-3", rule:"E2.0", arc:"360", st:"depleted", x:0.706,y:0.270,w:0.020,h:0.020},
+];
+// representative warp clusters (3x3) drawn as faint hotspot grids
+const GRID=[
+  {id:"R-WARP", t:"Warp Engine (right)", rule:"H2.0", x:0.658,y:0.137,w:0.088,h:0.064, cols:3,rows:3},
+  {id:"L-WARP", t:"Warp Engine (left)", rule:"H2.0", x:0.658,y:0.286,w:0.088,h:0.064, cols:3,rows:3},
+];
+const SHIELDS=[ {id:"SHIELD-1", t:"Shield #1 (depleted box)", rule:"D3.21", st:"depleted", x:0.405,y:0.118,w:0.022,h:0.016} ];
+
+const COL={destroyed:"#C74634",critical:"#d97706",depleted:"#d97706",loaded:"#16a34a",selected:"#2563eb",normal:"#2563eb"};
+const SVGNS="http://www.w3.org/2000/svg";
+function el(t,a){const e=document.createElementNS(SVGNS,t);for(const k in a)e.setAttribute(k,a[k]);return e;}
+const ovl=document.getElementById("ovl");
+
+function drawHot(h){
+  const x=h.x*IMGW,y=h.y*IMGH,w=h.w*IMGW,hh=h.h*IMGH, c=COL[h.st]||"#2563eb";
+  const g=el("g",{class:"hs"}); g.dataset.id=h.id;
+  const fillop = h.st==="depleted"?0.30 : (h.st==="selected"?0.14 : (h.st==="destroyed"||h.st==="critical")?0.12:0.06);
+  const r=el("rect",{x,y,width:w,height:hh,rx:3,fill:c,"fill-opacity":fillop,stroke:c,
+                     "stroke-width":h.st==="selected"?4:2.5,"vector-effect":"non-scaling-stroke"});
+  if(h.st==="normal") r.setAttribute("stroke-dasharray","6 4");
+  g.appendChild(r);
+  if(h.st==="destroyed"){
+    g.appendChild(el("line",{x1:x+4,y1:y+4,x2:x+w-4,y2:y+hh-4,stroke:c,"stroke-width":3,"vector-effect":"non-scaling-stroke"}));
+    g.appendChild(el("line",{x1:x+w-4,y1:y+4,x2:x+4,y2:y+hh-4,stroke:c,"stroke-width":3,"vector-effect":"non-scaling-stroke"}));
+  }
+  if(h.st==="critical"){const tx=el("text",{x:x+w/2,y:y+hh-5,"text-anchor":"middle","font-size":26,"font-weight":"700",fill:c});tx.textContent="!";g.appendChild(tx);}
+  if(h.st==="loaded"){g.appendChild(el("circle",{cx:x+w-6,cy:y+6,r:5,fill:"#16a34a"}));}
+  // events
+  g.addEventListener("mousemove",e=>showTip(e,h));
+  g.addEventListener("mouseleave",hideTip);
+  g.addEventListener("click",()=>select(h,g));
+  ovl.appendChild(g);
+  return g;
+}
+function drawGrid(G){
+  const x=G.x*IMGW,y=G.y*IMGH,w=G.w*IMGW,hh=G.h*IMGH, bw=w/G.cols, bh=hh/G.rows;
+  for(let r=0;r<G.rows;r++)for(let c=0;c<G.cols;c++){
+    drawHot({id:`${G.id}-${r*G.cols+c+1}`,t:G.t,rule:G.rule,st:"normal",
+             x:(x+c*bw)/IMGW,y:(y+r*bh)/IMGH,w:(bw*0.92)/IMGW,h:(bh*0.92)/IMGH});
+  }
+}
+function render(){ ovl.innerHTML=""; SHIELDS.forEach(drawHot); HOT.forEach(drawHot); GRID.forEach(drawGrid); }
+
+let selected=null;
+function select(h,g){
+  if(selected) selected.querySelector("rect").setAttribute("stroke-width","2.5");
+  selected=g; g.querySelector("rect").setAttribute("stroke-width","4");
+  document.getElementById("s-box").textContent=h.id;
+  document.getElementById("s-type").textContent=h.t;
+  document.getElementById("s-state").textContent=h.st;
+  document.getElementById("s-arc").textContent=h.arc||"—";
+  document.getElementById("s-rule").textContent=h.rule||"—";
+}
+const tip=document.getElementById("tip");
+function showTip(e,h){
+  tip.innerHTML=`<b>${h.t}</b> (${h.rule})${h.arc?` · arc ${h.arc}`:""}`
+    +`<span class="r">state: ${h.st}</span><span class="h">click: target / mark damage · open rule ↗</span>`;
+  tip.style.left=(e.clientX+14)+"px"; tip.style.top=(e.clientY+14)+"px"; tip.style.opacity=1;
+}
+function hideTip(){tip.style.opacity=0;}
+
+// legend swatches
+function legend(){
+  const set=(id,st)=>{const s=document.getElementById(id);const c=COL[st];s.style.background=c;
+    s.style.opacity=(st==="normal")?0.5:0.85;
+    if(st==="destroyed")s.innerHTML='<span style="position:absolute;inset:0;color:#fff;font-size:11px;text-align:center;line-height:15px">✕</span>';
+    if(st==="critical")s.innerHTML='<span style="position:absolute;inset:0;color:#fff;font-size:11px;text-align:center;line-height:15px;font-weight:700">!</span>';};
+  set("lg-dead","destroyed");set("lg-dep","depleted");set("lg-crit","critical");
+  set("lg-load","loaded");set("lg-sel","selected");set("lg-norm","normal");
+}
+
+// zoom
+let z=620;
+function zoom(d){ z=Math.max(420,Math.min(1100,z+d*80)); document.getElementById("ssd").style.width=z+"px";
+  document.getElementById("zlbl").textContent=Math.round(z/620*100)+"%"; }
+
+// image-missing fallback
+const ssd=document.getElementById("ssd");
+function checkImg(){
+  const img=document.getElementById("ssdimg");
+  if(ssd.classList.contains("missing")||!img.complete||img.naturalWidth===0){
+    ssd.style.width="620px";
+    if(!document.getElementById("ph")){
+      const ph=document.createElement("div");ph.className="noimg";ph.id="ph";
+      ph.innerHTML="Federation CA — SSD page<br><b>assets/ssd-fed-ca.png</b><br><br>Drop the owner's scanned SSD page here; the control overlay aligns to it. (Image is owner-gated.)";
+      img.replaceWith(ph); ssd.appendChild(document.getElementById("ovl"));
+    }
+    document.getElementById("ftnote").textContent="image not found — showing overlay frame";
+  }
+}
+// view toggle
+document.getElementById("mImage").onclick=()=>{document.getElementById("mImage").classList.add("on");document.getElementById("mData").classList.remove("on");ovl.style.display="";};
+document.getElementById("mData").onclick=()=>{document.getElementById("mData").classList.add("on");document.getElementById("mImage").classList.remove("on");ovl.style.display="none";};
+
+legend(); render();
+window.addEventListener("load",()=>setTimeout(checkImg,300));
+</script>
+</body>
+</html>

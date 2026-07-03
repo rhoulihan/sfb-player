@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SFB Online — Interactive Battle Screen (Wireframe)</title>
+<style>
+  :root{
+    --red:#C74634; --green:#16a34a; --blue:#2563eb; --slate:#334155;
+    --bg:#f1f5f9; --border:#cbd5e1; --panel:#ffffff; --ink:#1e293b; --muted:#64748b;
+    --fed:#2563eb; --kli:#C74634;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;font-family:"Segoe UI",system-ui,sans-serif;color:var(--ink);background:var(--bg)}
+  .app{display:flex;flex-direction:column;height:100vh;min-height:680px}
+  /* ---- top HUD ---- */
+  .hud{display:flex;align-items:center;gap:18px;background:var(--slate);color:#fff;padding:8px 16px;border-bottom:3px solid var(--red)}
+  .hud .brand{font-weight:700;font-size:16px;letter-spacing:.3px}
+  .hud .brand small{display:block;font-weight:400;font-size:11px;color:#cbd5e1}
+  .clock{background:#0f172a;border-radius:8px;padding:5px 12px;font-variant-numeric:tabular-nums;font-size:13px}
+  .clock b{font-size:16px}
+  .stepper{display:flex;align-items:center;gap:6px;margin-left:4px}
+  .step{font-size:11px;padding:4px 9px;border-radius:14px;background:#475569;color:#cbd5e1;cursor:pointer;white-space:nowrap;border:1px solid transparent}
+  .step.active{background:var(--blue);color:#fff;border-color:#93c5fd}
+  .step.done{background:#14532d;color:#bbf7d0}
+  .hud .spacer{flex:1}
+  .btn{font-family:inherit;font-size:12px;border-radius:8px;border:1px solid var(--border);background:#fff;color:var(--ink);padding:7px 12px;cursor:pointer}
+  .btn:hover{background:#f8fafc}
+  .btn.primary{background:var(--blue);color:#fff;border-color:var(--blue)}
+  .btn.fire{background:var(--red);color:#fff;border-color:var(--red);font-weight:700;width:100%;padding:10px}
+  .btn.fire:disabled{background:#e2e8f0;color:#94a3b8;border-color:#e2e8f0;cursor:not-allowed}
+  .btn.ghost{background:transparent;color:#fff;border-color:#64748b}
+  /* ---- main ---- */
+  .main{display:flex;flex:1;min-height:0}
+  .mapwrap{flex:1;position:relative;background:linear-gradient(#fafcff,#eef3fa);min-width:0}
+  svg{display:block;width:100%;height:100%}
+  .side{width:340px;flex:none;border-left:1px solid var(--border);background:var(--panel);display:flex;flex-direction:column;min-height:0}
+  .side .scroll{overflow:auto;padding:14px;flex:1}
+  .ptitle{font-size:11px;letter-spacing:.6px;color:var(--muted);text-transform:uppercase;font-weight:700;margin:0 0 6px}
+  .card{border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:12px}
+  .card.accent{border-left:4px solid var(--blue)}
+  .shipname{font-weight:700;font-size:15px}
+  .chip{display:inline-block;font-size:10.5px;padding:2px 7px;border-radius:10px;background:#eef2f7;color:var(--slate);margin:2px 3px 0 0;border:1px solid #e2e8f0}
+  .chip.fed{background:#eff6ff;color:var(--fed);border-color:#bfdbfe}
+  .chip.kli{background:#fef2f2;color:var(--kli);border-color:#fecaca}
+  .chip.ok{background:#ecfdf5;color:#047857;border-color:#a7f3d0}
+  .chip.bad{background:#fef2f2;color:var(--red);border-color:#fecaca}
+  .grid6{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:6px}
+  .sh{border:1px solid var(--border);border-radius:7px;padding:5px;text-align:center;font-size:11px;background:#f8fafc}
+  .sh b{display:block;font-size:13px}
+  .sh.exposed{border-color:var(--green);background:#ecfdf5;box-shadow:0 0 0 2px #bbf7d0}
+  .sys{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+  .box{font-size:10.5px;border:1px solid var(--border);border-radius:5px;padding:3px 7px;background:#f8fafc}
+  .box.dead{text-decoration:line-through;color:#b91c1c;background:#fef2f2;border-color:#fecaca}
+  .wpn{display:flex;align-items:center;justify-content:space-between;gap:8px;border:1px solid var(--border);border-radius:8px;padding:7px 9px;margin-bottom:7px}
+  .wpn.elig{border-color:#bbf7d0;background:#f6fef9}
+  .wpn.no{opacity:.6}
+  .wpn label{display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;cursor:pointer}
+  .wpn .meta{font-size:10.5px;color:var(--muted);font-weight:400}
+  .wpn .dmg{font-size:12px;font-weight:700;color:var(--slate)}
+  .hint{font-size:11px;color:var(--muted);line-height:1.45}
+  /* ---- combat log ---- */
+  .log{height:118px;flex:none;border-top:1px solid var(--border);background:#0f172a;color:#e2e8f0;display:flex;flex-direction:column}
+  .log h4{margin:0;padding:6px 14px;font-size:11px;letter-spacing:.5px;color:#94a3b8;text-transform:uppercase;border-bottom:1px solid #1e293b;display:flex;justify-content:space-between}
+  .log .feed{overflow:auto;padding:6px 14px;font-size:12px;font-variant-numeric:tabular-nums;font-family:"Cascadia Code",Consolas,monospace;line-height:1.7}
+  .log .feed .imp{color:#64748b}
+  .log .feed .fed{color:#60a5fa}
+  .log .feed .kli{color:#f87171}
+  .log .feed .sys{color:#34d399}
+  .banner{position:absolute;top:12px;left:50%;transform:translateX(-50%);background:rgba(15,23,42,.85);color:#fff;font-size:12px;padding:6px 14px;border-radius:18px;pointer-events:none;opacity:0;transition:opacity .15s}
+  .banner.show{opacity:1}
+  .legend{position:absolute;left:12px;bottom:12px;background:rgba(255,255,255,.92);border:1px solid var(--border);border-radius:9px;padding:8px 11px;font-size:11px;color:var(--slate)}
+  .legend span{display:inline-flex;align-items:center;gap:5px;margin-right:12px}
+  .dot{width:11px;height:11px;border-radius:50%;display:inline-block}
+  .wfflag{position:absolute;right:12px;top:10px;background:var(--red);color:#fff;font-size:10px;letter-spacing:1px;padding:3px 8px;border-radius:5px}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- ===== HUD ===== -->
+  <div class="hud">
+    <div class="brand">SFB ONLINE<small>Interactive battle wireframe</small></div>
+    <div class="clock">TURN <b id="turnN">3</b> · IMPULSE <b id="impN">12</b>/32</div>
+    <div class="stepper" id="stepper">
+      <div class="step done" data-p="Energy">Energy</div>
+      <div class="step done" data-p="Movement">Movement</div>
+      <div class="step active" data-p="Direct Fire">Direct Fire</div>
+      <div class="step" data-p="Seeking">Seeking</div>
+      <div class="step" data-p="EOT">EOT</div>
+    </div>
+    <div class="spacer"></div>
+    <button class="btn ghost" id="advBtn">▶ Advance Impulse</button>
+    <button class="btn ghost" id="clearBtn">Clear Target</button>
+  </div>
+
+  <!-- ===== MAIN ===== -->
+  <div class="main">
+    <div class="mapwrap">
+      <svg id="map" viewBox="0 0 900 620" preserveAspectRatio="xMidYMid meet"></svg>
+      <div class="banner" id="banner"></div>
+      <div class="legend">
+        <span><i class="dot" style="background:#2563eb"></i>Federation</span>
+        <span><i class="dot" style="background:#C74634"></i>Klingon</span>
+        <span><i class="dot" style="background:#16a34a"></i>Exposed shield</span>
+        <span>Click a ship → select · click an enemy → target</span>
+      </div>
+      <div class="wfflag">WIREFRAME</div>
+    </div>
+
+    <!-- right panel -->
+    <div class="side">
+      <div class="scroll" id="panel"></div>
+    </div>
+  </div>
+
+  <!-- ===== LOG ===== -->
+  <div class="log">
+    <h4><span>Dice / Combat Log</span><span id="phaseLbl">Direct-Fire Phase</span></h4>
+    <div class="feed" id="feed"></div>
+  </div>
+</div>
+
+<script>
+"use strict";
+// ---------- geometry (flat-top hexes, odd-q offset) ----------
+const SIZE=34, OX=70, OY=64, COLS=12, ROWS=8;
+const HW=1.5*SIZE, HH=Math.sqrt(3)*SIZE;
+function center(q,r){ return { x: OX + HW*q, y: OY + HH*r + (q%2? HH/2:0) }; }
+function hexPath(cx,cy){ let p=""; for(let i=0;i<6;i++){const a=Math.PI/180*(60*i); p+=(i?"L":"M")+(cx+SIZE*Math.cos(a)).toFixed(1)+" "+(cy+SIZE*Math.sin(a)).toFixed(1)+" ";} return p+"Z"; }
+const facingAngle = f => -90 + 60*f;                 // screen degrees, f in 0..5; 0 = up
+const norm = a => ((a%360)+360)%360;
+function angDiff(a,b){ let d=norm(a-b); return d>180?360-d:d; }
+
+// ---------- mock game state ----------
+const ships=[
+ {id:"NCC-1701", side:"fed", name:"USS Enterprise", cls:"Heavy Cruiser · CA", q:3,r:4,f:1,
+  shields:[30,30,28,30,30,30],
+  systems:[["Warp",4,4],["Impulse",2,2],["Ph-1",4,4],["Ph-3",2,2],["Photon",4,3],["Shield",6,6],["Hull",8,8]],
+  weapons:[
+    {name:"Photon Torpedo",n:2,arc:"FH",base:8,note:"armed · overload avail"},
+    {name:"Phaser-1",n:4,arc:"FH",base:6,note:"Ph-1 damage table"},
+    {name:"Phaser-3",n:2,arc:"360",base:3,note:"point-defense"}
+  ]},
+ {id:"NCC-1703", side:"fed", name:"USS Constellation", cls:"Heavy Cruiser · CA", q:2,r:6,f:0,
+  shields:[30,30,30,26,30,22],
+  systems:[["Warp",4,4],["Impulse",2,2],["Ph-1",4,4],["Photon",4,4],["Shield",6,5],["Hull",8,8]],
+  weapons:[
+    {name:"Photon Torpedo",n:2,arc:"FH",base:8,note:"holding"},
+    {name:"Phaser-1",n:4,arc:"FH",base:6,note:"Ph-1 damage table"}
+  ]},
+ {id:"D7-A", side:"kli", name:"IKS Devastator", cls:"Battlecruiser · D7", q:8,r:3,f:4,
+  shields:[30,28,30,30,18,30],
+  systems:[["Warp",4,4],["Impulse",2,2],["Disruptor",4,4],["Ph-1",2,2],["Ph-3",4,3],["Shield",6,6],["Hull",8,8]],
+  weapons:[
+    {name:"Disruptor",n:4,arc:"FH",base:6,note:"R0–30 chart"},
+    {name:"Phaser-1",n:2,arc:"FH",base:6,note:"Ph-1 table"},
+    {name:"Phaser-3",n:4,arc:"360",base:3,note:"point-defense"}
+  ]},
+ {id:"D7-B", side:"kli", name:"IKS Annihilator", cls:"War Cruiser · D5", q:9,r:6,f:3,
+  shields:[26,30,30,30,30,30],
+  systems:[["Warp",4,3],["Impulse",2,2],["Disruptor",2,2],["Ph-1",2,2],["Shield",6,6],["Hull",6,6]],
+  weapons:[
+    {name:"Disruptor",n:2,arc:"FH",base:6,note:"R0–30 chart"},
+    {name:"Phaser-1",n:2,arc:"FH",base:6,note:"Ph-1 table"}
+  ]}
+];
+const terrain=[ {q:6,r:4,kind:"planet",label:"PLANET"}, {q:7,r:6,kind:"asteroid",label:"ASTEROID"} ];
+
+let sel=null, target=null, picks=new Set(), turn=3, imp=12;
+
+// ---------- rendering ----------
+const SVG="http://www.w3.org/2000/svg";
+const map=document.getElementById("map");
+function el(tag,attrs){const e=document.createElementNS(SVG,tag);for(const k in attrs)e.setAttribute(k,attrs[k]);return e;}
+
+function shipAt(q,r){ return ships.find(s=>s.q===q&&s.r===r); }
+function terrainAt(q,r){ return terrain.find(t=>t.q===q&&t.r===r); }
+
+// which target shield faces the firer
+function exposedShield(tgt,firer){
+  const c1=center(tgt.q,tgt.r), c2=center(firer.q,firer.r);
+  const bearing=norm(Math.atan2(c2.y-c1.y,c2.x-c1.x)*180/Math.PI);
+  const rel=norm(bearing - facingAngle(tgt.f));
+  return Math.floor((rel+30)/60)%6;          // 0..5  (0 = shield #1 front)
+}
+function inArc(firer,tgt){
+  const c1=center(firer.q,firer.r), c2=center(tgt.q,tgt.r);
+  const bearing=norm(Math.atan2(c2.y-c1.y,c2.x-c1.x)*180/Math.PI);
+  return angDiff(bearing,facingAngle(firer.f))<=90;     // forward hemisphere (FH)
+}
+function rangeHex(a,b){ const c1=center(a.q,a.r),c2=center(b.q,b.r); return Math.max(1,Math.round(Math.hypot(c2.x-c1.x,c2.y-c1.y)/HW)); }
+
+function render(){
+  map.innerHTML="";
+  // grid
+  for(let q=0;q<COLS;q++) for(let r=0;r<ROWS;r++){
+    const c=center(q,r);
+    const t=terrainAt(q,r);
+    const hex=el("path",{d:hexPath(c.x,c.y),fill:t?(t.kind==="planet"?"#dbeafe":"#e2e8f0"):"#ffffff",
+      stroke:"#cbd5e1","stroke-width":1, "data-q":q,"data-r":r, class:"hex", cursor:"pointer"});
+    map.appendChild(hex);
+    if(t){ map.appendChild(el("circle",{cx:c.x,cy:c.y,r:11,fill:t.kind==="planet"?"#60a5fa":"#94a3b8"}));
+      const lab=el("text",{x:c.x,y:c.y+24,"text-anchor":"middle","font-size":9,fill:"#475569","font-weight":700});lab.textContent=t.label;map.appendChild(lab);}
+  }
+  // firing arc (if firer+target)
+  if(sel && target){
+    const fc=center(sel.q,sel.r), fa=facingAngle(sel.f);
+    const R=HW*7;
+    const a0=(fa-90)*Math.PI/180, a1=(fa+90)*Math.PI/180;
+    const p=`M ${fc.x} ${fc.y} L ${fc.x+R*Math.cos(a0)} ${fc.y+R*Math.sin(a0)} A ${R} ${R} 0 0 1 ${fc.x+R*Math.cos(a1)} ${fc.y+R*Math.sin(a1)} Z`;
+    map.appendChild(el("path",{d:p,fill:"rgba(37,99,235,.10)",stroke:"rgba(37,99,235,.35)","stroke-width":1}));
+    // range line
+    const tc=center(target.q,target.r);
+    map.appendChild(el("line",{x1:fc.x,y1:fc.y,x2:tc.x,y2:tc.y,stroke:"#334155","stroke-width":1.5,"stroke-dasharray":"4 3"}));
+    const mid=el("text",{x:(fc.x+tc.x)/2,y:(fc.y+tc.y)/2-6,"text-anchor":"middle","font-size":11,fill:"#0f172a","font-weight":700});
+    mid.textContent="R "+rangeHex(sel,target); map.appendChild(mid);
+  }
+  // ships
+  for(const s of ships){
+    const c=center(s.q,s.r);
+    const isSel=sel===s, isTgt=target===s;
+    const col=s.side==="fed"?"#2563eb":"#C74634";
+    const g=el("g",{class:"ship",cursor:"pointer","data-id":s.id});
+    // selection ring
+    if(isSel) g.appendChild(el("circle",{cx:c.x,cy:c.y,r:SIZE*0.72,fill:"none",stroke:"#16a34a","stroke-width":3}));
+    if(isTgt) g.appendChild(el("circle",{cx:c.x,cy:c.y,r:SIZE*0.78,fill:"none",stroke:"#C74634","stroke-width":2.5,"stroke-dasharray":"5 3"}));
+    // shield ticks (6)
+    for(let i=0;i<6;i++){
+      const ang=(facingAngle(s.f)+60*i)*Math.PI/180, rr=SIZE*0.62;
+      const exposed = isTgt && i===exposedShield(s,sel);
+      g.appendChild(el("circle",{cx:c.x+rr*Math.cos(ang),cy:c.y+rr*Math.sin(ang),r:exposed?5:3,
+        fill:exposed?"#16a34a":"#cbd5e1",stroke:exposed?"#15803d":"#94a3b8","stroke-width":1}));
+    }
+    // body
+    g.appendChild(el("circle",{cx:c.x,cy:c.y,r:14,fill:"#fff",stroke:col,"stroke-width":2.5}));
+    // facing arrow
+    const fa=facingAngle(s.f)*Math.PI/180;
+    g.appendChild(el("path",{d:`M ${c.x+18*Math.cos(fa)} ${c.y+18*Math.sin(fa)} L ${c.x+8*Math.cos(fa+2.5)} ${c.y+8*Math.sin(fa+2.5)} L ${c.x+8*Math.cos(fa-2.5)} ${c.y+8*Math.sin(fa-2.5)} Z`,fill:col}));
+    const tl=el("text",{x:c.x,y:c.y+4,"text-anchor":"middle","font-size":10,fill:col,"font-weight":700});tl.textContent=s.id.split("-")[0]; g.appendChild(tl);
+    map.appendChild(g);
+  }
+}
+
+// ---------- panel ----------
+const panel=document.getElementById("panel");
+function renderPanel(){
+  if(!sel){ panel.innerHTML=`<p class="ptitle">No ship selected</p>
+    <div class="card accent"><div class="hint">Click any ship token on the map to select it and view its SSD. With one of <b>your</b> ships selected, click an <b>enemy</b> to build a firing solution — arcs and the exposed shield highlight automatically.</div></div>`; return; }
+  const sideClass=sel.side==="fed"?"fed":"kli";
+  let html=`<div class="card accent">
+     <div class="shipname">${sel.name}</div>
+     <span class="chip ${sideClass}">${sel.id}</span><span class="chip">${sel.cls}</span>
+     <p class="ptitle" style="margin-top:12px">Shields (R0.8)</p><div class="grid6">`;
+  for(let i=0;i<6;i++){
+    const exp = target && sel===target && i===exposedShield(sel,window.__firer);
+    html+=`<div class="sh ${exp?'exposed':''}">#${i+1}<b>${sel.shields[i]}</b></div>`;
+  }
+  html+=`</div><p class="ptitle" style="margin-top:12px">System Boxes</p><div class="sys">`;
+  for(const [nm,tot,ok] of sel.systems){
+    const dead=ok<tot;
+    html+=`<span class="box ${ok===0?'dead':''}">${nm} ${ok}/${tot}</span>`;
+  }
+  html+=`</div></div>`;
+
+  // weapons / targeting card
+  if(sel.side==="fed" && target){
+    window.__firer=sel;
+    const rng=rangeHex(sel,target);
+    html+=`<div class="card"><p class="ptitle">Fire Control → ${target.name}</p>
+      <span class="chip bad">Target ${target.id}</span><span class="chip">Range ${rng}</span>
+      <span class="chip ok">Exposed: Shield #${exposedShield(target,sel)+1}</span>
+      <div style="margin-top:10px">`;
+    let volley=0;
+    sel.weapons.forEach((w,idx)=>{
+      const arcOK = w.arc==="360" || inArc(sel,target);
+      const rngOK = rng<=8;
+      const elig = arcOK && rngOK;
+      const dmg = elig ? Math.max(1, w.base - Math.floor(rng/3)) * w.n : 0;
+      const checked = elig && picks.has(idx);
+      if(checked) volley+=dmg;
+      html+=`<div class="wpn ${elig?'elig':'no'}">
+        <label><input type="checkbox" data-w="${idx}" ${checked?'checked':''} ${elig?'':'disabled'}>
+          ${w.name} <span class="meta">×${w.n} · ${w.note}</span></label>
+        <div style="text-align:right">
+          <div>${arcOK?'<span class="chip ok">IN ARC</span>':'<span class="chip bad">OUT OF ARC</span>'} ${rngOK?'<span class="chip ok">IN RANGE</span>':'<span class="chip bad">OUT OF RANGE</span>'}</div>
+          <div class="dmg">${elig?('≈'+dmg+' dmg'):'—'}</div>
+        </div></div>`;
+    });
+    html+=`</div>
+      <div class="card" style="margin:8px 0 10px;border-color:#bfdbfe;background:#eff6ff">
+        <b>Volley vs Shield #${exposedShield(target,sel)+1}</b><div class="dmg" style="color:#C74634;font-size:16px">≈ ${volley} total damage</div></div>
+      <button class="btn fire" id="fireBtn" ${volley>0?'':'disabled'}>DECLARE FIRE</button>
+      <div class="hint" style="margin-top:8px">Tip: check weapons to add them to the sealed volley; only in-arc &amp; in-range weapons can be assigned. Fire is sealed, then revealed &amp; resolved at the impulse barrier.</div>
+    </div>`;
+  } else if(sel.side==="fed"){
+    html+=`<div class="card"><p class="ptitle">Fire Control</p><div class="hint">Click an enemy ship to build a firing solution.</div></div>`;
+  } else {
+    html+=`<div class="card"><p class="ptitle">Enemy ship</p><div class="hint">This is an opposing unit (fog-of-war would hide its sealed orders). Select one of your own ships to target it.</div></div>`;
+  }
+  panel.innerHTML=html;
+
+  const fb=document.getElementById("fireBtn");
+  if(fb) fb.onclick=declareFire;
+  panel.querySelectorAll('input[type=checkbox]').forEach(cb=>{
+    cb.onchange=()=>{ const i=+cb.dataset.w; cb.checked?picks.add(i):picks.delete(i); renderPanel(); };
+  });
+}
+
+// ---------- interactions ----------
+function feed(line,cls){ const f=document.getElementById("feed");
+  const d=document.createElement("div"); d.innerHTML=`<span class="imp">[T${turn} I${imp}]</span> <span class="${cls||''}">${line}</span>`;
+  f.appendChild(d); f.scrollTop=f.scrollHeight; }
+
+function banner(msg){ const b=document.getElementById("banner"); b.textContent=msg; b.classList.add("show"); clearTimeout(b._t); b._t=setTimeout(()=>b.classList.remove("show"),1400); }
+
+function declareFire(){
+  const shield=exposedShield(target,sel)+1;
+  let total=0; const used=[];
+  sel.weapons.forEach((w,idx)=>{ if(picks.has(idx)){
+    const rng=rangeHex(sel,target); const roll=1+Math.floor(Math.abs(Math.sin((idx+1)*(imp+1))*6))%6;
+    const dmg=Math.max(1,w.base-Math.floor(rng/3))*w.n; total+=dmg; used.push(`${w.name}×${w.n} (rolled ${roll})`);
+  }});
+  feed(`Federation ${sel.id} → ${target.id} S#${shield}: ${used.join(", ")} → <b>${total} dmg</b>`, "fed");
+  // apply to shield then internals
+  let remain=total, sIdx=exposedShield(target,sel);
+  const absorbed=Math.min(target.shields[sIdx],remain); target.shields[sIdx]-=absorbed; remain-=absorbed;
+  feed(`Shield #${shield} absorbs ${absorbed}${remain>0?` · ${remain} internal → DAC`:` · holds (${target.shields[sIdx]} left)`}`, "sys");
+  if(remain>0){ const sysbox=target.systems[Math.floor(Math.abs(Math.cos(imp))* target.systems.length)%target.systems.length]; if(sysbox && sysbox[2]>0) sysbox[2]=Math.max(0,sysbox[2]-1); }
+  banner(`Fire resolved — ${total} damage to ${target.id}`);
+  picks.clear(); render(); renderPanel();
+}
+
+map.addEventListener("click",e=>{
+  const shipG=e.target.closest(".ship");
+  if(shipG){ const s=ships.find(x=>x.id===shipG.dataset.id);
+    if(sel && sel.side==="fed" && s.side==="kli"){ target=s; picks.clear(); }
+    else { sel=s; if(s.side!=="fed") target=null; if(target && target.side!=="kli") target=null; }
+    render(); renderPanel(); return;
+  }
+  // clicking empty hex deselects target only
+});
+
+document.getElementById("advBtn").onclick=()=>{
+  imp++; if(imp>32){imp=1;turn++;} document.getElementById("impN").textContent=imp; document.getElementById("turnN").textContent=turn;
+  feed("Impulse advanced — movement resolved, entering Direct-Fire window", "imp");
+  banner("Impulse "+imp+" / 32");
+};
+document.getElementById("clearBtn").onclick=()=>{ target=null; picks.clear(); render(); renderPanel(); };
+document.getElementById("stepper").addEventListener("click",e=>{
+  const st=e.target.closest(".step"); if(!st) return;
+  document.querySelectorAll(".step").forEach(x=>x.classList.remove("active"));
+  st.classList.add("active"); document.getElementById("phaseLbl").textContent=st.dataset.p+" Phase";
+});
+
+// init
+feed("Energy allocation sealed &amp; revealed — both sides committed", "sys");
+feed("Movement plotted — Federation closing to R6", "fed");
+render(); renderPanel();
+</script>
+</body>
+</html>

@@ -1,0 +1,164 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 800" font-family="Segoe UI, sans-serif">
+  <!-- ===== background ===== -->
+  <rect x="0" y="0" width="1280" height="800" fill="#ffffff"/>
+
+  <!-- ===== header ===== -->
+  <rect x="24" y="24" width="1232" height="56" rx="8" fill="#f1f5f9" stroke="#cbd5e1"/>
+  <rect x="24" y="24" width="6" height="56" rx="3" fill="#2563eb"/>
+  <text x="48" y="52" font-size="20" font-weight="700" fill="#334155">SFB Online</text>
+  <text x="158" y="52" font-size="20" font-weight="400" fill="#64748b">— Lobby &amp; Scenario Setup</text>
+  <text x="48" y="70" font-size="12" fill="#94a3b8">Configure a new battle and assign commanders before launch</text>
+  <text x="1236" y="46" font-size="13" font-weight="600" fill="#334155" text-anchor="end">Step 2 of 3 · New Game</text>
+  <text x="1236" y="66" font-size="12" fill="#94a3b8" text-anchor="end">Wireframe · D8</text>
+
+  <!-- ================= LEFT COLUMN — GAME SETUP ================= -->
+  <rect x="24" y="96" width="576" height="600" rx="10" fill="#ffffff" stroke="#cbd5e1"/>
+  <rect x="24" y="96" width="576" height="6" rx="3" fill="#334155"/>
+  <text x="48" y="132" font-size="18" font-weight="700" fill="#334155">Game Setup</text>
+  <text x="48" y="152" font-size="12" fill="#94a3b8">Battle parameters for this scenario</text>
+
+  <!-- Field: Scenario -->
+  <text x="48" y="178" font-size="13" font-weight="600" fill="#334155">Scenario</text>
+  <rect x="48" y="188" width="528" height="40" rx="6" fill="#f8fafc" stroke="#cbd5e1"/>
+  <text x="64" y="213" font-size="13" fill="#334155">Mizia Goes to War (SG-12)</text>
+  <path d="M 548 203 l 10 0 l -5 7 z" fill="#64748b"/>
+
+  <!-- Field: Map size -->
+  <text x="48" y="254" font-size="13" font-weight="600" fill="#334155">Map Size</text>
+  <rect x="48" y="264" width="528" height="40" rx="6" fill="#f8fafc" stroke="#cbd5e1"/>
+  <text x="64" y="289" font-size="13" fill="#334155">Medium · Floating Map · 30 hexes</text>
+  <path d="M 548 279 l 10 0 l -5 7 z" fill="#64748b"/>
+
+  <!-- Field: Terrain toggles -->
+  <text x="48" y="330" font-size="13" font-weight="600" fill="#334155">Terrain</text>
+  <!-- pill 1 ON -->
+  <rect x="48" y="340" width="123" height="40" rx="6" fill="#f1f5f9" stroke="#cbd5e1"/>
+  <rect x="60" y="353" width="14" height="14" rx="3" fill="#16a34a"/>
+  <path d="M 63 360 l 3 3 l 5 -6" fill="none" stroke="#ffffff" stroke-width="2"/>
+  <text x="82" y="365" font-size="12" fill="#334155">Asteroids</text>
+  <!-- pill 2 ON -->
+  <rect x="183" y="340" width="123" height="40" rx="6" fill="#f1f5f9" stroke="#cbd5e1"/>
+  <rect x="195" y="353" width="14" height="14" rx="3" fill="#16a34a"/>
+  <path d="M 198 360 l 3 3 l 5 -6" fill="none" stroke="#ffffff" stroke-width="2"/>
+  <text x="217" y="365" font-size="12" fill="#334155">Planets</text>
+  <!-- pill 3 OFF -->
+  <rect x="318" y="340" width="123" height="40" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+  <rect x="330" y="353" width="14" height="14" rx="3" fill="#ffffff" stroke="#94a3b8"/>
+  <text x="352" y="365" font-size="12" fill="#94a3b8">Dust Cloud</text>
+  <!-- pill 4 OFF -->
+  <rect x="453" y="340" width="123" height="40" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+  <rect x="465" y="353" width="14" height="14" rx="3" fill="#ffffff" stroke="#94a3b8"/>
+  <text x="487" y="365" font-size="12" fill="#94a3b8">Black Hole</text>
+
+  <!-- Field: Victory conditions -->
+  <text x="48" y="406" font-size="13" font-weight="600" fill="#334155">Victory Conditions</text>
+  <rect x="48" y="416" width="528" height="40" rx="6" fill="#f8fafc" stroke="#cbd5e1"/>
+  <text x="64" y="441" font-size="13" fill="#334155">Destroy 67% of enemy BPV, or disengage</text>
+  <path d="M 548 431 l 10 0 l -5 7 z" fill="#64748b"/>
+
+  <!-- Field: BPV limit -->
+  <text x="48" y="482" font-size="13" font-weight="600" fill="#334155">BPV Limit</text>
+  <rect x="48" y="492" width="140" height="40" rx="6" fill="#f8fafc" stroke="#cbd5e1"/>
+  <text x="64" y="517" font-size="13" fill="#334155">150</text>
+  <path d="M 168 503 l 8 0 l -4 -5 z" fill="#64748b"/>
+  <path d="M 168 521 l 8 0 l -4 5 z" fill="#64748b"/>
+  <text x="200" y="517" font-size="13" fill="#64748b">Build Point Value per side</text>
+
+  <!-- Scenario summary box -->
+  <rect x="48" y="556" width="528" height="110" rx="8" fill="#f8fafc" stroke="#cbd5e1"/>
+  <rect x="48" y="556" width="6" height="110" rx="3" fill="#2563eb"/>
+  <text x="68" y="582" font-size="13" font-weight="700" fill="#334155">Scenario Summary</text>
+  <text x="68" y="606" font-size="12" fill="#64748b">Map: 30-hex floating map · Terrain: Asteroids, Planets</text>
+  <text x="68" y="628" font-size="12" fill="#64748b">Victory: 67% enemy BPV destroyed · Turn limit: 12</text>
+  <text x="68" y="650" font-size="12" fill="#64748b">Est. length: ~6 turns · Async play enabled</text>
+
+  <!-- ================= RIGHT COLUMN — SIDES & COMMANDERS ================= -->
+
+  <!-- Side A — Federation -->
+  <rect x="624" y="96" width="632" height="250" rx="10" fill="#ffffff" stroke="#cbd5e1"/>
+  <rect x="624" y="96" width="632" height="6" rx="3" fill="#2563eb"/>
+  <rect x="648" y="118" width="46" height="24" rx="5" fill="#2563eb"/>
+  <text x="671" y="135" font-size="12" font-weight="700" fill="#ffffff" text-anchor="middle">FED</text>
+  <text x="706" y="135" font-size="16" font-weight="700" fill="#334155">Side A — Federation</text>
+  <text x="1232" y="135" font-size="13" font-weight="600" fill="#2563eb" text-anchor="end">BPV 148 / 150</text>
+  <text x="648" y="164" font-size="12" fill="#64748b">Commander: cmdr_kirk</text>
+
+  <!-- ship slot rows A -->
+  <rect x="648" y="178" width="584" height="34" rx="6" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="664" y="200" font-size="13" fill="#334155">CA · Heavy Cruiser</text>
+  <rect x="1078" y="183" width="142" height="24" rx="12" fill="#eff6ff" stroke="#bfdbfe"/>
+  <circle cx="1092" cy="195" r="7" fill="#2563eb"/>
+  <text x="1104" y="199" font-size="12" fill="#334155">cmdr_kirk · CO</text>
+
+  <rect x="648" y="216" width="584" height="34" rx="6" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="664" y="238" font-size="13" fill="#334155">CL · Light Cruiser</text>
+  <rect x="1078" y="221" width="142" height="24" rx="12" fill="#eff6ff" stroke="#bfdbfe"/>
+  <circle cx="1092" cy="233" r="7" fill="#2563eb"/>
+  <text x="1104" y="237" font-size="12" fill="#334155">spock_77</text>
+
+  <rect x="648" y="254" width="584" height="34" rx="6" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="664" y="276" font-size="13" fill="#334155">DD · Destroyer</text>
+  <rect x="1078" y="259" width="142" height="24" rx="12" fill="#eff6ff" stroke="#bfdbfe"/>
+  <circle cx="1092" cy="271" r="7" fill="#2563eb"/>
+  <text x="1104" y="275" font-size="12" fill="#334155">mccoy_99</text>
+
+  <!-- add slot A -->
+  <rect x="648" y="300" width="160" height="28" rx="6" fill="#ffffff" stroke="#cbd5e1" stroke-dasharray="4 3"/>
+  <text x="728" y="318" font-size="12" fill="#2563eb" text-anchor="middle">+ Add Ship Slot</text>
+
+  <!-- Side B — Klingon -->
+  <rect x="624" y="362" width="632" height="250" rx="10" fill="#ffffff" stroke="#cbd5e1"/>
+  <rect x="624" y="362" width="632" height="6" rx="3" fill="#C74634"/>
+  <rect x="648" y="384" width="46" height="24" rx="5" fill="#C74634"/>
+  <text x="671" y="401" font-size="12" font-weight="700" fill="#ffffff" text-anchor="middle">KLI</text>
+  <text x="706" y="401" font-size="16" font-weight="700" fill="#334155">Side B — Klingon</text>
+  <text x="1232" y="401" font-size="13" font-weight="600" fill="#C74634" text-anchor="end">BPV 132 / 150</text>
+  <text x="648" y="430" font-size="12" fill="#64748b">Commander: koloth</text>
+
+  <!-- ship slot rows B -->
+  <rect x="648" y="444" width="584" height="34" rx="6" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="664" y="466" font-size="13" fill="#334155">D7 · Battlecruiser</text>
+  <rect x="1078" y="449" width="142" height="24" rx="12" fill="#fef2f2" stroke="#fecaca"/>
+  <circle cx="1092" cy="461" r="7" fill="#C74634"/>
+  <text x="1104" y="465" font-size="12" fill="#334155">koloth · CO</text>
+
+  <!-- open seat row -->
+  <rect x="648" y="482" width="584" height="34" rx="6" fill="#fffbeb" stroke="#fde68a"/>
+  <text x="664" y="504" font-size="13" fill="#334155">F5 · War Frigate</text>
+  <rect x="1062" y="487" width="158" height="24" rx="12" fill="#ffffff" stroke="#f59e0b" stroke-dasharray="4 3"/>
+  <circle cx="1076" cy="499" r="7" fill="#ffffff" stroke="#f59e0b"/>
+  <text x="1088" y="503" font-size="12" fill="#b45309">Open seat — invite ▾</text>
+
+  <rect x="648" y="520" width="584" height="34" rx="6" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="664" y="542" font-size="13" fill="#334155">D5 · War Cruiser</text>
+  <rect x="1078" y="525" width="142" height="24" rx="12" fill="#fef2f2" stroke="#fecaca"/>
+  <circle cx="1092" cy="537" r="7" fill="#C74634"/>
+  <text x="1104" y="541" font-size="12" fill="#334155">kang_55</text>
+
+  <!-- add slot B -->
+  <rect x="648" y="566" width="160" height="28" rx="6" fill="#ffffff" stroke="#cbd5e1" stroke-dasharray="4 3"/>
+  <text x="728" y="584" font-size="12" fill="#C74634" text-anchor="middle">+ Add Ship Slot</text>
+
+  <!-- Async status board + invite link -->
+  <rect x="624" y="628" width="632" height="68" rx="10" fill="#f1f5f9" stroke="#cbd5e1"/>
+  <rect x="624" y="628" width="6" height="68" rx="3" fill="#f59e0b"/>
+  <circle cx="656" cy="652" r="6" fill="#f59e0b"/>
+  <text x="672" y="657" font-size="14" font-weight="600" fill="#334155">Waiting for 1 player to join</text>
+  <text x="648" y="680" font-size="12" fill="#64748b">5 of 6 commanders ready · async play</text>
+
+  <text x="940" y="641" font-size="11" font-weight="600" fill="#64748b">Invite link</text>
+  <rect x="940" y="648" width="200" height="34" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="952" y="669" font-size="12" fill="#334155">sfb.online/join/9F3K-2QX</text>
+  <rect x="1148" y="648" width="84" height="34" rx="6" fill="#2563eb"/>
+  <text x="1190" y="669" font-size="13" font-weight="600" fill="#ffffff" text-anchor="middle">Copy</text>
+
+  <!-- ================= BOTTOM ACTION BAR ================= -->
+  <line x1="24" y1="710" x2="1256" y2="710" stroke="#cbd5e1"/>
+  <text x="24" y="752" font-size="13" fill="#94a3b8">All ship slots must be assigned before the game can start.</text>
+
+  <rect x="948" y="726" width="140" height="48" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="1018" y="755" font-size="14" font-weight="600" fill="#334155" text-anchor="middle">Save Draft</text>
+
+  <rect x="1104" y="726" width="152" height="48" rx="8" fill="#16a34a"/>
+  <text x="1180" y="755" font-size="14" font-weight="700" fill="#ffffff" text-anchor="middle">Start Game</text>
+</svg>

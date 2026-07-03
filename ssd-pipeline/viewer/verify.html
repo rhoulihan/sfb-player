@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>SFB Online — B4 SSD Verify</title>
+<style>
+  :root{--red:#C74634;--green:#16a34a;--blue:#2563eb;--slate:#334155;--amber:#d97706;--border:#cbd5e1;--ink:#1e293b;--muted:#64748b}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;font-family:"Segoe UI",system-ui,sans-serif;color:var(--ink);background:#eef2f7;font-size:13px}
+  .app{display:flex;flex-direction:column;height:100vh}
+  header{display:flex;align-items:center;gap:10px;background:var(--slate);color:#fff;padding:6px 12px;border-bottom:3px solid var(--red)}
+  header b{font-size:14px}header small{color:#cbd5e1}
+  .sp{flex:1}
+  .tool{display:flex;border:1px solid #64748b;border-radius:7px;overflow:hidden}
+  .tool button{font:inherit;font-size:12px;border:0;background:#475569;color:#cbd5e1;padding:5px 11px;cursor:pointer}
+  .tool button.on{background:var(--blue);color:#fff;font-weight:700}
+  .prog{display:flex;align-items:center;gap:7px;font-size:12px;color:#cbd5e1}
+  .pbar{width:150px;height:9px;background:#0f172a;border-radius:5px;overflow:hidden}.pbar>i{display:block;height:100%;background:var(--green)}
+  .btn{font:inherit;font-size:12px;border:1px solid #64748b;background:#475569;color:#e2e8f0;border-radius:7px;padding:6px 11px;cursor:pointer}
+  .btn.primary{background:var(--blue);border-color:var(--blue);color:#fff;font-weight:700}
+  main{display:flex;flex:1;min-height:0}
+  .groups{width:236px;flex:none;background:#fff;border-right:1px solid var(--border);overflow:auto}
+  .ghd{padding:6px 10px;font-size:11px;letter-spacing:.4px;color:var(--muted);text-transform:uppercase;font-weight:700;position:sticky;top:0;background:#fff;border-bottom:1px solid #eef2f7}
+  .grp{padding:6px 10px;border-bottom:1px solid #f1f5f9;cursor:pointer;display:flex;align-items:center;gap:7px}
+  .grp:hover{background:#f1f5f9}
+  .grp.sel{background:#dbeafe;box-shadow:inset 4px 0 0 var(--blue);font-weight:600}
+  .grp.sel .nm{color:#1d4ed8}
+  .grp .sw{width:12px;height:12px;border-radius:3px;flex:none}
+  .grp .nm{flex:1;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .grp .ct{font-size:11px;color:var(--muted)}
+  .stage{flex:1;overflow:auto;background:#e3e9f1;display:flex;align-items:flex-start;justify-content:center;padding:12px;position:relative}
+  .ssd{position:relative;background:#fff;box-shadow:0 3px 16px rgba(15,23,42,.2);line-height:0}
+  .ssd img{display:block;width:100%;height:auto}.ssd svg{position:absolute;inset:0;width:100%;height:100%;cursor:crosshair}
+  aside{width:312px;flex:none;background:#fff;border-left:1px solid var(--border);overflow:auto;padding:11px}
+  h3{font-size:11px;letter-spacing:.5px;color:var(--muted);text-transform:uppercase;margin:13px 0 6px}h3:first-child{margin-top:0}
+  label{display:block;font-size:11px;color:var(--muted);margin:7px 0 3px}
+  select,input[type=text]{width:100%;font:inherit;font-size:13px;padding:5px;border:1px solid var(--border);border-radius:6px}
+  .row{display:flex;gap:6px;margin-top:7px}.row .btn{flex:1;text-align:center}
+  .hint{font-size:11px;color:var(--muted);line-height:1.5;margin-top:6px}
+  .kbd{font-family:monospace;background:#f1f5f9;border:1px solid var(--border);border-radius:3px;padding:0 4px}
+  .chip{display:inline-block;font-size:11px;padding:2px 7px;border-radius:9px;background:#eef2f7;border:1px solid var(--border);margin:2px 2px 0 0}
+  .aline{display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid #eef2f7;font-size:12px}
+  .aline .err{color:var(--red)}.aline .ok{color:var(--green)}
+  .tip{position:fixed;z-index:60;background:#0f172a;color:#fff;border-radius:7px;padding:6px 9px;font-size:12px;pointer-events:none;opacity:0;transition:opacity .08s}
+  /* arc editor modal */
+  .modal{position:fixed;inset:0;background:rgba(15,23,42,.55);display:none;align-items:center;justify-content:center;z-index:50}
+  .modal.open{display:flex}
+  .sheet{background:#fff;border-radius:12px;width:760px;max-width:94vw;max-height:92vh;overflow:auto;box-shadow:0 12px 40px rgba(0,0,0,.35)}
+  .sheet h2{margin:0;padding:12px 16px;font-size:15px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
+  .sheet .body{display:flex;gap:14px;padding:14px 16px}
+  .arcbtns{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}
+  .arcb{font-size:12px;text-align:center;padding:6px 0;border:1px solid var(--border);border-radius:6px;cursor:pointer;background:#f8fafc}
+  .arcb.on{background:var(--blue);color:#fff;border-color:var(--blue);font-weight:700}
+  .arcb.combo{background:#eef2f7}.arcb.combo.on{background:#1d4ed8}
+  .foot{display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border-top:1px solid var(--border)}
+  .legend{font-size:11px;color:var(--muted);margin-top:8px;line-height:1.6}
+  .sw2{display:inline-block;width:12px;height:12px;border-radius:2px;vertical-align:-1px;margin-right:3px}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <b id="ttl">B4 VERIFY</b><small id="sub"></small>
+    <div class="sp"></div>
+    <div class="tool" id="modes">
+      <button class="on" data-m="select">Select</button>
+      <button data-m="rescan">Rescan area</button>
+      <button data-m="addbox">Add box</button>
+    </div>
+    <label style="font-size:11px;color:#cbd5e1;display:flex;align-items:center;gap:5px" title="fill opacity — lower to peek at the underlying labels">fill<input type="range" id="ovlOp" min="15" max="100" value="100" style="width:78px"></label>
+    <label style="font-size:11px;color:#cbd5e1;display:flex;align-items:center;gap:4px" title="snap each group's boxes to one uniform cell size + pitch"><input type="checkbox" id="uniCells" checked>cells</label>
+    <div class="prog"><span id="ptxt">0/0</span><span class="pbar"><i id="pbar"></i></span></div>
+    <button class="btn" id="auditBtn">Audit</button>
+    <button class="btn primary" id="saveBtn">Save</button>
+  </header>
+  <main>
+    <div class="groups"><div class="ghd">Groups</div><div id="glist"></div></div>
+    <div class="stage" id="stage">
+      <div class="ssd" id="ssd"><img id="img" alt="SSD"/><svg id="ovl" preserveAspectRatio="none"></svg></div>
+    </div>
+    <aside id="aside"></aside>
+  </main>
+</div>
+<div class="tip" id="tip"></div>
+
+<!-- Firing-arc editor modal -->
+<div class="modal" id="arcModal">
+  <div class="sheet">
+    <h2>⌖ Firing arc — <span id="arcTitle"></span> <span class="sp" style="flex:1"></span>
+      <label style="margin:0"><input type="checkbox" id="paintMode"/> paint hexes</label></h2>
+    <div class="body">
+      <svg id="hexsvg" width="440" height="460" style="flex:none;border:1px solid var(--border);border-radius:8px;background:#fbfdff"></svg>
+      <div style="flex:1">
+        <h3 style="margin-top:0">Standard arcs (D2.1)</h3>
+        <div class="arcbtns" id="baseArcs"></div>
+        <h3>Combined (D2.2)</h3>
+        <div class="arcbtns" id="comboArcs"></div>
+        <h3>Plasma swivel — 180° (D2.34 / D2.36)</h3>
+        <div class="arcbtns" id="plasmaArcs"></div>
+        <div class="legend">
+          <span class="sw2" style="background:#93c5fd"></span>in arc (selected)&nbsp;
+          <span class="sw2" style="background:#16a34a"></span>painted +&nbsp;
+          <span class="sw2" style="background:#ef4444"></span>painted −<br>
+          Ship faces up ▲. Each arc is a 60° sector; arcs overlap neighbours by one hexrow (D2.13).
+          <b>Paint</b> to add SSD-noted exceptions — e.g. Fed CA wing phasers firing down the rear row (D2.14).
+          <span id="arcNoteWrap"></span>
+        </div>
+        <label>Arc note (from SSD annotation)</label><input type="text" id="arcNote" placeholder="e.g. +rear row (D2.13/D2.3)"/>
+      </div>
+    </div>
+    <div class="foot">
+      <span class="hint" id="arcSummary"></span>
+      <span><button class="btn" id="arcCancel">Cancel</button> <button class="btn primary" id="arcSave">Apply arc</button></span>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+const SVGNS="http://www.w3.org/2000/svg";
+const el=(t,a)=>{const e=document.createElementNS(SVGNS,t);for(const k in a)e.setAttribute(k,a[k]);return e;};
+let overlayOpacity=1;                 // 1 = fully opaque (uniform recolor); slider can lower to peek at labels
+let uniformCells=true;                // snap each group's boxes to one median cell size + pitch (clean tiling)
+let BOXLABELS={};                     // OCR prefill of letters/numbers printed inside boxes {boxId:text}
+let labelOv={};                       // user's editable label overrides {boxId:text} (persisted)
+const labelText=id=>{const o=labelOv[id]; return o!==undefined?o:(BOXLABELS[id]||"");};
+const BOX_BORDER="rgba(15,23,42,0.55)", BOX_BW=1.25;   // one consistent border for every box
+const med=a=>{if(!a.length)return 0;const s=[...a].sort((x,y)=>x-y);return s[Math.floor(s.length/2)];};
+let CELL={w:24,h:24};   // global uniform cell size (px) — recomputed each render
+// One cell size for the WHOLE ship = median box size (median is robust to the few double-width boxes).
+function globalCell(){
+  const bx=allBoxes(); if(!bx.length)return {w:24,h:24};
+  return {w:med(bx.map(b=>b.bbox[2]*IMGW))||24, h:med(bx.map(b=>b.bbox[3]*IMGH))||24};
+}
+// A box is "double" (rendered 2 cells wide + divider) when its ORIGINAL width is ~2x the cell — e.g. the
+// drone-rack reload boxes. The single drone launcher box stays one cell.
+const isWide=b=>uniformCells&&(b.bbox[2]*IMGW)>CELL.w*1.5;
+// Snap a group's boxes to a regular grid: every row shares one Y, columns sit on a uniform pitch
+// (missing cells leave gaps). Returns {boxId:{cx,cy}} of snapped CENTRES, or null for <2 boxes.
+function layoutGroup(g){
+  const bs=(g.boxIds||[]).map(id=>boxIndex[id]).filter(Boolean); if(bs.length<2)return null;
+  const CX=b=>(b.bbox[0]+b.bbox[2]/2)*IMGW, CY=b=>(b.bbox[1]+b.bbox[3]/2)*IMGH;
+  const mw=med(bs.map(b=>b.bbox[2]*IMGW)), mh=med(bs.map(b=>b.bbox[3]*IMGH));
+  const os=bs.map(b=>({b,cx:CX(b),cy:CY(b)})).sort((a,b)=>a.cy-b.cy);
+  const rows=[]; let cur=[]; os.forEach(o=>{if(cur.length&&Math.abs(o.cy-cur[cur.length-1].cy)>mh*0.6){rows.push(cur);cur=[];}cur.push(o);}); if(cur.length)rows.push(cur);
+  const pitchOf=arr=>{if(arr.length<2)return 0;const s=arr.slice().sort((a,b)=>a-b);const d=[];for(let i=1;i<s.length;i++){const gp=s[i]-s[i-1];if(gp>mw*0.4)d.push(gp);}return med(d);};
+  const big=rows.reduce((a,b)=>b.length>a.length?b:a,rows[0]);
+  const px=pitchOf(big.map(o=>o.cx))||mw*1.25;
+  const snap={};
+  rows.forEach(row=>{ row.sort((a,b)=>a.cx-b.cx); const rowY=med(row.map(o=>o.cy)), ox=row[0].cx;
+    row.forEach(o=>{ snap[o.b.id]={cx:ox+Math.round((o.cx-ox)/px)*px, cy:rowY}; }); });
+  return snap;
+}
+// DAC-aligned system family taxonomy (every damageable DAC system + tracked non-DAC systems), 38 families.
+const CATS=["Defensive","Power","Weapons","Control","Sensors/EW","Hull","Aux Systems","Consumables","Special","Markers"];
+const TAX=[
+  {k:"shield",n:"Shield",c:"Defensive",col:"#7c3aed",d:true},
+  {k:"warp-engine",n:"Warp Engine",c:"Power",col:"#2563eb",d:true},
+  {k:"warp-reactor",n:"Warp Reactor",c:"Power",col:"#1e3a8a",d:true},
+  {k:"impulse-engine",n:"Impulse Engine",c:"Power",col:"#3b82f6",d:true},
+  {k:"apr",n:"APR (Aux Power)",c:"Power",col:"#60a5fa",d:true},
+  {k:"battery",n:"Battery / Reserve",c:"Power",col:"#93c5fd",d:true},
+  {k:"phaser",n:"Phaser",c:"Weapons",col:"#dc2626",d:true},
+  {k:"heavy-weapon",n:"Heavy Weapon",c:"Weapons",col:"#991b1b",d:true},
+  {k:"drone-rack",n:"Drone Rack",c:"Weapons",col:"#ef4444",d:true},
+  {k:"anti-drone",n:"Anti-drone (ADD)",c:"Weapons",col:"#f87171",d:true},
+  {k:"esg",n:"ESG",c:"Weapons",col:"#7f1d1d",d:true},
+  {k:"sfg",n:"Stasis Field Gen",c:"Weapons",col:"#e11d48",d:true},
+  {k:"mine-rack",n:"Mine Rack",c:"Weapons",col:"#f97316",d:true},
+  {k:"bridge",n:"Bridge",c:"Control",col:"#d97706",d:true},
+  {k:"flag-bridge",n:"Flag Bridge",c:"Control",col:"#92400e",d:true},
+  {k:"emergency-bridge",n:"Emergency Bridge",c:"Control",col:"#f59e0b",d:true},
+  {k:"auxiliary-control",n:"Auxiliary Control",c:"Control",col:"#fbbf24",d:true},
+  {k:"security-station",n:"Security Station",c:"Control",col:"#b45309",d:true},
+  {k:"sensor",n:"Sensor",c:"Sensors/EW",col:"#0d9488",d:true},
+  {k:"scanner",n:"Scanner",c:"Sensors/EW",col:"#14b8a6",d:true},
+  {k:"damage-control",n:"Damage Control",c:"Sensors/EW",col:"#0f766e",d:true},
+  {k:"fire-control",n:"Fire Control",c:"Sensors/EW",col:"#2dd4bf",d:true},
+  {k:"hull",n:"Hull",c:"Hull",col:"#475569",d:true},
+  {k:"cargo",n:"Cargo",c:"Hull",col:"#64748b",d:true},
+  {k:"armor",n:"Armor",c:"Hull",col:"#334155",d:true},
+  {k:"excess-damage",n:"Excess Damage",c:"Hull",col:"#94a3b8",d:true},
+  {k:"lab",n:"Lab",c:"Aux Systems",col:"#4d7c0f",d:true},
+  {k:"transporter",n:"Transporter",c:"Aux Systems",col:"#84cc16",d:true},
+  {k:"tractor",n:"Tractor",c:"Aux Systems",col:"#65a30d",d:true},
+  {k:"probe-launcher",n:"Probe Launcher",c:"Aux Systems",col:"#a3e635",d:true},
+  {k:"shuttle-bay",n:"Shuttle Bay / Fighters",c:"Aux Systems",col:"#16a34a",d:true},
+  {k:"repair",n:"Repair",c:"Aux Systems",col:"#15803d",d:true},
+  {k:"barracks",n:"Barracks",c:"Aux Systems",col:"#22c55e",d:true},
+  {k:"crew",n:"Crew Units",c:"Consumables",col:"#ec4899",d:false},
+  {k:"boarding-party",n:"Boarding Parties",c:"Consumables",col:"#f472b6",d:false},
+  {k:"ammo-track",n:"Ammo / Reload Track",c:"Consumables",col:"#db2777",d:false},
+  {k:"cloaking-device",n:"Cloaking Device",c:"Special",col:"#c026d3",d:true},
+  {k:"markers",n:"Markers / Non-system",c:"Markers",col:"#737373",d:false},
+];
+const FAMCOL=Object.fromEntries(TAX.map(f=>[f.k,f.col]));
+const FAMNAME=Object.fromEntries(TAX.map(f=>[f.k,f.n]));
+const FAMS=TAX.map(f=>f.k);
+const ARC_FAMS=new Set(["phaser","heavy-weapon"]);   // direct-fire weapons that carry a firing arc (D2.11; drones/ADDs do not)
+const needsArc=f=>ARC_FAMS.has(f);
+// migrate an old coarse family (+ its type text) to the new granular family
+function migrateFamily(fam,type){
+  if(FAMCOL[fam])return fam;                       // already a valid new key
+  const t=(type||"").toLowerCase();
+  const rules=[[/shield/,"shield"],[/warp/,"warp-engine"],[/impulse/,"impulse-engine"],[/\bapr\b|aux power/,"apr"],
+    [/batter|reserve/,"battery"],[/anti[- ]?drone|\badd\b/,"anti-drone"],[/drone/,"drone-rack"],[/\besg\b/,"esg"],
+    [/stasis/,"sfg"],[/\bmine/,"mine-rack"],[/photon|disrupt|plasma|fusion|hellbore|torpedo|heavy|ppd|\bppt\b/,"heavy-weapon"],
+    [/phaser|ph-?\d|\bph\b/,"phaser"],[/flag/,"flag-bridge"],[/emerg|emer\b/,"emergency-bridge"],
+    [/aux(iliary)?\s*con|aux control/,"auxiliary-control"],[/security|\bsec\b/,"security-station"],[/bridge|brdg/,"bridge"],
+    [/derfacs|fire\s*control/,"fire-control"],[/sensor/,"sensor"],[/scanner/,"scanner"],[/damage\s*control|dam\s*con|damcon/,"damage-control"],
+    [/excess|ex\s*dam/,"excess-damage"],[/cargo/,"cargo"],[/armou?r/,"armor"],[/hull/,"hull"],[/repair/,"repair"],[/barrack/,"barracks"],
+    [/lab/,"lab"],[/transport/,"transporter"],[/tractor|\btrac\b/,"tractor"],[/probe/,"probe-launcher"],[/shuttle|fighter|hangar/,"shuttle-bay"],
+    [/boarding/,"boarding-party"],[/crew/,"crew"],[/ammo|reload|bomb|pseudo/,"ammo-track"],[/cloak/,"cloaking-device"],
+    [/breakdown|\bhet\b|marker|counter|turn\s*mode/,"markers"]];
+  for(const [re,k] of rules) if(re.test(t)) return k;
+  return {"power/warp/impulse":"battery",weapon:"phaser",system:"lab",control:"bridge","rating-track":"sensor",
+          crew:"crew","ammo-track":"ammo-track",special:"markers",hull:"hull",shield:"shield",other:"markers"}[fam]||"markers";
+}
+const BASE=["RF","R","RR","LR","L","LF"];           // sector i = (60*i , 60*i+60) clockwise from forward(0)
+const COMBINED={FA:["RF","LF"],FX:["L","LF","RF","R"],RA:["LR","RR"],RX:["L","LR","RR","R"],RS:["RF","R","RR"],LS:["LF","L","LR"],FH:["_FH"],RH:["_RH"]};
+const PLASMA=["FP","LP","RP","AP","LPR","RPR"];   // 180° swivel arcs (D2.34/D2.36)
+const ship=new URLSearchParams(location.search).get("ship")||"FED-CA";
+let DET,IMGW,IMGH,groups=[],extraBoxes=[],boxIndex={},groupOf={},sel=new Set(),curG=null,mode="select",deleted=new Set();
+
+// ---------- load ----------
+async function load(){
+  DET=await (await fetch(`../data/${ship}/detection.json`)).json();
+  IMGW=DET.pxWidth;IMGH=DET.pxHeight;
+  document.getElementById("img").src=`../data/${ship}/image.png`;
+  document.getElementById("ttl").textContent="B4 VERIFY · "+ship.replace("-"," ");
+  document.getElementById("sub").textContent=` — ${DET.orientationClass} · ${DET.pxWidth}×${DET.pxHeight}`;
+  document.getElementById("ovl").setAttribute("viewBox",`0 0 ${IMGW} ${IMGH}`);
+  DET.boxes.forEach(b=>boxIndex[b.id]=b);
+  let saved=null; try{const r=await fetch(`../data/${ship}/verified.json`);if(r.ok)saved=await r.json();}catch(e){}
+  if(saved&&saved.groups){
+    extraBoxes=saved.extraBoxes||[]; extraBoxes.forEach(b=>boxIndex[b.id]=b);
+    groups=saved.groups.map((g,i)=>({id:g.id||("g"+i),boxIds:g.boxIds||[],family:migrateFamily(g.family||"",g.type||""),type:g.type||"",arc:g.arc||"",arcDef:g.arcDef||{arcs:g.arc?[g.arc]:[],paintAdd:[],paintRemove:[],note:""},verified:!!g.verified}));
+  } else {
+    groups=DET.groups.map((g,i)=>{const fam=famCC(g.cc);const arc=g.proposedArc||"";
+      return {id:"g"+i,boxIds:g.boxIds.slice(),family:fam,type:g.ocrLabel||"",arc:arc,arcDef:{arcs:arc?[arc]:[],paintAdd:[],paintRemove:[],note:""},verified:false};});
+  }
+  labelOv=(saved&&saved.labels)||{};
+  deleted=new Set((saved&&saved.deleted)||[]);
+  reindex();fit();renderAll();
+  fetch(`/api/labels/${ship}`).then(r=>r.json()).then(m=>{if(m&&!m.error){BOXLABELS=m;renderOverlay();}}).catch(()=>{});
+}
+function famCC(cc){return {purple:"shield",blue:"impulse-engine",cyan:"ammo-track",red:"phaser",pink:"phaser",yellow:"lab",orange:"bridge",green:"sensor",beige:"hull",control:"bridge"}[cc]||"markers";}
+function reindex(){groupOf={};groups.forEach(g=>g.boxIds.forEach(id=>groupOf[id]=g.id));}
+function allBoxes(){return DET.boxes.concat(extraBoxes).filter(b=>!deleted.has(b.id));}
+function gById(id){return groups.find(g=>g.id===id);}
+
+// ---------- render ----------
+function renderAll(){renderGroups();renderOverlay();renderInspector();updateProg();}
+function renderGroups(){
+  const el=document.getElementById("glist");el.innerHTML="";
+  groups.forEach(g=>{
+    const d=document.createElement("div");d.className="grp"+(g.id===curG?" sel":"");
+    const flag=needsArc(g.family)&&!(g.arc||g.arcDef.arcs.length||g.arcDef.paintAdd.length)?" ⚠":"";
+    d.innerHTML=`<span class="sw" style="background:${FAMCOL[g.family]||'#94a3b8'}"></span>`
+      +`<span class="nm">${g.type||FAMNAME[g.family]||g.family}${flag}</span><span class="ct">×${g.boxIds.length} ${g.verified?'✓':'·'}</span>`;
+    d.style.color=g.verified?'#16a34a':'';
+    d.onclick=()=>{curG=g.id;sel=new Set();renderAll();};
+    el.appendChild(d);
+  });
+}
+function boxRect(b,g,snap){
+  // on-screen rect: snapped to the group grid + the global cell size when uniform mode is on.
+  const [nx,ny,nw,nh]=b.bbox; let cx=(nx+nw/2)*IMGW, cy=(ny+nh/2)*IMGH, w=nw*IMGW, h=nh*IMGH;
+  if(uniformCells){
+    if(snap&&snap[b.id]){cx=snap[b.id].cx;cy=snap[b.id].cy;}
+    w=CELL.w*(isWide(b)?2:1); h=CELL.h;   // physically double-width boxes (drone-rack reloads) span 2 cells
+  }
+  return {x:cx-w/2,y:cy-h/2,w,h};
+}
+// contrasting ink for a family colour so overlaid labels stay legible
+function inkFor(col){const c=(col||"#888").replace('#','');const r=parseInt(c.slice(0,2),16),gg=parseInt(c.slice(2,4),16),bb=parseInt(c.slice(4,6),16);return (0.299*r+0.587*gg+0.114*bb)>150?"#0f172a":"#f8fafc";}
+function renderOverlay(){
+  const ovl=document.getElementById("ovl");ovl.innerHTML="";
+  CELL=globalCell();
+  const layouts={}; groups.forEach(g=>{layouts[g.id]=layoutGroup(g);});
+  // BASE PASS: every box the SAME solid family colour, SAME border, SAME global cell size, snapped straight.
+  allBoxes().forEach(b=>{
+    const g=groupOf[b.id]?gById(groupOf[b.id]):null;
+    const fam=g?g.family:(b.family||"other"), col=FAMCOL[fam]||"#94a3b8";
+    const inCur=!!(curG&&g&&g.id===curG), dim=!!(curG&&!inCur), op=dim?overlayOpacity*0.32:overlayOpacity;  // fade OTHER groups when one is selected
+    const {x,y,w,h}=boxRect(b,g,g?layouts[g.id]:null);
+    const r=el("rect",{x,y,width:w,height:h,fill:col,"fill-opacity":op,
+        stroke:BOX_BORDER,"stroke-width":BOX_BW,"stroke-opacity":dim?0.35:1,"vector-effect":"non-scaling-stroke"});
+    r.style.cursor="pointer";r.dataset.id=b.id;
+    r.addEventListener("mousemove",e=>{const t=document.getElementById("tip");t.textContent=`${g?(g.type||g.family):(b.family||b.cc)}${g&&g.arc?' · '+g.arc:''}${b.src?' ('+b.src+')':''}`;t.style.left=(e.clientX+12)+"px";t.style.top=(e.clientY+12)+"px";t.style.opacity=1;});
+    r.addEventListener("mouseleave",()=>document.getElementById("tip").style.opacity=0);
+    r.addEventListener("dblclick",ev=>{ev.stopPropagation();sel=new Set([b.id]);curG=null;renderAll();const bl=document.getElementById("boxLbl");if(bl){bl.focus();bl.select();}});
+    ovl.appendChild(r);
+    if(isWide(b))   // dotted divider down the middle of a double-width box (drone-rack reload)
+      ovl.appendChild(el("line",{x1:x+w/2,y1:y+1,x2:x+w/2,y2:y+h-1,stroke:BOX_BORDER,"stroke-width":BOX_BW,"stroke-dasharray":"3 3","vector-effect":"non-scaling-stroke","pointer-events":"none"}));
+    // LABEL PASS: show the box's original letters/numbers (from OCR) on top of the overlay cell.
+    const lab=labelText(b.id);
+    if(lab){const fs=Math.max(7,Math.round(Math.min(h*0.62,(w*0.85)/Math.max(1,lab.length*0.6))));
+      const t=el("text",{x:x+w/2,y:y+h/2,"text-anchor":"middle","dominant-baseline":"central",
+      "font-size":fs,"font-family":"Menlo,Consolas,monospace","font-weight":"700",
+      fill:inkFor(col),opacity:op,"pointer-events":"none"});t.textContent=lab;ovl.appendChild(t);}
+  });
+  // INDICATOR PASS: current-group + selection rings on top, so the box colour/border stays uniform.
+  allBoxes().forEach(b=>{
+    const g=groupOf[b.id]?gById(groupOf[b.id]):null;
+    const {x,y,w,h}=boxRect(b,g,g?layouts[g.id]:null);
+    if(g&&g.id===curG){   // haloed bright outline so the selected group pops on any background
+      ovl.appendChild(el("rect",{x:x-2,y:y-2,width:w+4,height:h+4,fill:"none",stroke:"#ffffff","stroke-width":5,"stroke-opacity":0.95,"vector-effect":"non-scaling-stroke","pointer-events":"none"}));
+      ovl.appendChild(el("rect",{x:x-2,y:y-2,width:w+4,height:h+4,fill:"none",stroke:"#1d4ed8","stroke-width":2.5,"vector-effect":"non-scaling-stroke","pointer-events":"none"}));
+    }
+    if(sel.has(b.id)) ovl.appendChild(el("rect",{x:x-1,y:y-1,width:w+2,height:h+2,fill:"none",stroke:"#0ea5e9","stroke-width":3.5,"vector-effect":"non-scaling-stroke","pointer-events":"none"}));
+  });
+}
+function renderInspector(){
+  const el=document.getElementById("aside");
+  if(sel.size>0){
+    el.innerHTML=`<h3>Selection — ${sel.size} box(es)</h3>`
+     +`<label>Box label <span class="hint" style="font-weight:400">— per box; does not change the group</span></label>`
+     +`<input id="boxLbl" maxlength="6" placeholder="${sel.size>1?'apply to all '+sel.size:'letters / numbers on the cell'}">`
+     +`<div class="hint" style="margin-top:10px">Reassign these boxes:</div>`
+     +`<div class="row"><button class="btn primary" id="mkGroup">Create new group</button></div>`
+     +`<label>…or add to existing group</label><select id="addTo"><option value="">— choose group —</option>${groups.map(g=>`<option value="${g.id}">${g.type||FAMNAME[g.family]||g.family} ×${g.boxIds.length}</option>`).join("")}</select>`
+     +`<div class="row"><button class="btn" id="removeSel">Remove from group</button><button class="btn" id="clearSel">Clear selection</button></div>`
+     +`<div class="row"><button class="btn" id="delSel" style="flex:1;color:#b91c1c;border-color:#fecaca">🗑 Delete box(es) from overlay</button></div>`
+     +`<div class="hint">Tip: double-click a box to jump here and edit its label.</div>`;
+    const bl=document.getElementById("boxLbl");
+    if(sel.size===1) bl.value=labelText([...sel][0]);
+    bl.oninput=e=>{const v=e.target.value.slice(0,6);sel.forEach(id=>{labelOv[id]=v;});renderOverlay();};
+    document.getElementById("mkGroup").onclick=createGroupFromSel;
+    document.getElementById("addTo").onchange=e=>{if(e.target.value)addSelToGroup(e.target.value);};
+    document.getElementById("removeSel").onclick=removeSelFromGroups;
+    document.getElementById("delSel").onclick=deleteSel;
+    document.getElementById("clearSel").onclick=()=>{sel=new Set();renderAll();};
+    return;
+  }
+  const g=gById(curG);
+  if(!g){el.innerHTML=`<h3>No group selected</h3><div class="hint">Click a group at left, or a box on the SSD. Use <b>Rescan area</b> to find missed white/grey/shaded control boxes, or <b>Add box</b> to draw one.</div>`+auditHtml();return;}
+  el.innerHTML=`<h3>Group</h3>`
+   +`<span class="chip" style="background:${FAMCOL[g.family]}22;border-color:${FAMCOL[g.family]}">${FAMNAME[g.family]||g.family}</span><span class="chip">×${g.boxIds.length}</span>`
+   +`<label>System family (DAC designation)</label><select id="fam">${CATS.map(cat=>`<optgroup label="${cat}">`+TAX.filter(f=>f.c===cat).map(f=>`<option value="${f.k}" ${f.k===g.family?'selected':''}>${f.n}</option>`).join("")+`</optgroup>`).join("")}</select>`
+   +`<label>Type / label</label><input type="text" id="type" value="${(g.type||'').replace(/"/g,'&quot;')}"/>`
+   +(needsArc(g.family)?`<label>Firing arc (D2.0)</label><div class="row"><button class="btn" id="editArc" style="flex:1">${arcLabel(g)||'⌖ Set firing arc…'}</button></div>`:"")
+   +`<div class="row"><button class="btn ${g.verified?'':'primary'}" id="vbtn" style="flex:1">${g.verified?'✓ Verified (toggle)':'Verify group'}</button></div>`
+   +`<div class="row"><button class="btn" id="delG">Delete group</button><button class="btn" id="selBoxes">Select its boxes</button></div>`
+   +auditHtml();
+  document.getElementById("fam").onchange=e=>{g.family=e.target.value;renderAll();};
+  document.getElementById("type").oninput=e=>{g.type=e.target.value;};
+  const ea=document.getElementById("editArc");if(ea)ea.onclick=()=>openArc(g);
+  document.getElementById("vbtn").onclick=()=>{if(needsArc(g.family)&&!(g.arc||g.arcDef.arcs.length||g.arcDef.paintAdd.length)){alert("Set a firing arc before verifying this weapon.");return;}g.verified=!g.verified;renderAll();};
+  document.getElementById("delG").onclick=()=>{groups=groups.filter(x=>x.id!==g.id);curG=null;reindex();renderAll();};
+  document.getElementById("selBoxes").onclick=()=>{sel=new Set(g.boxIds);renderAll();};
+}
+function arcLabel(g){const d=g.arcDef||{};const parts=(d.arcs||[]).slice();if((d.paintAdd||[]).length)parts.push("+"+d.paintAdd.length+"hex");if((d.paintRemove||[]).length)parts.push("−"+d.paintRemove.length);return parts.join(" ")||g.arc||"";}
+function auditHtml(){return `<h3>Audit</h3><div id="auditOut" class="hint">Run the audit to check assignment, verification, and weapon arcs.</div>`;}
+function updateProg(){const v=groups.filter(g=>g.verified).length;document.getElementById("ptxt").textContent=`${v}/${groups.length} grp`;document.getElementById("pbar").style.width=(100*v/Math.max(1,groups.length))+"%";}
+
+// ---------- selection / group ops ----------
+function createGroupFromSel(){
+  const ids=[...sel];const id="g"+Date.now();
+  const b=boxIndex[ids[0]];const fam=b?famCC(b.family&&FAMCOL[b.family]?b.family:b.cc)||"other":"other";
+  groups.forEach(g=>g.boxIds=g.boxIds.filter(x=>!sel.has(x)));
+  groups=groups.filter(g=>g.boxIds.length);
+  groups.push({id,boxIds:ids,family:fam,type:"",arc:"",arcDef:{arcs:[],paintAdd:[],paintRemove:[],note:""},verified:false});
+  curG=id;sel=new Set();reindex();renderAll();
+}
+function addSelToGroup(gid){
+  const g=gById(gid);if(!g)return;
+  groups.forEach(x=>{if(x.id!==gid)x.boxIds=x.boxIds.filter(b=>!sel.has(b));});
+  sel.forEach(b=>{if(!g.boxIds.includes(b))g.boxIds.push(b);});
+  groups=groups.filter(x=>x.boxIds.length||x.id===gid);
+  curG=gid;sel=new Set();reindex();renderAll();
+}
+function removeSelFromGroups(){groups.forEach(g=>g.boxIds=g.boxIds.filter(b=>!sel.has(b)));groups=groups.filter(g=>g.boxIds.length);reindex();renderAll();}
+function deleteSel(){          // remove extraneous / false-positive boxes from the overlay entirely (persisted)
+  const n=sel.size; if(!n)return;
+  if(!confirm(`Delete ${n} box(es) from the overlay? They are removed from all groups and won't be rendered or audited.`))return;
+  sel.forEach(id=>{deleted.add(id); delete labelOv[id];});
+  extraBoxes=extraBoxes.filter(b=>!sel.has(b.id));   // drop any manually-added boxes outright
+  groups.forEach(g=>g.boxIds=g.boxIds.filter(b=>!sel.has(b)));
+  groups=groups.filter(g=>g.boxIds.length);
+  sel=new Set(); curG=null; reindex(); renderAll();
+}
+
+// ---------- SVG mouse: click select + rubber-band + region drag ----------
+const ovl=document.getElementById("ovl");let drag=null;
+function svgPt(e){const r=ovl.getBoundingClientRect();return {x:(e.clientX-r.left)/r.width*IMGW,y:(e.clientY-r.top)/r.height*IMGH};}
+ovl.addEventListener("mousedown",e=>{
+  const id=e.target.dataset&&e.target.dataset.id;
+  if(mode==="select"&&id){if(!e.shiftKey&&!sel.has(id))sel=new Set();sel.has(id)?sel.delete(id):sel.add(id);curG=null;renderAll();return;}
+  const p=svgPt(e);drag={x0:p.x,y0:p.y,x1:p.x,y1:p.y,add:e.shiftKey};
+  const rb=document.createElementNS(SVGNS,"rect");rb.id="rubber";rb.setAttribute("fill","rgba(37,99,235,.12)");rb.setAttribute("stroke",mode==="select"?"#2563eb":(mode==="rescan"?"#16a34a":"#d97706"));rb.setAttribute("stroke-width",2);rb.setAttribute("stroke-dasharray","6 4");rb.setAttribute("vector-effect","non-scaling-stroke");ovl.appendChild(rb);
+});
+ovl.addEventListener("mousemove",e=>{if(!drag)return;const p=svgPt(e);drag.x1=p.x;drag.y1=p.y;const rb=document.getElementById("rubber");if(rb){rb.setAttribute("x",Math.min(drag.x0,p.x));rb.setAttribute("y",Math.min(drag.y0,p.y));rb.setAttribute("width",Math.abs(p.x-drag.x0));rb.setAttribute("height",Math.abs(p.y-drag.y0));}});
+window.addEventListener("mouseup",async e=>{
+  if(!drag)return;const d=drag;drag=null;const rb=document.getElementById("rubber");if(rb)rb.remove();
+  const x=Math.min(d.x0,d.x1),y=Math.min(d.y0,d.y1),w=Math.abs(d.x1-d.x0),h=Math.abs(d.y1-d.y0);
+  if(w<4&&h<4){if(mode==="select"&&!e.shiftKey){sel=new Set();renderAll();}return;}
+  if(mode==="select"){if(!d.add)sel=new Set();allBoxes().forEach(b=>{const[bx,by,bw,bh]=b.bbox;const X=bx*IMGW,Y=by*IMGH,W=bw*IMGW,Hh=bh*IMGH;if(X<x+w&&X+W>x&&Y<y+h&&Y+Hh>y)sel.add(b.id);});curG=null;renderAll();}
+  else if(mode==="addbox"){const nb={id:"m"+Date.now(),bbox:[+(x/IMGW).toFixed(4),+(y/IMGH).toFixed(4),+(w/IMGW).toFixed(4),+(h/IMGH).toFixed(4)],cc:"control",family:"control",src:"manual"};extraBoxes.push(nb);boxIndex[nb.id]=nb;sel=new Set([nb.id]);renderAll();}
+  else if(mode==="rescan"){await doRescan({x:x/IMGW,y:y/IMGH,w:w/IMGW,h:h/IMGH});}
+});
+async function doRescan(region){
+  const r=await fetch(`/api/rescan/${ship}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({region})});
+  const res=await r.json();let added=0;
+  (res.boxes||[]).forEach(b=>{if(!extraBoxes.find(x=>Math.abs(x.bbox[0]-b.bbox[0])<0.004&&Math.abs(x.bbox[1]-b.bbox[1])<0.004)){b.id="r"+(Date.now()+added);extraBoxes.push(b);boxIndex[b.id]=b;sel.add(b.id);added++;}});
+  curG=null;renderAll();
+  const t=document.getElementById("tip");t.textContent=`Rescan found ${res.found||0} box(es), ${added} new (selected). Assign them to a group.`;t.style.left="50%";t.style.top="70px";t.style.opacity=1;setTimeout(()=>t.style.opacity=0,2600);
+}
+
+// ================= HEX FIRING-ARC EDITOR =================
+const HS=26,HRAD=4;let arcG=null,arcDef=null;
+function hexPix(q,r){return {x:HS*1.5*q,y:HS*Math.sqrt(3)*(r+q/2)};}          // flat-top
+function bearing(q,r){const p=hexPix(q,r);let a=Math.atan2(p.x,-p.y)*180/Math.PI;return (a+360)%360;}
+function baseArcsOf(q,r){if(q===0&&r===0)return[];const b=bearing(q,r);const eps=2.5;let out=[];
+  for(let i=0;i<6;i++){const lo=60*i;const within=(b>lo+eps&&b<lo+60-eps);const onLo=Math.abs(((b-lo)%360))<eps||Math.abs(((b-lo)%360))>360-eps;if(within)out.push(BASE[i]);}
+  // boundary hexrows: shared by the two arcs meeting at that spine
+  for(let s=0;s<6;s++){const spine=60*s;let db=Math.abs(b-spine);db=Math.min(db,360-db);if(db<eps){out.push(BASE[(s+5)%6]);out.push(BASE[s%6]);}}
+  return [...new Set(out)];}
+function hexInNamed(q,r,arcs){if(q===0&&r===0)return false;const b=bearing(q,r);const ba=baseArcsOf(q,r);
+  for(const n of arcs){
+    if(n==="FH"||n==="FP"){if(b>=270||b<=90)return true;continue;}      // front hemisphere / front plasma
+    if(n==="RH"||n==="AP"){if(b>=90&&b<=270)return true;continue;}      // rear hemisphere / aft plasma
+    if(n==="LP"){if(b>=180)return true;continue;}                       // left plasma 180°  [180,360)
+    if(n==="RP"){if(b<=180)return true;continue;}                       // right plasma 180° (0,180]
+    if(n==="LPR"){if(b>=120&&b<=300)return true;continue;}              // left plasma rear (D2.36)
+    if(n==="RPR"){if(b>=60&&b<=240)return true;continue;}               // right plasma rear (D2.36)
+    const bases=COMBINED[n]||[n];if(bases.some(x=>ba.includes(x)))return true;
+  }return false;}
+function effIn(q,r,d){if((d.paintRemove||[]).some(h=>h[0]===q&&h[1]===r))return false;if((d.paintAdd||[]).some(h=>h[0]===q&&h[1]===r))return true;return hexInNamed(q,r,d.arcs||[]);}
+function hexCells(){const c=[];for(let q=-HRAD;q<=HRAD;q++)for(let r=-HRAD;r<=HRAD;r++){const s=-q-r;if(Math.max(Math.abs(q),Math.abs(r),Math.abs(s))<=HRAD)c.push([q,r]);}return c;}
+function openArc(g){arcG=g;arcDef=JSON.parse(JSON.stringify(g.arcDef||{arcs:g.arc?[g.arc]:[],paintAdd:[],paintRemove:[],note:""}));
+  document.getElementById("arcTitle").textContent=(g.type||"weapon")+" ×"+g.boxIds.length;
+  document.getElementById("arcNote").value=arcDef.note||"";document.getElementById("paintMode").checked=false;
+  const bb=document.getElementById("baseArcs");bb.innerHTML=BASE.map(a=>`<div class="arcb" data-a="${a}">${a}</div>`).join("");
+  const cb=document.getElementById("comboArcs");cb.innerHTML=Object.keys(COMBINED).map(a=>`<div class="arcb combo" data-a="${a}">${a}</div>`).join("");
+  const pl=document.getElementById("plasmaArcs");pl.innerHTML=PLASMA.map(a=>`<div class="arcb combo" data-a="${a}">${a}</div>`).join("");
+  document.querySelectorAll("#baseArcs .arcb, #comboArcs .arcb, #plasmaArcs .arcb").forEach(el=>el.onclick=()=>toggleArc(el.dataset.a));
+  document.getElementById("arcModal").classList.add("open");drawHex();
+}
+function toggleArc(a){arcDef.arcs=arcDef.arcs||[];const i=arcDef.arcs.indexOf(a);if(i>=0)arcDef.arcs.splice(i,1);else arcDef.arcs.push(a);drawHex();}
+function drawHex(){
+  const svg=document.getElementById("hexsvg");svg.innerHTML="";const cx=220,cy=230;
+  hexCells().forEach(([q,r])=>{
+    const p=hexPix(q,r);const x=cx+p.x,y=cy+p.y;
+    const pts=[];for(let i=0;i<6;i++){const a=Math.PI/180*(60*i);pts.push((x+HS*0.92*Math.cos(a)).toFixed(1)+","+(y+HS*0.92*Math.sin(a)).toFixed(1));}
+    const poly=document.createElementNS(SVGNS,"polygon");poly.setAttribute("points",pts.join(" "));
+    const isShip=(q===0&&r===0);const inArc=effIn(q,r,arcDef);
+    const added=(arcDef.paintAdd||[]).some(h=>h[0]===q&&h[1]===r);const removed=(arcDef.paintRemove||[]).some(h=>h[0]===q&&h[1]===r);
+    poly.setAttribute("fill",isShip?"#334155":removed?"#fee2e2":added?"#bbf7d0":inArc?"#bfdbfe":"#ffffff");
+    poly.setAttribute("stroke",removed?"#ef4444":added?"#16a34a":"#cbd5e1");poly.setAttribute("stroke-width",added||removed?2:1);
+    poly.style.cursor="pointer";poly.onclick=()=>{if(!document.getElementById("paintMode").checked){document.getElementById("paintMode").checked=true;}paintHex(q,r);};
+    svg.appendChild(poly);
+  });
+  // ship facing arrow
+  const ar=document.createElementNS(SVGNS,"path");ar.setAttribute("d",`M ${cx} ${cy-14} l 6 12 l -12 0 z`);ar.setAttribute("fill","#fff");svg.appendChild(ar);
+  const lab=document.createElementNS(SVGNS,"text");lab.setAttribute("x",cx);lab.setAttribute("y",cy+5);lab.setAttribute("text-anchor","middle");lab.setAttribute("font-size","10");lab.setAttribute("fill","#fff");lab.textContent="SHIP";svg.appendChild(lab);
+  document.querySelectorAll("#baseArcs .arcb, #comboArcs .arcb, #plasmaArcs .arcb").forEach(el=>el.classList.toggle("on",(arcDef.arcs||[]).includes(el.dataset.a)));
+  const nHex=hexCells().filter(([q,r])=>effIn(q,r,arcDef)).length;
+  document.getElementById("arcSummary").textContent=`${(arcDef.arcs||[]).join("+")||'(no named arc)'}  ·  ${nHex} hexes in arc  ·  +${(arcDef.paintAdd||[]).length}/−${(arcDef.paintRemove||[]).length} painted`;
+}
+function paintHex(q,r){if(q===0&&r===0)return;const cur=effIn(q,r,arcDef);const inNamed=hexInNamed(q,r,arcDef.arcs||[]);
+  arcDef.paintAdd=(arcDef.paintAdd||[]).filter(h=>!(h[0]===q&&h[1]===r));arcDef.paintRemove=(arcDef.paintRemove||[]).filter(h=>!(h[0]===q&&h[1]===r));
+  if(cur){if(inNamed)arcDef.paintRemove.push([q,r]);}else{arcDef.paintAdd.push([q,r]);}drawHex();}
+document.getElementById("arcCancel").onclick=()=>document.getElementById("arcModal").classList.remove("open");
+document.getElementById("arcSave").onclick=()=>{arcDef.note=document.getElementById("arcNote").value;arcG.arcDef=arcDef;arcG.arc=(arcDef.arcs||[])[0]||(arcDef.paintAdd.length?"custom":"");document.getElementById("arcModal").classList.remove("open");renderAll();};
+document.getElementById("paintMode").onchange=drawHex;
+
+// ---------- save / audit / modes ----------
+function state(){return {ship,groups:groups.map(g=>({id:g.id,boxIds:g.boxIds,family:g.family,type:g.type,arc:g.arc,arcDef:g.arcDef,verified:g.verified})),extraBoxes,labels:labelOv,deleted:[...deleted],pass:"b4-verify"};}
+async function save(){const r=await fetch(`/api/save/${ship}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(state())});const j=await r.json();const b=document.getElementById("saveBtn");b.textContent=j.ok?"Saved ✓":"Failed";setTimeout(()=>b.textContent="Save",1400);}
+async function runAudit(){await save();const r=await fetch(`/api/audit/${ship}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(state())});const rep=await r.json();const el=document.getElementById("auditOut");if(!el)return;
+  let h=`<div class="aline"><span>Status</span><b class="${rep.clean?'ok':'err'}">${rep.clean?'CLEAN ✓':'ISSUES'}</b></div>`
+   +`<div class="aline"><span>Verified</span><b>${rep.verifiedBoxes}/${rep.totalBoxes} boxes · ${rep.verifiedGroups}/${rep.groups} groups</b></div>`;
+  h+=rep.issues.length?rep.issues.map(i=>`<div class="aline"><span class="${i.severity==='error'?'err':''}">${i.code}</span><span>${i.message}</span></div>`).join(""):`<div class="hint" style="color:#16a34a">All boxes grouped &amp; verified · weapons have arcs.</div>`;
+  el.innerHTML=h;}
+document.getElementById("saveBtn").onclick=save;
+document.getElementById("auditBtn").onclick=runAudit;
+document.getElementById("modes").querySelectorAll("button").forEach(b=>b.onclick=()=>{mode=b.dataset.m;document.querySelectorAll("#modes button").forEach(x=>x.classList.toggle("on",x===b));sel=new Set();document.getElementById("ovl").style.cursor=mode==="select"?"default":"crosshair";renderAll();});
+document.getElementById("ovlOp").oninput=e=>{overlayOpacity=e.target.value/100;renderOverlay();};
+document.getElementById("uniCells").onchange=e=>{uniformCells=e.target.checked;renderOverlay();};
+document.addEventListener("keydown",e=>{if(e.target.tagName==="INPUT"||e.target.tagName==="SELECT")return;if(e.key==="Escape"){document.getElementById("arcModal").classList.remove("open");sel=new Set();renderAll();}
+  const g=gById(curG);if(g&&e.key>="1"&&e.key<="9"&&FAMS[+e.key-1]){g.family=FAMS[+e.key-1];renderAll();}
+  if(g&&e.key==="v"){g.verified=!g.verified;renderAll();}});
+function fit(){const st=document.getElementById("stage");const w=Math.min(st.clientWidth-24,(st.clientHeight-24)*(IMGW/IMGH));document.getElementById("ssd").style.width=w+"px";}
+window.addEventListener("resize",fit);document.getElementById("img").addEventListener("load",fit);
+load();
+</script>
+</body>
+</html>

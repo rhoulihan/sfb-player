@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>SFB Online — SSD Viewer (landscape, real page + control overlay)</title>
+<style>
+  :root{--red:#C74634;--green:#16a34a;--blue:#2563eb;--slate:#334155;--amber:#d97706;
+        --purple:#7c3aed;--border:#cbd5e1;--ink:#1e293b;--muted:#64748b}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;font-family:"Segoe UI",system-ui,sans-serif;color:var(--ink);background:#eef2f7}
+  .app{display:flex;flex-direction:column;height:100vh}
+  header{display:flex;align-items:center;gap:14px;background:var(--slate);color:#fff;padding:8px 16px;border-bottom:3px solid var(--red)}
+  header .b{font-weight:700;font-size:15px}header .b small{display:block;font-weight:400;font-size:11px;color:#cbd5e1}
+  .sp{flex:1}
+  .seg{display:flex;border:1px solid #64748b;border-radius:11px;overflow:hidden}
+  .seg button{font:inherit;font-size:12px;border:0;background:#475569;color:#cbd5e1;padding:5px 14px;cursor:pointer}
+  .seg button.on{background:var(--blue);color:#fff;font-weight:700}
+  .chip{font-size:11px;background:#14532d;color:#bbf7d0;padding:5px 12px;border-radius:11px}
+  .z{display:flex;align-items:center;gap:6px;background:#0f172a;border-radius:11px;padding:4px 10px;font-size:12px}
+  .z button{font:inherit;background:#334155;color:#e2e8f0;border:0;border-radius:6px;width:22px;height:20px;cursor:pointer}
+  main{display:flex;flex:1;min-height:0}
+  .stage{flex:1;overflow:auto;display:flex;align-items:flex-start;justify-content:center;padding:16px;background:#e3e9f1}
+  .ssd{position:relative;background:#fff;box-shadow:0 3px 16px rgba(15,23,42,.2);line-height:0}
+  .ssd img{display:block;width:100%;height:auto}
+  .ssd svg{position:absolute;inset:0;width:100%;height:100%}
+  aside{width:340px;flex:none;background:#fff;border-left:1px solid var(--border);overflow:auto;padding:14px}
+  h3{font-size:11px;letter-spacing:.5px;color:var(--muted);text-transform:uppercase;margin:0 0 8px}
+  .card{border:1px solid var(--border);border-radius:10px;padding:11px;margin-bottom:13px;border-left:4px solid var(--blue)}
+  .kv{display:flex;justify-content:space-between;font-size:12px;padding:4px 0;border-bottom:1px solid #eef2f7}
+  .kv b{font-weight:700}
+  .fam{display:flex;align-items:center;gap:8px;font-size:12px;margin:5px 0}
+  .dot{width:13px;height:13px;border-radius:3px;flex:none;border:1px solid rgba(0,0,0,.15)}
+  .bar{height:8px;border-radius:4px;background:#eef2f7;overflow:hidden;flex:1;margin:0 8px}
+  .bar>i{display:block;height:100%}
+  .hint{font-size:11px;color:var(--muted);line-height:1.5}
+  .tip{position:fixed;z-index:40;background:#0f172a;color:#fff;border-radius:8px;padding:8px 11px;font-size:12px;max-width:260px;pointer-events:none;opacity:0;transition:opacity .08s;box-shadow:0 4px 14px rgba(0,0,0,.3)}
+  .tip b{color:#fff}.tip span{display:block;color:#93c5fd;font-size:11px;margin-top:3px}
+  footer{font-size:11px;color:var(--muted);background:#f8fafc;border-top:1px solid var(--border);padding:9px 16px;display:flex;justify-content:space-between}
+  .btn{font:inherit;font-size:12px;border:1px solid var(--border);background:#fff;border-radius:8px;padding:6px 11px;cursor:pointer}
+  .btn.on{background:#fef2f2;border-color:var(--red);color:var(--red);font-weight:700}
+  .wf{position:absolute;right:9px;top:8px;background:var(--red);color:#fff;font-size:10px;letter-spacing:1px;padding:3px 8px;border-radius:5px;z-index:6}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="b" id="title">SSD VIEWER<small id="sub">loading…</small></div>
+    <div class="sp"></div>
+    <button class="btn" id="dmg">⚡ Battle-damage demo</button>
+    <div class="seg"><button class="on" id="mImg">Image</button><button id="mData">Data</button></div>
+    <div class="z"><button onclick="zoom(-1)">–</button><span id="zl">fit</span><button onclick="zoom(1)">+</button></div>
+    <div class="chip">● Owner · landscape</div>
+  </header>
+  <main>
+    <div class="stage" id="stage">
+      <div class="ssd" id="ssd">
+        <span class="wf">SSD PIPELINE</span>
+        <img id="img" alt="SSD"/>
+        <svg id="ovl" preserveAspectRatio="none"></svg>
+      </div>
+    </div>
+    <aside>
+      <h3>Detected inventory</h3>
+      <div class="card" id="inv"></div>
+      <h3>Selected box</h3>
+      <div class="card" id="sel"><div class="hint">Hover a box for detail; click to cycle its status (intact → destroyed → critical → repairing). Every detected box is a live hotspot.</div></div>
+      <h3>Overlay legend</h3>
+      <div class="card" id="leg"></div>
+      <div class="hint">The image is the real SSD page (owner scan), auto-rotated to landscape. The overlay is generated from the CV detection (<span id="dc">?</span> boxes) — human-verified arcs/types happen in the B4 mapper.</div>
+    </aside>
+  </main>
+  <footer>
+    <span id="fleft">real SSD page + control overlay · driven by CV detection</span>
+    <span id="fright"></span>
+  </footer>
+</div>
+<div class="tip" id="tip"></div>
+<script>
+"use strict";
+const SVGNS="http://www.w3.org/2000/svg";
+const FAMCOL={shield:"#7c3aed","power/warp/impulse":"#2563eb","power/special":"#0891b2",
+  weapon:"#C74634",system:"#ca8a04","rating-track":"#16a34a",control:"#d97706",hull:"#64748b","?":"#94a3b8"};
+const STATES=["intact","destroyed","critical","repairing"];
+const ship=new URLSearchParams(location.search).get("ship")||"FED-CA";
+let DET=null, state={}, IMGW=1,IMGH=1;
+
+async function load(){
+  const base=`../data/${ship}/`;
+  DET=await (await fetch(base+"detection.json")).json();
+  IMGW=DET.pxWidth; IMGH=DET.pxHeight;
+  document.getElementById("img").src=base+DET.image;
+  document.getElementById("title").firstChild.textContent=ship.replace("-"," ")+"  ";
+  document.getElementById("sub").textContent=
+    `${DET.source.pdf} p${DET.source.page} · rot ${DET.rotationApplied}° → ${DET.orientationClass} · ${DET.pxWidth}×${DET.pxHeight}`;
+  document.getElementById("dc").textContent=DET.counts.boxes;
+  document.getElementById("fright").textContent=`${DET.counts.boxes} boxes · ${DET.counts.groups} groups · ${DET.counts.weaponGroups} weapon groups · WIREFRAME`;
+  const ovl=document.getElementById("ovl"); ovl.setAttribute("viewBox",`0 0 ${IMGW} ${IMGH}`);
+  fitWidth();
+  renderOverlay(); renderInventory(); renderLegend();
+}
+function renderOverlay(){
+  const ovl=document.getElementById("ovl"); ovl.innerHTML="";
+  for(const b of DET.boxes){
+    const [nx,ny,nw,nh]=b.bbox, x=nx*IMGW,y=ny*IMGH,w=nw*IMGW,h=nh*IMGH;
+    const st=state[b.id]||"intact", fam=FAMCOL[b.family]||"#94a3b8";
+    const g=document.createElementNS(SVGNS,"g"); g.style.cursor="pointer";
+    const r=document.createElementNS(SVGNS,"rect");
+    r.setAttribute("x",x);r.setAttribute("y",y);r.setAttribute("width",w);r.setAttribute("height",h);r.setAttribute("rx",2);
+    let stroke=fam, fill=fam, fo=0.10, sw=2.5, dash="";
+    if(st==="destroyed"){stroke="#C74634";fill="#C74634";fo=0.30}
+    else if(st==="critical"){stroke="#d97706";fill="#d97706";fo=0.28}
+    else if(st==="repairing"){stroke="#16a34a";fill="#16a34a";fo=0.24}
+    r.setAttribute("stroke",stroke);r.setAttribute("stroke-width",sw);r.setAttribute("vector-effect","non-scaling-stroke");
+    r.setAttribute("fill",fill);r.setAttribute("fill-opacity",fo);
+    g.appendChild(r);
+    if(st==="destroyed"){
+      for(const [x1,y1,x2,y2] of [[x+3,y+3,x+w-3,y+h-3],[x+w-3,y+3,x+3,y+h-3]]){
+        const l=document.createElementNS(SVGNS,"line");l.setAttribute("x1",x1);l.setAttribute("y1",y1);l.setAttribute("x2",x2);l.setAttribute("y2",y2);
+        l.setAttribute("stroke","#C74634");l.setAttribute("stroke-width",3);l.setAttribute("vector-effect","non-scaling-stroke");g.appendChild(l);}
+    }
+    if(st==="critical"){const t=document.createElementNS(SVGNS,"text");t.setAttribute("x",x+w/2);t.setAttribute("y",y+h-3);
+      t.setAttribute("text-anchor","middle");t.setAttribute("font-size",Math.min(w,h)*0.9);t.setAttribute("font-weight","700");t.setAttribute("fill","#b45309");t.textContent="!";g.appendChild(t);}
+    g.addEventListener("mousemove",e=>tip(e,b,st));
+    g.addEventListener("mouseleave",()=>document.getElementById("tip").style.opacity=0);
+    g.addEventListener("click",()=>{state[b.id]=STATES[(STATES.indexOf(st)+1)%STATES.length];select(b);renderOverlay();});
+    ovl.appendChild(g);
+  }
+}
+function tip(e,b,st){
+  const grp=DET.groups.find(g=>g.boxIds.includes(b.id))||{};
+  const t=document.getElementById("tip");
+  t.innerHTML=`<b>${(grp.ocrLabel||b.family)} </b> — ${b.cc} box`
+    +`<span>family: ${b.family}${grp.proposedArc?` · arc ${grp.proposedArc}`:""} · state: ${st}</span>`
+    +`<span style="color:#94a3b8">click to cycle status</span>`;
+  t.style.left=(e.clientX+14)+"px";t.style.top=(e.clientY+14)+"px";t.style.opacity=1;
+}
+function select(b){
+  const grp=DET.groups.find(g=>g.boxIds.includes(b.id))||{};
+  document.getElementById("sel").innerHTML=
+    `<div class="kv"><span>Box</span><b>${b.id}</b></div>`
+   +`<div class="kv"><span>Color class</span><b>${b.cc}</b></div>`
+   +`<div class="kv"><span>System family</span><b>${b.family}</b></div>`
+   +`<div class="kv"><span>Group (OCR)</span><b>${grp.ocrLabel||"—"}</b></div>`
+   +`<div class="kv"><span>Group size</span><b>${grp.count||1} box(es)</b></div>`
+   +`<div class="kv"><span>Proposed arc</span><b>${grp.proposedArc||"— (verify)"}</b></div>`
+   +`<div class="kv" style="border:0"><span>Status</span><b>${state[b.id]||"intact"}</b></div>`;
+}
+function renderInventory(){
+  const fam={};for(const b of DET.boxes)fam[b.family]=(fam[b.family]||0)+1;
+  const tot=DET.boxes.length;
+  let h=`<div class="kv"><span>Total boxes</span><b>${tot}</b></div>`
+       +`<div class="kv"><span>System groups</span><b>${DET.counts.groups}</b></div>`
+       +`<div class="kv" style="border:0"><span>Weapon groups</span><b>${DET.counts.weaponGroups}</b></div><div style="height:8px"></div>`;
+  for(const [f,n] of Object.entries(fam).sort((a,b)=>b[1]-a[1])){
+    h+=`<div class="fam"><span class="dot" style="background:${FAMCOL[f]||'#94a3b8'}"></span>${f}`
+      +`<span class="bar"><i style="width:${100*n/tot}%;background:${FAMCOL[f]||'#94a3b8'}"></i></span><b>${n}</b></div>`;}
+  document.getElementById("inv").innerHTML=h;
+}
+function renderLegend(){
+  const items=[["intact","family tint"],["destroyed","red ✕"],["critical","amber !"],["repairing","green"]];
+  document.getElementById("leg").innerHTML=items.map(([s,d])=>`<div class="fam"><span class="dot" style="background:${s==='destroyed'?'#C74634':s==='critical'?'#d97706':s==='repairing'?'#16a34a':'#94a3b8'}"></span>${s} — ${d}</div>`).join("");
+}
+// damage demo: mark a spread of boxes
+document.getElementById("dmg").addEventListener("click",e=>{
+  e.target.classList.toggle("on");
+  if(e.target.classList.contains("on")){
+    const b=DET.boxes; const pick=(i)=>b[Math.floor(i*b.length)];
+    state={};[0.12,0.31,0.55].forEach(i=>state[pick(i).id]="destroyed");
+    [0.22,0.63].forEach(i=>state[pick(i).id]="critical");[0.44,0.77].forEach(i=>state[pick(i).id]="repairing");
+  } else state={};
+  renderOverlay();
+});
+// zoom / fit
+let zoomW=null;
+function fitWidth(){const st=document.getElementById("stage");zoomW=Math.min(st.clientWidth-32, IMGW/ (IMGH/ (st.clientHeight-32)) , IMGW);
+  // fit to stage height by width preserving aspect
+  const maxW=st.clientWidth-32, maxH=st.clientHeight-32;
+  zoomW=Math.min(maxW, maxH*(IMGW/IMGH));
+  document.getElementById("ssd").style.width=zoomW+"px";document.getElementById("zl").textContent="fit";}
+function zoom(d){zoomW=Math.max(500,(zoomW||900)+d*180);document.getElementById("ssd").style.width=zoomW+"px";
+  document.getElementById("zl").textContent=Math.round(zoomW/(IMGW)*100)+"%";}
+document.getElementById("mImg").onclick=()=>{document.getElementById("mImg").classList.add("on");document.getElementById("mData").classList.remove("on");document.getElementById("ovl").style.display="";document.getElementById("img").style.opacity=1;};
+document.getElementById("mData").onclick=()=>{document.getElementById("mData").classList.add("on");document.getElementById("mImg").classList.remove("on");document.getElementById("img").style.opacity=0.12;};
+window.addEventListener("resize",fitWidth);
+load();
+</script>
+</body>
+</html>
