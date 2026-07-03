@@ -116,8 +116,8 @@
   </div>
 </div>
 
-<script>
-"use strict";
+<script type="module">
+import * as E from "./ssd-engine.js";
 const SVGNS="http://www.w3.org/2000/svg";
 const el=(t,a)=>{const e=document.createElementNS(SVGNS,t);for(const k in a)e.setAttribute(k,a[k]);return e;};
 let overlayOpacity=1;                 // 1 = fully opaque (uniform recolor); slider can lower to peek at labels
@@ -126,32 +126,16 @@ let BOXLABELS={};                     // OCR prefill of letters/numbers printed 
 let labelOv={};                       // user's editable label overrides {boxId:text} (persisted)
 const labelText=id=>{const o=labelOv[id]; return o!==undefined?o:(BOXLABELS[id]||"");};
 const BOX_BORDER="rgba(15,23,42,0.55)", BOX_BW=1.25;   // one consistent border for every box
-const med=a=>{if(!a.length)return 0;const s=[...a].sort((x,y)=>x-y);return s[Math.floor(s.length/2)];};
+const med=E.med;
 let CELL={w:24,h:24};   // global uniform cell size (px) — recomputed each render
 // One cell size for the WHOLE ship = median box size (median is robust to the few double-width boxes).
-function globalCell(){
-  const bx=allBoxes(); if(!bx.length)return {w:24,h:24};
-  return {w:med(bx.map(b=>b.bbox[2]*IMGW))||24, h:med(bx.map(b=>b.bbox[3]*IMGH))||24};
-}
+function globalCell(){ return E.globalCell(allBoxes(), IMGW, IMGH); }
 // A box is "double" (rendered 2 cells wide + divider) when its ORIGINAL width is ~2x the cell — e.g. the
 // drone-rack reload boxes. The single drone launcher box stays one cell.
-const isWide=b=>uniformCells&&(b.bbox[2]*IMGW)>CELL.w*1.5;
+const isWide=b=>uniformCells&&E.isWide(b,CELL.w,IMGW);
 // Snap a group's boxes to a regular grid: every row shares one Y, columns sit on a uniform pitch
 // (missing cells leave gaps). Returns {boxId:{cx,cy}} of snapped CENTRES, or null for <2 boxes.
-function layoutGroup(g){
-  const bs=(g.boxIds||[]).map(id=>boxIndex[id]).filter(Boolean); if(bs.length<2)return null;
-  const CX=b=>(b.bbox[0]+b.bbox[2]/2)*IMGW, CY=b=>(b.bbox[1]+b.bbox[3]/2)*IMGH;
-  const mw=med(bs.map(b=>b.bbox[2]*IMGW)), mh=med(bs.map(b=>b.bbox[3]*IMGH));
-  const os=bs.map(b=>({b,cx:CX(b),cy:CY(b)})).sort((a,b)=>a.cy-b.cy);
-  const rows=[]; let cur=[]; os.forEach(o=>{if(cur.length&&Math.abs(o.cy-cur[cur.length-1].cy)>mh*0.6){rows.push(cur);cur=[];}cur.push(o);}); if(cur.length)rows.push(cur);
-  const pitchOf=arr=>{if(arr.length<2)return 0;const s=arr.slice().sort((a,b)=>a-b);const d=[];for(let i=1;i<s.length;i++){const gp=s[i]-s[i-1];if(gp>mw*0.4)d.push(gp);}return med(d);};
-  const big=rows.reduce((a,b)=>b.length>a.length?b:a,rows[0]);
-  const px=pitchOf(big.map(o=>o.cx))||mw*1.25;
-  const snap={};
-  rows.forEach(row=>{ row.sort((a,b)=>a.cx-b.cx); const rowY=med(row.map(o=>o.cy)), ox=row[0].cx;
-    row.forEach(o=>{ snap[o.b.id]={cx:ox+Math.round((o.cx-ox)/px)*px, cy:rowY}; }); });
-  return snap;
-}
+function layoutGroup(g){ return E.layoutGroup(g.boxIds, boxIndex, IMGW, IMGH); }
 // DAC-aligned system family taxonomy (every damageable DAC system + tracked non-DAC systems), 38 families.
 const CATS=["Defensive","Power","Weapons","Control","Sensors/EW","Hull","Aux Systems","Consumables","Special","Markers"];
 const TAX=[
@@ -264,17 +248,9 @@ function renderGroups(){
     el.appendChild(d);
   });
 }
-function boxRect(b,g,snap){
-  // on-screen rect: snapped to the group grid + the global cell size when uniform mode is on.
-  const [nx,ny,nw,nh]=b.bbox; let cx=(nx+nw/2)*IMGW, cy=(ny+nh/2)*IMGH, w=nw*IMGW, h=nh*IMGH;
-  if(uniformCells){
-    if(snap&&snap[b.id]){cx=snap[b.id].cx;cy=snap[b.id].cy;}
-    w=CELL.w*(isWide(b)?2:1); h=CELL.h;   // physically double-width boxes (drone-rack reloads) span 2 cells
-  }
-  return {x:cx-w/2,y:cy-h/2,w,h};
-}
+function boxRect(b,g,snap){ return E.boxRect(b, uniformCells?snap:null, uniformCells?CELL:null, uniformCells&&E.isWide(b,CELL.w,IMGW), IMGW, IMGH); }
 // contrasting ink for a family colour so overlaid labels stay legible
-function inkFor(col){const c=(col||"#888").replace('#','');const r=parseInt(c.slice(0,2),16),gg=parseInt(c.slice(2,4),16),bb=parseInt(c.slice(4,6),16);return (0.299*r+0.587*gg+0.114*bb)>150?"#0f172a":"#f8fafc";}
+const inkFor=E.inkFor;
 function renderOverlay(){
   const ovl=document.getElementById("ovl");ovl.innerHTML="";
   CELL=globalCell();
