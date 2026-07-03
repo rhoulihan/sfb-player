@@ -71,18 +71,22 @@ export function layoutGroup(boxIds, boxIndex, IMGW, IMGH) {
   const pitchOf = arr => { if (arr.length < 2) return 0; const s = arr.slice().sort((a, b) => a - b); const d = []; for (let i = 1; i < s.length; i++) { const gp = s[i] - s[i - 1]; if (gp > mw * 0.4) d.push(gp); } return med(d); };
   const big = rows.reduce((a, b) => b.length > a.length ? b : a, rows[0]);
   const px = pitchOf(big.map(o => o.cx)) || mw * 1.25;
-  const ox = Math.min(...os.map(o => o.cx));   // one shared column origin so rows line up vertically
+  const ox = Math.min(...os.map(o => o.cx));   // shared column origin so dense rows line up vertically
+  const GAP = px * 3;                          // gaps wider than this are separate clusters, kept in place
   const snap = {};
-  // Each row snaps to the SAME column grid (ox + col·px). Within a row, columns advance greedily
-  // (>= 1 per box) so connected/overlapping/close boxes de-overlap into distinct adjacent cells,
-  // while genuine gaps (missing cells) are preserved — and columns stay aligned across rows.
+  // Each dense cluster snaps to the shared column grid (ox + col·px); within a cluster columns advance
+  // greedily (>= 1 per box) so connected/overlapping/close boxes de-overlap into distinct adjacent cells
+  // while genuine single-cell gaps are preserved. A big gap (e.g. left/right wing weapons) starts a new
+  // sub-cluster anchored at its REAL position, so separated boxes don't drift onto a distant grid.
   rows.forEach(row => {
     row.sort((a, b) => a.cx - b.cx); const rowY = med(row.map(o => o.cy));
-    let col = Math.round((row[0].cx - ox) / px);
-    snap[row[0].b.id] = { cx: ox + col * px, cy: rowY };
+    let base = ox + Math.round((row[0].cx - ox) / px) * px, col = 0;
+    snap[row[0].b.id] = { cx: base, cy: rowY };
     for (let i = 1; i < row.length; i++) {
-      col += Math.max(1, Math.round((row[i].cx - row[i - 1].cx) / px));
-      snap[row[i].b.id] = { cx: ox + col * px, cy: rowY };
+      const delta = row[i].cx - row[i - 1].cx;
+      if (delta > GAP) { base = row[i].cx; col = 0; }               // separated sub-cluster: keep real position
+      else col += Math.max(1, Math.round(delta / px));             // else advance on the local grid (de-overlap)
+      snap[row[i].b.id] = { cx: base + col * px, cy: rowY };
     }
   });
   return snap;

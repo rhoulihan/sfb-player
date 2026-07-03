@@ -32,6 +32,15 @@ test('layoutGroup aligns columns across rows (a 2-D grid lines up vertically)', 
   assert.ok(snap.a.cy < snap.d.cy, 'two distinct rows');
 });
 
+test('layoutGroup keeps well-separated clusters at their real positions (e.g. wing weapons)', () => {
+  // two pairs far apart, like left/right wing disruptors — each pair tight, a big gap between
+  const boxes = [box('l1', 0.10, 0.10), box('l2', 0.128, 0.10), box('r1', 0.60, 0.10), box('r2', 0.628, 0.10)];
+  const snap = layoutGroup(boxes.map(b => b.id), idx(boxes), 1000, 1000);
+  assert.ok(Math.abs(snap.r1.cx - 610) < 5, 'the right cluster keeps its real position (no drift)');
+  assert.ok(Math.abs(snap.r2.cx - 638) < 5, 'right cluster second box keeps its real position');
+  assert.ok(snap.l1.cx < snap.l2.cx, 'the left pair is still de-overlapped');
+});
+
 test('layoutGroup leaves an already-neat row unchanged', () => {
   const boxes = [box('a', 0.10, 0.10), box('b', 0.13, 0.10), box('c', 0.16, 0.10), box('d', 0.19, 0.10)];
   const snap = layoutGroup(boxes.map(b => b.id), idx(boxes), 1000, 1000);
