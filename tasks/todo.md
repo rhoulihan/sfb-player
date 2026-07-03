@@ -66,6 +66,24 @@
 - Built: ssd-pipeline/{ingest.py, find_pages.py, serve.py, viewer/index.html, viewer/verify.html, data/<8 ships>/}
 - Run: python3 ssd-pipeline/serve.py -> :8741/viewer/verify.html?ship=FED-CA (verify) or /viewer/index.html?ship=... (view)
 
+## BUILD: Damage Processor (spec docs/superpowers/specs/2026-07-03-damage-processor-design.md; plan …-damage-processor.md)
+Branch: feat/damage-processor. Node-tested pure-JS rules engine + player view on a shared render engine.
+- [x] T1 dac.js — the real Damage Allocation Chart (D4.21) transcribed from the Basic Set SSD Book
+      (2nd-to-last page), all 11 rolls × cols A–M + bold flags; validated vs D4.5.
+- [x] T2 ship-model.js — buildShipModel(verified,detection) → shields/armor/DAC pools/never-targets.
+- [x] T3 arc-geom.js — shield-bearing arc coverage for phaser-directional hits (D4.321).
+- [x] T4 dac-allocator.js — full engine: shields+leaky(D3.6) → armor(D4.12) → internal DAC with
+      bold-once(D4.31), phaser-directional(D4.321), every-3rd-best(D4.3221), tracks keep last(D4.33),
+      hull F/R/C(D4.351), excess→cargo/repair/mine→destruction(D4.40). **Replays the D4.5 example exactly.**
+- [x] T5 ssd-engine.js — extracted taxonomy + cell geometry from verify.html; verify.html refactored
+      onto it (regression-verified unchanged).
+- [x] T6 damage.html — Apply-damage panel (struck shield, volley, leaky+rate, speed) → animated box
+      state + shield readouts + per-system tally. E2E verified via Playwright.
+- [x] Tests: 30 node tests (D4.5 replay, leaky D3.63, tracks, excess/destruction, bold, directional,
+      hull-C, every-3rd-best, armor, non-leaky). Run: `node --test ssd-pipeline/test/*.test.mjs`.
+- [ ] Follow-ups: shield-down vs system-destroyed visual distinction; DRY verify.html taxonomy onto the
+      engine; persist damage state (optional); re-save KLI-D7 verified.json with granular families.
+
 ## Spec section map (subsystems) — see plan message
 A. Foundation/Platform  B. Rules & Content  C. Game Mechanics
 D. Player Experience/UI (+ wireframes)  E. Cross-cutting/Ops/Roadmap
