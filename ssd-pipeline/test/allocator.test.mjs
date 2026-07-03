@@ -76,3 +76,85 @@ test('bold result scores only once per volley (D4.31)', () => {
   const toks = fx.filter(e => e.type === 'destroy').map(e => e.token);
   assert.deepEqual(toks, ['BRIDGE', 'FLAG']);
 });
+
+test('non-leaky: the struck shield depletes, the remainder goes internal', () => {
+  const m = buildD7Model();
+  m.shields[1] = { boxIds: ['s0', 's1', 's2', 's3', 's4'], max: 5, down: 0 };
+  const fx = applyVolley(m, { shield: 1, points: 8 }, seqRoll([6, 6, 6]));  // 5 shield + 3 internal
+  assert.equal(fx.filter(e => e.type === 'shield').length, 5);
+  assert.equal(m.shields[1].down, 5);
+  assert.equal(fx.filter(e => e.type === 'destroy').length, 3);            // 3 F_HULL (roll 6)
+});
+
+test('leaky: damage leaks even when the shield survives (D3.61)', () => {
+  const m = buildD7Model();
+  m.shields[1] = { boxIds: Array.from({ length: 30 }, (_, i) => 's' + i), max: 30, down: 0 };
+  const fx = applyVolley(m, { shield: 1, points: 12, leaky: true, leakRate: 4 }, () => 6);
+  assert.equal(fx.filter(e => e.type === 'shield').length, 9);            // 9 to the shield
+  assert.equal(m.shields[1].max - m.shields[1].down, 21);                // shield survives
+  assert.equal(fx.filter(e => e.type === 'destroy').length, 3);          // points 4,8,12 leaked
+});
+
+test('armor absorbs penetrating damage before internals (D4.12)', () => {
+  const m = buildD7Model();
+  m.armor = { boxIds: ['a0', 'a1'], destroyed: new Set() };
+  const fx = applyVolley(m, { shield: 1, points: 3 }, seqRoll([6, 6, 6]));
+  assert.equal(fx.filter(e => e.type === 'armor').length, 2);
+  assert.equal(fx.filter(e => e.type === 'destroy').length, 1);          // 1 F_HULL after armor
+});
+
+test('phaser column is skipped when no phaser bears the struck shield (D4.321)', () => {
+  const m = buildD7Model();                                              // phasers bear FA (front / shield 1)
+  const fx = applyVolley(m, { shield: 4, points: 1 }, seqRoll([4]));     // rear shield; roll 4 A=PHASER, B=TRANS
+  assert.equal(fx.find(e => e.type === 'destroy').token, 'TRANS');
+  assert.equal(m.pools.PHASER.destroyed.size, 0);                        // no phaser destroyed
+});
+
+test('F-hull hit falls to center hull when forward hull is gone (D4.351)', () => {
+  const m = buildD7Model();
+  m.pools.F_HULL.destroyed = new Set(m.pools.F_HULL.boxIds);
+  m.pools.C_HULL = { boxIds: ['c0', 'c1'], destroyed: new Set() };
+  const fx = applyVolley(m, { shield: 1, points: 1 }, seqRoll([6]));     // roll 6 A=F_HULL -> C_HULL
+  assert.equal(fx.find(e => e.type === 'destroy').token, 'F_HULL');
+  assert.equal(m.pools.C_HULL.destroyed.size, 1);
+});
+
+test('excess is absorbed by cargo before the ship is destroyed (D4.40)', () => {
+  const m = buildD7Model();
+  for (const k in m.pools) m.pools[k].destroyed = new Set(m.pools[k].boxIds);   // everything gone
+  m.pools.EXCESS = { boxIds: [], destroyed: new Set() };
+  m.pools.CARGO = { boxIds: ['g0'], destroyed: new Set() };
+  const fx = applyVolley(m, { shield: 1, points: 2 }, seqRoll([6, 6]));
+  assert.equal(fx.filter(e => e.token === 'CARGO').length, 1);
+  assert.ok(fx.some(e => e.type === 'shipDestroyed'));
+});
+
+test('flag-bridge hits fall to security when there is no flag bridge (D4.31)', () => {
+  const m = buildD7Model();                                              // has SEC, no FLAG pool
+  const fx = applyVolley(m, { shield: 1, points: 2 }, seqRoll([2, 2]));  // BRIDGE(bold) then FLAG->security
+  assert.equal(fx.filter(e => e.token === 'FLAG').length, 1);
+  assert.equal(m.pools.SEC.destroyed.size, 1);
+});
+
+test('every 3rd phaser hit takes the best type (D4.3221)', () => {
+  const m = buildD7Model();
+  const ph3 = { type: 'Phaser-3', arcDef: { arcs: ['FA'] } };
+  const ph1 = { type: 'Phaser-1', arcDef: { arcs: ['FA'] } };
+  m.pools.PHASER = { boxIds: ['p3a', 'p3b', 'p1a', 'p1b'], destroyed: new Set() };
+  m.groupOf = { p3a: ph3, p3b: ph3, p1a: ph1, p1b: ph1 };
+  for (const k of ['F_HULL', 'IMPULSE', 'LAB', 'L_WARP', 'SENSOR', 'TRAC', 'SHUTTLE', 'R_WARP'])
+    m.pools[k] = { boxIds: [], destroyed: new Set() };                   // clear roll-6 cols A-H -> reach col I PHASER
+  const fx = applyVolley(m, { shield: 1, points: 3 }, seqRoll([6, 6, 6]));
+  const hit = fx.filter(e => e.token === 'PHASER').map(e => e.boxId);
+  assert.equal(hit.length, 3);
+  assert.ok(['p3a', 'p3b'].includes(hit[0]) && ['p3a', 'p3b'].includes(hit[1]), 'first two are worst type');
+  assert.ok(['p1a', 'p1b'].includes(hit[2]), '3rd is best type');
+});
+
+test('ANY_WEAPON lands on a live weapon box (D4.324)', () => {
+  const m = buildD7Model();
+  for (const k in m.pools) if (k !== 'DRONE') m.pools[k].destroyed = new Set(m.pools[k].boxIds);
+  const fx = applyVolley(m, { shield: 1, points: 1 }, seqRoll([5]));     // roll 5 col L = ANY_WEAPON -> drone
+  assert.equal(fx.find(e => e.type === 'destroy').token, 'ANY_WEAPON');
+  assert.equal(m.pools.DRONE.destroyed.size, 1);
+});

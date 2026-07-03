@@ -19,6 +19,10 @@ test('control results 2 and 12 are bold (once-per-volley, D4.31)', () => {
   assert.ok(DAC[12][0].bold);
 });
 
+test('every roll terminates in EXCESS (the column walk always resolves)', () => {
+  for (let r = 2; r <= 12; r++) assert.equal(DAC[r][DAC[r].length - 1].sys, 'EXCESS', `roll ${r}`);
+});
+
 test('all tokens are valid and mapped to a family', () => {
   for (const r of Object.values(DAC)) for (const c of r) {
     assert.ok(SYS.has(c.sys), `unknown token ${c.sys}`);
