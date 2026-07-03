@@ -71,9 +71,20 @@ export function layoutGroup(boxIds, boxIndex, IMGW, IMGH) {
   const pitchOf = arr => { if (arr.length < 2) return 0; const s = arr.slice().sort((a, b) => a - b); const d = []; for (let i = 1; i < s.length; i++) { const gp = s[i] - s[i - 1]; if (gp > mw * 0.4) d.push(gp); } return med(d); };
   const big = rows.reduce((a, b) => b.length > a.length ? b : a, rows[0]);
   const px = pitchOf(big.map(o => o.cx)) || mw * 1.25;
+  const ox = Math.min(...os.map(o => o.cx));   // one shared column origin so rows line up vertically
   const snap = {};
-  rows.forEach(row => { row.sort((a, b) => a.cx - b.cx); const rowY = med(row.map(o => o.cy)), ox = row[0].cx;
-    row.forEach(o => { snap[o.b.id] = { cx: ox + Math.round((o.cx - ox) / px) * px, cy: rowY }; }); });
+  // Each row snaps to the SAME column grid (ox + col·px). Within a row, columns advance greedily
+  // (>= 1 per box) so connected/overlapping/close boxes de-overlap into distinct adjacent cells,
+  // while genuine gaps (missing cells) are preserved — and columns stay aligned across rows.
+  rows.forEach(row => {
+    row.sort((a, b) => a.cx - b.cx); const rowY = med(row.map(o => o.cy));
+    let col = Math.round((row[0].cx - ox) / px);
+    snap[row[0].b.id] = { cx: ox + col * px, cy: rowY };
+    for (let i = 1; i < row.length; i++) {
+      col += Math.max(1, Math.round((row[i].cx - row[i - 1].cx) / px));
+      snap[row[i].b.id] = { cx: ox + col * px, cy: rowY };
+    }
+  });
   return snap;
 }
 
