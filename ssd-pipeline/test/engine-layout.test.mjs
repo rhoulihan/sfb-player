@@ -41,6 +41,15 @@ test('layoutGroup keeps well-separated clusters at their real positions (e.g. wi
   assert.ok(snap.l1.cx < snap.l2.cx, 'the left pair is still de-overlapped');
 });
 
+test('layoutGroup keeps a lone offset box (own cluster) at its real position', () => {
+  // a dense 2x2 grid plus one isolated box far above and horizontally offset (like a boom impulse box)
+  const boxes = [box('a', 0.10, 0.20), box('b', 0.14, 0.20), box('c', 0.10, 0.24), box('d', 0.14, 0.24),
+                 box('lone', 0.115, 0.05)];
+  const snap = layoutGroup(boxes.map(b => b.id), idx(boxes), 1000, 1000);
+  const realCx = (0.115 + 0.01) * 1000;
+  assert.ok(Math.abs(snap.lone.cx - realCx) < 3, 'the isolated box stays at its real x, not snapped to the grid');
+});
+
 test('layoutGroup leaves an already-neat row unchanged', () => {
   const boxes = [box('a', 0.10, 0.10), box('b', 0.13, 0.10), box('c', 0.16, 0.10), box('d', 0.19, 0.10)];
   const snap = layoutGroup(boxes.map(b => b.id), idx(boxes), 1000, 1000);

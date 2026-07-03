@@ -59,37 +59,51 @@ export function globalCell(boxes, IMGW, IMGH) {
 // A box is "double" (2 cells wide + divider) when its original width is ~2x the cell (drone-rack reloads).
 export const isWide = (box, cellW, IMGW) => (box.bbox[2] * IMGW) > cellW * 1.5;
 
-// Snap a group's boxes to a regular grid: every row shares one Y, columns on a uniform pitch.
+// Snap a group's boxes to a neat grid. Boxes are first grouped into proximity CLUSTERS, then each
+// cluster is snapped on its own (rows aligned to one column grid, columns de-overlapped) — so dense
+// grids (shields) tidy up while isolated boxes and separated sub-groups (wing weapons, a lone boom
+// impulse box) keep their REAL positions instead of drifting onto a distant grid.
 export function layoutGroup(boxIds, boxIndex, IMGW, IMGH) {
   const bs = (boxIds || []).map(id => boxIndex[id]).filter(Boolean); if (bs.length < 2) return null;
   const CX = b => (b.bbox[0] + b.bbox[2] / 2) * IMGW, CY = b => (b.bbox[1] + b.bbox[3] / 2) * IMGH;
   const mw = med(bs.map(b => b.bbox[2] * IMGW)), mh = med(bs.map(b => b.bbox[3] * IMGH));
-  const os = bs.map(b => ({ b, cx: CX(b), cy: CY(b) })).sort((a, b) => a.cy - b.cy);
+  const os = bs.map(b => ({ b, cx: CX(b), cy: CY(b) }));
+  // union-find connected components: boxes within ~3.5 cells (chebyshev) are one cluster — keeps
+  // adjacent cells and single-cell gaps together, but splits far-apart sub-groups.
+  const near = Math.max(mw, mh) * 3.5;
+  const parent = os.map((_, i) => i);
+  const find = i => (parent[i] === i ? i : (parent[i] = find(parent[i])));
+  for (let i = 0; i < os.length; i++) for (let j = i + 1; j < os.length; j++)
+    if (Math.abs(os[i].cx - os[j].cx) <= near && Math.abs(os[i].cy - os[j].cy) <= near) parent[find(i)] = find(j);
+  const clusters = {};
+  os.forEach((o, i) => { const r = find(i); (clusters[r] = clusters[r] || []).push(o); });
+  const snap = {};
+  for (const k in clusters) snapCluster(clusters[k], mw, mh, snap);
+  return snap;
+}
+
+// Snap one proximity cluster: rows by Y (each row one Y), columns advance greedily (>= 1 per box) from
+// one shared origin, so overlapping/close boxes de-overlap into distinct adjacent cells, genuine
+// single-cell gaps are preserved, and rows line up vertically. A lone box keeps its real position.
+function snapCluster(cluster, mw, mh, snap) {
+  if (cluster.length === 1) { const o = cluster[0]; snap[o.b.id] = { cx: o.cx, cy: o.cy }; return; }
+  const sorted = cluster.slice().sort((a, b) => a.cy - b.cy);
   const rows = []; let cur = [];
-  os.forEach(o => { if (cur.length && Math.abs(o.cy - cur[cur.length - 1].cy) > mh * 0.6) { rows.push(cur); cur = []; } cur.push(o); });
+  sorted.forEach(o => { if (cur.length && Math.abs(o.cy - cur[cur.length - 1].cy) > mh * 0.6) { rows.push(cur); cur = []; } cur.push(o); });
   if (cur.length) rows.push(cur);
   const pitchOf = arr => { if (arr.length < 2) return 0; const s = arr.slice().sort((a, b) => a - b); const d = []; for (let i = 1; i < s.length; i++) { const gp = s[i] - s[i - 1]; if (gp > mw * 0.4) d.push(gp); } return med(d); };
   const big = rows.reduce((a, b) => b.length > a.length ? b : a, rows[0]);
   const px = pitchOf(big.map(o => o.cx)) || mw * 1.25;
-  const ox = Math.min(...os.map(o => o.cx));   // shared column origin so dense rows line up vertically
-  const GAP = px * 3;                          // gaps wider than this are separate clusters, kept in place
-  const snap = {};
-  // Each dense cluster snaps to the shared column grid (ox + col·px); within a cluster columns advance
-  // greedily (>= 1 per box) so connected/overlapping/close boxes de-overlap into distinct adjacent cells
-  // while genuine single-cell gaps are preserved. A big gap (e.g. left/right wing weapons) starts a new
-  // sub-cluster anchored at its REAL position, so separated boxes don't drift onto a distant grid.
+  const ox = Math.min(...cluster.map(o => o.cx));
   rows.forEach(row => {
     row.sort((a, b) => a.cx - b.cx); const rowY = med(row.map(o => o.cy));
-    let base = ox + Math.round((row[0].cx - ox) / px) * px, col = 0;
-    snap[row[0].b.id] = { cx: base, cy: rowY };
+    let col = Math.round((row[0].cx - ox) / px);
+    snap[row[0].b.id] = { cx: ox + col * px, cy: rowY };
     for (let i = 1; i < row.length; i++) {
-      const delta = row[i].cx - row[i - 1].cx;
-      if (delta > GAP) { base = row[i].cx; col = 0; }               // separated sub-cluster: keep real position
-      else col += Math.max(1, Math.round(delta / px));             // else advance on the local grid (de-overlap)
-      snap[row[i].b.id] = { cx: base + col * px, cy: rowY };
+      col += Math.max(1, Math.round((row[i].cx - row[i - 1].cx) / px));
+      snap[row[i].b.id] = { cx: ox + col * px, cy: rowY };
     }
   });
-  return snap;
 }
 
 // On-screen rect for a box. When `cell` is given (uniform mode) the box is snapped + sized to the cell.
