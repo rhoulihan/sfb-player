@@ -21,3 +21,6 @@ Thumbs.db
 # Copyrighted SSD page images — regenerate locally via ssd-pipeline/extract_images.py
 ssd-pipeline/data/*/image.png
 docs/spec/wireframes/assets/
+
+# OCR title-strip cache for the SSD search (regenerable)
+ssd-pipeline/data/_title_index.json

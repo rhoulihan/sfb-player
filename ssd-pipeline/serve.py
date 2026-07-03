@@ -6,13 +6,25 @@
   POST /api/audit/<ship>   body=state      -> group-aware consistency audit
   POST /api/rescan/<ship>  body={region}   -> border-based detector for missed (white/grey/shaded) boxes
 """
-import http.server, socketserver, json, os, subprocess, tempfile
+import http.server, socketserver, json, os, subprocess, tempfile, threading
 import numpy as np
 from PIL import Image, ImageOps
 from scipy import ndimage
 
 PORT = 8741
 ROOT = os.path.dirname(os.path.abspath(__file__))
+PDF_DIR = os.path.join(os.path.dirname(ROOT), "SFB")          # owner's PDFs live in repo/SFB
+SSD_PDFS = ["SFBBasicSetSSDscolor.pdf", "AMSSDs2014color.pdf"]  # searched in this order
+TITLE_INDEX = os.path.join(ROOT, "data", "_title_index.json")
+RACE = {"FED": "FEDERATION", "KLI": "KLINGON", "KZI": "KZINTI", "GOR": "GORN", "ROM": "ROMULAN",
+        "THO": "THOLIAN", "ORI": "ORION", "HYD": "HYDRAN", "LYR": "LYRAN", "ISC": "ISC",
+        "AND": "ANDROMEDAN", "WYN": "WYN", "JIN": "JINDARIAN", "SEL": "SELTORIAN", "VUD": "VUDAR"}
+SCAN_JOBS = {}                                                # ship -> {phase, progress, done, error, result}
+_scan_lock = threading.Lock()
+try:
+    from ingest import ingest_ship
+except Exception:
+    ingest_ship = None
 
 def _det(ship): return json.load(open(os.path.join(ROOT, "data", ship, "detection.json")))
 
@@ -118,16 +130,107 @@ def rescan(ship, region):
                     "cc": "control", "family": "control", "shaded": mv < 210, "src": "rescan"})
     return {"ship": ship, "found": len(out), "boxes": out}
 
+def _page_count(pdf_path):
+    out = subprocess.run(["pdfinfo", pdf_path], capture_output=True, text=True).stdout
+    for line in out.splitlines():
+        if line.startswith("Pages:"):
+            return int(line.split()[1])
+    return 0
+
+def _title_of(pdf_path, page):
+    """OCR the top title strip of one page (upper-cased), e.g. 'STAR FLEET BATTLES R2.4 FEDERATION HEAVY CRUISER (CA)'."""
+    with tempfile.TemporaryDirectory() as td:
+        pref = os.path.join(td, "p")
+        subprocess.run(["pdftoppm", "-png", "-r", "100", "-f", str(page), "-l", str(page), pdf_path, pref], capture_output=True)
+        fs = [x for x in os.listdir(td) if x.endswith(".png")]
+        if not fs:
+            return ""
+        im = Image.open(os.path.join(td, fs[0])).convert("RGB"); W, Hh = im.size
+        sp = os.path.join(td, "s.png"); im.crop((0, 0, W, int(Hh * 0.06))).save(sp)
+        r = subprocess.run(["tesseract", sp, "stdout"], capture_output=True, text=True)
+        return " ".join(r.stdout.split()).upper()
+
+def _title_matches(title, race, hull):
+    return race in title and (f"({hull})" in title or f"({hull}" in title or f" {hull} " in title or title.rstrip().endswith(hull))
+
+def find_and_scan(ship):
+    """Background job: locate <ship>'s SSD page in the PDFs by title, then ingest it. Reports progress."""
+    job = SCAN_JOBS[ship]
+    parts = ship.split("-")
+    race = RACE.get(parts[0].upper(), parts[0].upper())
+    hull = parts[1].upper() if len(parts) > 1 else ""
+    try:
+        idx = json.load(open(TITLE_INDEX)) if os.path.exists(TITLE_INDEX) else {}
+    except Exception:
+        idx = {}
+    pdfs = [(os.path.join(PDF_DIR, n), n) for n in SSD_PDFS if os.path.isfile(os.path.join(PDF_DIR, n))]
+    if not pdfs:
+        job.update(phase="error", done=True, error=f"No SFB PDFs found in {PDF_DIR}. See the README to add them.")
+        return
+    total = sum(_page_count(p) for p, _ in pdfs) or 1
+    scanned = 0; found = None
+    for path, name in pdfs:
+        for page in range(1, _page_count(path) + 1):
+            key = f"{name}:{page}"
+            title = idx.get(key)
+            if title is None:
+                title = _title_of(path, page); idx[key] = title
+            scanned += 1; job["progress"] = round(scanned / total * 0.6, 3)
+            if _title_matches(title, race, hull):
+                found = (path, name, page); break
+        if found:
+            break
+    try:
+        json.dump(idx, open(TITLE_INDEX, "w"))
+    except Exception:
+        pass
+    if not found:
+        job.update(phase="notfound", done=True, error=f"No SSD for {ship} was found in your PDFs.")
+        return
+    if ingest_ship is None:
+        job.update(phase="error", done=True, error="ingest module unavailable on the server.")
+        return
+    path, name, page = found
+    job.update(phase="scanning page", progress=0.62, source={"pdf": name, "page": page})
+    try:
+        det = ingest_ship(path, page, ship, os.path.join(ROOT, "data"), 200, None,
+                          lambda m, f: job.update(phase=m, progress=round(0.62 + 0.38 * f, 3)))
+        job.update(phase="done", progress=1.0, done=True,
+                   result={"ship": ship, "source": {"pdf": name, "page": page}, "boxes": det["counts"]["boxes"]})
+    except Exception as e:
+        job.update(phase="error", done=True, error=str(e))
+
+def start_scan(ship):
+    with _scan_lock:
+        j = SCAN_JOBS.get(ship)
+        if j and not j.get("done"):
+            return
+        SCAN_JOBS[ship] = {"phase": "searching PDFs", "progress": 0.0, "done": False, "error": None, "result": None}
+    threading.Thread(target=find_and_scan, args=(ship,), daemon=True).start()
+
 class H(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *a, **k): super().__init__(*a, directory=ROOT, **k)
     def _json(self, code, obj):
         self.send_response(code); self.send_header("Content-Type", "application/json"); self.end_headers()
         self.wfile.write(json.dumps(obj).encode())
     def do_GET(self):
-        if self.path.startswith("/api/labels/"):
-            ship = self.path.rsplit("/", 1)[-1].split("?")[0]
-            try: return self._json(200, box_labels(ship))
-            except Exception as e: return self._json(500, {"error": str(e)})
+        if self.path.startswith("/api/"):
+            seg = self.path[5:].split("?")[0].rstrip("/").split("/")
+            api, ship = seg[0], (seg[-1] if len(seg) > 1 else "")
+            ship = ship.upper()
+            try:
+                if api == "labels":
+                    return self._json(200, box_labels(ship))
+                if api == "find":
+                    exists = os.path.isfile(os.path.join(ROOT, "data", ship, "detection.json"))
+                    return self._json(200, {"ship": ship, "exists": exists})
+                if api == "scanstart":
+                    start_scan(ship)
+                    return self._json(200, {"ship": ship, "started": True})
+                if api == "scanstatus":
+                    return self._json(200, SCAN_JOBS.get(ship, {"done": True, "error": "no scan running"}))
+            except Exception as e:
+                return self._json(500, {"error": str(e)})
         return super().do_GET()
     def do_POST(self):
         n = int(self.headers.get("Content-Length", 0)); body = self.rfile.read(n)

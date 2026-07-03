@@ -232,6 +232,40 @@ def segment_multi_ssd(im, expect=None):
     return im, "single"
 
 # ---------------- main ----------------
+def ingest_ship(pdf, page, ship, out="data", dpi=200, expect=None, progress=None):
+    """Render + orient + CV-detect one ship's SSD page; write data/<ship>/{image.png,detection.json}.
+    `progress(msg, frac)` is called through the run (frac 0..1) so callers can show a progress bar."""
+    def prog(m, f):
+        if progress: progress(m, f)
+    shipdir = os.path.join(out, ship); os.makedirs(shipdir, exist_ok=True)
+    raw = os.path.join(shipdir, "raw.png")
+    prog("rendering page", 0.15); render_page(pdf, page, dpi, raw)
+    prog("detecting orientation", 0.40)
+    rot, ocls, oinfo = detect_orientation(raw)
+    im = Image.open(raw).convert("RGB").rotate(-rot, expand=True)
+    seg_note = "single"
+    if is_multi_ssd(ocr_top_text(Image.open(raw).convert("RGB"), 0.06)):
+        im, seg_note = segment_multi_ssd(im, expect=expect)
+        ocls = "landscape" if im.width >= im.height else "portrait"
+    img_path = os.path.join(shipdir, "image.png"); im.save(img_path)
+    prog("reading labels (OCR)", 0.60); words = ocr_tsv(img_path)
+    prog("detecting control boxes", 0.80); boxes, (W, H) = detect_boxes(im)
+    groups = label_groups(group_boxes(boxes), words)
+    from collections import Counter
+    cc = Counter(b["cc"] for b in boxes)
+    weapon_groups = [g for g in groups if g["cc"] in ("pink", "red")]
+    det = {"ship": ship, "source": {"pdf": os.path.basename(pdf), "page": page, "dpi": dpi},
+           "image": "image.png", "pxWidth": W, "pxHeight": H,
+           "rotationApplied": rot, "orientationClass": ocls,
+           "orientationInfo": oinfo, "segmentation": seg_note,
+           "counts": {"boxes": len(boxes), "groups": len(groups), "weaponGroups": len(weapon_groups),
+                      "byColor": dict(cc)},
+           "boxes": boxes, "groups": groups, "ocrWords": len(words)}
+    with open(os.path.join(shipdir, "detection.json"), "w") as f: json.dump(det, f, indent=1)
+    prog("done", 1.0)
+    return det
+
+
 def main():
     ap=argparse.ArgumentParser()
     ap.add_argument("--pdf",required=True); ap.add_argument("--page",type=int,required=True)
@@ -239,38 +273,10 @@ def main():
     ap.add_argument("--dpi",type=int,default=200)
     ap.add_argument("--expect",default=None,help="title token(s) to pick the right panel on multi-SSD pages")
     a=ap.parse_args()
-    shipdir=os.path.join(a.out,a.ship); os.makedirs(shipdir,exist_ok=True)
-    raw=os.path.join(shipdir,"raw.png")
-    print(f"[{a.ship}] rendering p{a.page} @ {a.dpi}dpi ...")
-    render_page(a.pdf,a.page,a.dpi,raw)
-    print(f"[{a.ship}] detecting orientation ...")
-    rot,ocls,oinfo=detect_orientation(raw)
-    im=Image.open(raw).convert("RGB").rotate(-rot,expand=True)
-    seg_note="single"
-    # multi-SSD check reads the horizontal title band on the RAW portrait page (in landscape it is vertical)
-    if is_multi_ssd(ocr_top_text(Image.open(raw).convert("RGB"), 0.06)):
-        im,seg_note=segment_multi_ssd(im, expect=a.expect)
-        ocls="landscape" if im.width>=im.height else "portrait"
-    img_path=os.path.join(shipdir,"image.png"); im.save(img_path)
-    print(f"[{a.ship}] orientation: rotate {rot}° ({oinfo['method']}) -> {ocls} ({im.width}x{im.height}); {seg_note}")
-    words=ocr_tsv(img_path)
-    boxes,(W,H)=detect_boxes(im)
-    groups=group_boxes(boxes)
-    groups=label_groups(groups,words)
-    from collections import Counter
-    cc=Counter(b["cc"] for b in boxes)
-    weapon_groups=[g for g in groups if g["cc"] in ("pink","red")]
-    det={"ship":a.ship,"source":{"pdf":os.path.basename(a.pdf),"page":a.page,"dpi":a.dpi},
-         "image":"image.png","pxWidth":W,"pxHeight":H,
-         "rotationApplied":rot,"orientationClass":ocls,
-         "orientationInfo":oinfo,"segmentation":seg_note,
-         "counts":{"boxes":len(boxes),"groups":len(groups),"weaponGroups":len(weapon_groups),
-                   "byColor":dict(cc)},
-         "boxes":boxes,"groups":groups,"ocrWords":len(words)}
-    with open(os.path.join(shipdir,"detection.json"),"w") as f: json.dump(det,f,indent=1)
-    print(f"[{a.ship}] boxes={len(boxes)} groups={len(groups)} weaponGroups={len(weapon_groups)} "
-          f"colors={dict(cc)}")
-    print(f"[{a.ship}] wrote {shipdir}/detection.json + image.png")
+    det=ingest_ship(a.pdf,a.page,a.ship,a.out,a.dpi,a.expect,lambda m,f:print(f"[{a.ship}] {m} ({int(f*100)}%)"))
+    c=det["counts"]
+    print(f"[{a.ship}] boxes={c['boxes']} groups={c['groups']} weaponGroups={c['weaponGroups']} colors={c['byColor']}")
+    print(f"[{a.ship}] wrote {a.out}/{a.ship}/detection.json + image.png")
 
 if __name__=="__main__":
     main()
