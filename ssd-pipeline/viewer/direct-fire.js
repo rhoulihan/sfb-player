@@ -5,18 +5,18 @@ import { WEAPONS, damageFor } from './weapon-charts.js';
 import { applyVolley, makeDice } from './dac-allocator.js';
 
 // dieFn() returns a d6 (1..6). Returns { hit, points, struckShield, die }.
-export function resolveMount(firer, mount, target, dieFn) {
+export function resolveMount(firer, mount, target, dieFn, overload = false) {
   const def = WEAPONS[mount.cls];
   const trueRange = hexDistance(firer, target);
   const struckShield = exposedShield(firer, target);
   const die = dieFn();
-  const points = def ? damageFor(def, trueRange, die) : 0;
+  const points = def ? damageFor(def, trueRange, die, overload) : 0;
   return { hit: points > 0, points, struckShield, die };
 }
 
 // models[shipId] is that ship's buildShipModel() result. Rolls every committed mount, buckets hits by
 // (target, struck shield), and calls applyVolley once per bucket. Returns { volleys, log }.
-export function resolveAttackPlan(plan, ships, shipMounts, models, rand = Math.random) {
+export function resolveAttackPlan(plan, ships, shipMounts, models, rand = Math.random, overloadFn = null) {
   const byId = Object.fromEntries(ships.map(s => [s.id, s]));
   const d6 = () => 1 + Math.floor(rand() * 6);
   const dice2d6 = makeDice(rand);
@@ -29,7 +29,7 @@ export function resolveAttackPlan(plan, ships, shipMounts, models, rand = Math.r
       const firer = byId[m.shipId]; if (!firer) continue;
       for (const id of m.mountIds) {
         const mount = (shipMounts[m.shipId] || []).find(x => x.id === id); if (!mount) continue;
-        const r = resolveMount(firer, mount, target, d6);
+        const r = resolveMount(firer, mount, target, d6, overloadFn ? overloadFn(m.shipId, id) : false);
         log.push({ kind: 'shot', firer: m.shipId, mount: id, cls: mount.cls, target: g.targetShipId, ...r });
         if (r.points <= 0) continue;
         const key = `${g.targetShipId}|${r.struckShield}`;
