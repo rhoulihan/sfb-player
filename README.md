@@ -56,9 +56,14 @@ More ships come from ADB's other SSD books — see the full
   `ssd-pipeline/viewer/damage.html`.
 - ✅ **Direct-fire combat sandbox** — reposition two fleets on a hex map, form per-mount fire
   groups (split-fire across groups), and resolve direct fire through the DAC engine; a pure
-  engine (arcs, loadouts, weapon charts, fire plans, resolution) with 61 unit tests backs
-  `ssd-pipeline/viewer/battle.html`. Weapon charts are verifiable/editable against the scanned
-  source tables at `ssd-pipeline/viewer/weapons.html`.
+  engine (arcs, loadouts, weapon charts, fire plans, resolution) unit-tested backs
+  `ssd-pipeline/viewer/battle.html`. Multiplayer via per-fleet commander codes, fog-of-war, and
+  ship-level optimistic locking; commit-based simultaneous 6D fire.
+- ✅ **Energy allocation phase** — start-of-turn control panel (`energy-model.js` derives each
+  ship's power from its SSD boxes; the 21-line EAF with sliders/toggles, a live balance meter, and
+  sealed per-fleet Lock) inside `battle.html`. Movement sets speed, heavy weapons must be armed to
+  fire (with overload), and when all fleets lock, impulse 1 begins. Energy engine unit-tested.
+  *In progress:* capacitor-drawn phaser fire and shield-reinforcement application to the DAC.
 - ⏭️ **Platform build** — authoritative Node/Express + MongoDB + Socket.IO engine per the spec.
 
 ## Repository layout
