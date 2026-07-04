@@ -98,7 +98,8 @@ export const WEAPONS = {
       [1, 3],
       [1, 2]
     ],
-    "fixedDamage": [0, 5, 4, 4, 3, 3, 2, 2]
+    "fixedDamage": [0, 5, 4, 4, 3, 3, 2, 2],
+    "overload": { "maxRange": 8, "fixedDamage": 8 }
   },
   "PHOTON": {
     "cls": "PHOTON",
@@ -121,7 +122,8 @@ export const WEAPONS = {
       [1, 2],
       [1, 1]
     ],
-    "fixedDamage": [0, 8, 8, 8, 8, 8]
+    "fixedDamage": [0, 8, 8, 8, 8, 8],
+    "overload": { "maxRange": 8, "fixedDamage": 16 }
   }
 };
 
@@ -129,14 +131,17 @@ export function bandIndex(def, trueRange) {
   return def.bands.findIndex(b => trueRange >= b.minTrue && trueRange <= b.maxTrue);
 }
 
-export function damageFor(def, trueRange, die) {
+export function damageFor(def, trueRange, die, overload = false) {
+  const ov = overload && def.overload;                   // heavy-weapon overload: bigger warhead, shorter range
+  const maxRange = ov ? def.overload.maxRange : def.maxRange;
   if (def.minRange && trueRange < def.minRange) return 0;
-  if (trueRange > def.maxRange) return 0;
+  if (trueRange > maxRange) return 0;
   const bi = bandIndex(def, trueRange);
   if (bi < 0) return 0;
-  if (def.resolution === 'range-of-effect') return def.effectGrid[die - 1]?.[bi] ?? 0;
+  if (def.resolution === 'range-of-effect') return def.effectGrid[die - 1]?.[bi] ?? 0;  // phasers never overload
   const hb = def.hitBand1d[bi];
   if (!hb) return 0;
   const [lo, hi] = hb;
-  return (die >= lo && die <= hi) ? def.fixedDamage[bi] : 0;
+  if (die < lo || die > hi) return 0;
+  return ov ? def.overload.fixedDamage : def.fixedDamage[bi];
 }
