@@ -65,3 +65,34 @@ export function newEafColumn(power, prevSpeed = 0, carried = 0) {
     wildWeasel: false, suicide: false, cloak: false,
   };
 }
+
+// fixed line costs (calibration-flagged). Shields are up for free in v1 — the paid shield allocation
+// is reinforcement (genReinf/specReinf, variable). Fire control cost is the value itself (0/0.5/1).
+export const SHIELD_COST = 0, HET_COST = 2, WW_COST = 1, SUICIDE_COST = 1, CLOAK_COST = 0;
+
+// the balance referee. carried = phaser-capacitor charge left from last turn (H6 carry-over).
+export function validateEaf(power, column, carried = 0) {
+  let weaponCost = 0;                                     // JOIN column state onto power.weapons (which carries cls + costs)
+  for (const w of power.weapons) {
+    const st = column.weapons[w.id];
+    if (st && st.armed) weaponCost += st.overload ? w.overload : w.arm;
+  }
+  const spec = Object.values(column.specReinf || {}).reduce((a, v) => a + (v || 0), 0);
+  const used = column.lifeSupport + column.fireControl + column.phaserCap + weaponCost
+    + (column.shieldsActive ? SHIELD_COST : 0) + column.genReinf + spec
+    + column.movement + column.impulseMove + (column.het ? HET_COST : 0)
+    + column.damageControl + column.recharge + column.tractor + column.transporter
+    + column.ecm + column.eccm + column.labs
+    + (column.wildWeasel ? WW_COST : 0) + (column.suicide ? SUICIDE_COST : 0) + (column.cloak ? CLOAK_COST : 0);
+  const produced = power.total + power.batteries;
+  const free = produced - used;
+  const batteryUsed = Math.max(0, used - power.total);
+  const errors = [];
+  if (used > produced) errors.push('over-allocated: uses more than produced power + batteries');
+  if (column.lifeSupport !== lifeSupportCost(power)) errors.push('life support must equal the mandatory cost');
+  if (column.phaserCap + carried > power.capacitorCap) errors.push('phaser capacitor over capacity');
+  if (column.impulseMove > 1) errors.push('at most 1 impulse point may go to movement');
+  if (batteryUsed > power.batteries) errors.push('battery draw exceeds available battery power');
+  const status = used > produced ? 'over' : free > 0 ? 'under' : 'balanced';
+  return { produced, used, batteryUsed, free, status, errors };
+}

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { shipPower, lifeSupportCost, newEafColumn } from '../viewer/energy-model.js';
+import { shipPower, lifeSupportCost, newEafColumn, validateEaf } from '../viewer/energy-model.js';
 
 const load = c => shipPower(
   c,
@@ -43,4 +43,32 @@ test('lifeSupportCost is by size class; newEafColumn defaults to charge/hold/pow
   assert.deepEqual(col.specReinf, { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 });
   // carried capacitor charge from last turn: the default only tops up the remaining room (H6 carry-over)
   assert.equal(newEafColumn(fed, 8, 4).phaserCap, fed.capacitorCap - 4, 'phaserCap fills only the empty room');
+});
+
+test('validateEaf: golden used, balance status, and hard errors', () => {
+  const fed = load('FED-CA');
+  // Default FED-CA column at speed 0: LS 1 + fireControl 1 + phaserCap 9 + 4 photons×2 arm = 19.
+  const col = newEafColumn(fed, 0);
+  const v = validateEaf(fed, col);
+  assert.equal(v.used, 19, 'hand-computed default budget');
+  assert.equal(v.produced, 40, 'total 36 + 4 batteries');
+  assert.equal(v.status, 'under', 'default leaves surplus');
+
+  // overloading one photon adds overload(4) − arm(2) = 2
+  const wId = fed.weapons[0].id;
+  const over = { ...col, weapons: { ...col.weapons, [wId]: { armed: true, overload: true } } };
+  assert.equal(validateEaf(fed, over).used, 21);
+
+  // balanced when movement soaks the surplus exactly
+  assert.equal(validateEaf(fed, { ...col, movement: 21 }).status, 'balanced');
+  // over-allocation
+  const big = validateEaf(fed, { ...col, movement: 40 });
+  assert.equal(big.status, 'over');
+  assert.ok(big.errors.some(e => /over/i.test(e)));
+  // mandatory life support
+  assert.ok(validateEaf(fed, { ...col, lifeSupport: 0 }).errors.some(e => /life support/i.test(e)));
+  // capacitor carried-room: 6 requested + 4 carried > cap 9
+  assert.ok(validateEaf(fed, { ...col, phaserCap: 6 }, 4).errors.some(e => /capacitor/i.test(e)));
+  // impulse-to-move <= 1
+  assert.ok(validateEaf(fed, { ...col, impulseMove: 2 }).errors.some(e => /impulse/i.test(e)));
 });
