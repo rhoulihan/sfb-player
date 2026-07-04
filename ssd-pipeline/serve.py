@@ -279,6 +279,9 @@ class H(http.server.SimpleHTTPRequestHandler):
                                    if os.path.isfile(os.path.join(d, n, "detection.json")))
                     verified = [n for n in ships if os.path.isfile(os.path.join(d, n, "verified.json"))]
                     return self._json(200, {"ships": ships, "verified": verified})
+                if api == "battle":
+                    p = os.path.join(ROOT, "data", "_battle.json")
+                    return self._json(200, json.load(open(p)) if os.path.exists(p) else {"error": "no saved battle"})
             except Exception as e:
                 return self._json(500, {"error": str(e)})
         return super().do_GET()
@@ -297,6 +300,10 @@ class H(http.server.SimpleHTTPRequestHandler):
             if self.path.startswith("/api/rescan/"): return self._json(200, rescan(ship, payload.get("region", {})))
             if self.path == "/api/weapon-charts":
                 return self._json(200, {"ok": True, "bytes": write_weapon_charts(payload)})
+            if self.path == "/api/battle":
+                with open(os.path.join(ROOT, "data", "_battle.json"), "w") as f:
+                    json.dump(payload, f, indent=1)
+                return self._json(200, {"ok": True, "ships": len(payload.get("ships", []))})
         except Exception as e:
             return self._json(500, {"error": str(e)})
         return self._json(404, {"error": "unknown endpoint"})

@@ -30,3 +30,6 @@ ssd-pipeline/data/_weapon-tables/
 
 # weapon-table validation editor — local-only tool (kept for adding future races)
 ssd-pipeline/viewer/weapons.html
+
+# battle-state save file (local)
+ssd-pipeline/data/_battle.json

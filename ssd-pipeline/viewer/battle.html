@@ -52,6 +52,7 @@
   .rotc button.lit{background:#d97706;border-color:#d97706;color:#fff;font-weight:700}
   .tmc{font-size:10.5px;color:#94a3b8;margin-left:auto;text-align:right;line-height:1.1}
   .clock{font-size:13px;color:#e2e8f0;font-weight:600;letter-spacing:.3px;background:#334155;padding:3px 9px;border-radius:6px}
+  .tmode{font-size:12px;color:#cbd5e1;display:flex;align-items:center;gap:4px;cursor:pointer}
   .grp{margin:0 10px 6px;border:1px solid #cbd5e1;border-radius:8px;overflow:hidden;font-size:12px}
   .grp.work{border-color:#d97706;box-shadow:0 0 0 1px #d9770655}
   .grp .gh{display:flex;align-items:center;gap:6px;padding:5px 8px;background:#f1f5f9;cursor:pointer}
@@ -82,9 +83,12 @@
       <div class="navmenu" id="navMenu"><a href="index.html">🏠 Home</a><a href="verify.html?ship=FED-CA">🛠️ Verify editor</a><a href="damage.html?ship=FED-CA">⚔️ Damage processor</a><a href="weapons.html">🎯 Weapon tables</a></div></div>
     <b>Direct-Fire Sandbox</b><span class="sub">drag to move · [ ] turn · set speed on the fleet · ▶ steps impulses</span>
     <span class="sp"></span>
+    <label class="tmode" title="allow turning any ship, including enemy/target ships (test only)"><input type="checkbox" id="testMode"> Test mode</label>
     <div class="clock" id="clock">TURN 1 · IMP 0/32</div>
     <button class="btn primary" id="stepBtn">▶ Impulse</button>
     <div class="zoomc"><button data-z="-1">−</button><button data-z="fit">fit</button><span id="zpct">50%</span><button data-z="1">+</button></div>
+    <button class="btn" id="saveBtn" title="save the battle state to a data file">💾 Save</button>
+    <button class="btn" id="loadBtn" title="load the saved battle state">Load</button>
     <button class="btn" id="resetBtn">↺ Reset</button>
   </header>
   <div class="body">
@@ -136,6 +140,7 @@ const COLS = 42, ROWS = 30, COLORS = ['#2563eb', '#16a34a', '#d97706', '#7c3aed'
 const map = document.getElementById('map');
 let ships = [], plan = newPlan(), workingId = null, activeId = null, dragging = null, zoom = 0.5, gridBuilt = false;
 let clock = { turn: 1, impulse: 0 };   // impulse 0 = pre-start setup phase
+let testMode = false;                   // when on, any ship (incl. enemy/target) can be turned
 const hexId = (q, r) => `${String(q + 1).padStart(2, '0')}${String(r + 1).padStart(2, '0')}`;   // XXYY hex number
 
 const byId = id => ships.find(s => s.id === id);
@@ -186,6 +191,7 @@ function stepImpulse() {
 // during setup (impulse 0) turning is instant; once the impulse loop is running a turn is QUEUED
 function turnAction(dir) {
   if (!activeId) return; const s = byId(activeId);
+  if (s.side === 'enemy' && !testMode) return;           // only your own ships turn in game mode
   if (clock.impulse === 0) s.facing = (s.facing + dir + 6) % 6;
   else s.queuedTurn = s.queuedTurn === dir ? 0 : dir;
   pruneUnavailable(); render();
@@ -278,11 +284,14 @@ function renderFleet() {
   }).join('');
   const rotc = document.getElementById('rotc');
   if (activeId) {
-    const s = byId(activeId), tm = turnMode(s.speed), rem = Math.max(0, tm - s.hexesSinceTurn);
-    const cd = clock.impulse === 0 ? 'turns instant (setup)' : tm === 0 ? 'may turn freely' : rem === 0 ? 'may turn now' : `turn in ${rem} hex${rem !== 1 ? 'es' : ''}`;
+    const s = byId(activeId), canTurn = s.side === 'friendly' || testMode;
     rotc.style.display = 'flex';
-    rotc.innerHTML = `<button data-turn="-1" class="${s.queuedTurn === -1 ? 'lit' : ''}">↺ turn</button>
-      <button data-turn="1" class="${s.queuedTurn === 1 ? 'lit' : ''}">turn ↻</button><span class="tmc">${cd}</span>`;
+    if (canTurn) {
+      const tm = turnMode(s.speed), rem = Math.max(0, tm - s.hexesSinceTurn);
+      const cd = clock.impulse === 0 ? 'turns instant (setup)' : tm === 0 ? 'may turn freely' : rem === 0 ? 'may turn now' : `turn in ${rem} hex${rem !== 1 ? 'es' : ''}`;
+      rotc.innerHTML = `<button data-turn="-1" class="${s.queuedTurn === -1 ? 'lit' : ''}">↺ turn</button>
+        <button data-turn="1" class="${s.queuedTurn === 1 ? 'lit' : ''}">turn ↻</button><span class="tmc">${cd}</span>`;
+    } else rotc.innerHTML = `<span class="tmc" style="margin:0">target ship — Test mode to turn</span>`;
   } else rotc.style.display = 'none';
   renderClock();
 }
@@ -377,6 +386,7 @@ window.addEventListener('mouseup', () => { if (dragging && !dragging.moved) onSh
 document.getElementById('rotc').addEventListener('click', e => { const b = e.target.closest('[data-turn]'); if (b) turnAction(+b.dataset.turn); });
 window.addEventListener('keydown', e => { if (e.target.tagName === 'INPUT') return; if (e.key === '[') turnAction(-1); else if (e.key === ']') turnAction(1); });
 document.getElementById('stepBtn').onclick = () => stepImpulse();
+document.getElementById('testMode').onchange = e => { testMode = e.target.checked; render(); };
 document.getElementById('fleet').addEventListener('click', e => { if (e.target.closest('.spin')) return; const row = e.target.closest('.shiprow'); if (row) { activeId = row.dataset.id; render(); } });
 document.getElementById('fleet').addEventListener('change', e => { const sp = e.target.closest('.spin'); if (!sp) return; const s = byId(sp.dataset.spd); if (s) s.speed = Math.max(0, Math.min(32, parseInt(sp.value) || 0)); });
 
@@ -407,6 +417,44 @@ const navMenu = document.getElementById('navMenu');
 document.getElementById('navBtn').onclick = e => { e.stopPropagation(); navMenu.classList.toggle('open'); };
 document.addEventListener('click', () => navMenu.classList.remove('open'));
 document.getElementById('resetBtn').onclick = () => { document.getElementById('log').innerHTML = ''; load(); };
+
+// ---------- battle data file: full engagement snapshot (extensible) ----------
+const shieldsNow = s => s.model ? [1, 2, 3, 4, 5, 6].map(n => { const sh = s.model.shields[n]; return sh ? sh.max - sh.down : (s.shields[n - 1] || 0); }) : s.shields.slice();
+function serializeBattle() {
+  return {
+    turn: clock.turn, impulse: clock.impulse,
+    ships: ships.map(s => ({
+      id: s.id, code: s.code, name: s.name, side: s.side,
+      map: { q: s.q, r: s.r, facing: s.facing, speed: s.speed, hexesSinceTurn: s.hexesSinceTurn, queuedTurn: s.queuedTurn, turnMode: turnMode(s.speed) },
+      status: { destroyed: Object.keys(s.status), shields: shieldsNow(s) },
+      weapons: Object.fromEntries(s.mounts.map(m => [m.id, { cls: m.cls, arc: (m.arc.arcs || []), charged: isCharged(s, m.id, m.cls), firedAt: s.firedAt[m.id] || null }])),
+    })),
+  };
+}
+function applyBattle(data) {
+  if (!data || !data.ships) return;
+  clock = { turn: data.turn || 1, impulse: data.impulse ?? 0 };
+  for (const sd of data.ships) {
+    const s = byId(sd.id); if (!s) continue; const m = sd.map || {};
+    s.q = m.q ?? s.q; s.r = m.r ?? s.r; s.facing = m.facing ?? s.facing; s.speed = m.speed ?? s.speed;
+    s.hexesSinceTurn = m.hexesSinceTurn ?? turnMode(s.speed); s.queuedTurn = m.queuedTurn || 0;
+    s.status = {}; (sd.status?.destroyed || []).forEach(id => (s.status[id] = 'destroyed'));
+    s.firedAt = {}; for (const [mid, w] of Object.entries(sd.weapons || {})) if (w && w.firedAt) s.firedAt[mid] = w.firedAt;
+    s.model = null;
+  }
+  plan = newPlan(); workingId = null; activeId = null; render();
+}
+document.getElementById('saveBtn').onclick = async () => {
+  const b = document.getElementById('saveBtn');
+  try { const j = await (await fetch('/api/battle', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(serializeBattle()) })).json();
+    b.textContent = j.ok ? '✓ Saved' : '✗ Failed'; } catch { b.textContent = '✗ Failed'; }
+  setTimeout(() => (b.textContent = '💾 Save'), 1200);
+};
+document.getElementById('loadBtn').onclick = async () => {
+  const b = document.getElementById('loadBtn');
+  try { const j = await (await fetch('/api/battle')).json(); if (j.error) { b.textContent = 'no save'; setTimeout(() => (b.textContent = 'Load'), 1200); return; } applyBattle(j); }
+  catch { b.textContent = '✗'; setTimeout(() => (b.textContent = 'Load'), 1200); }
+};
 
 // zoom
 function setZoom(z) { zoom = Math.max(0.2, Math.min(1.4, z)); applyZoom(); document.getElementById('zpct').textContent = Math.round(zoom * 100) + '%'; }
