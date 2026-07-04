@@ -47,8 +47,11 @@
   .resizer{width:6px;flex:none;cursor:col-resize;background:transparent}
   .resizer:hover{background:#cbd5e1}
   .ctxitem:hover{background:#eff6ff;color:#2563eb}
-  .rotc{display:flex;gap:6px;padding:4px 12px 10px}
+  .rotc{display:flex;gap:6px;padding:4px 12px 10px;align-items:center}
   .rotc button{font:inherit;font-size:12px;background:#e2e8f0;border:1px solid #cbd5e1;border-radius:6px;padding:3px 9px;cursor:pointer}
+  .rotc button.lit{background:#d97706;border-color:#d97706;color:#fff;font-weight:700}
+  .tmc{font-size:10.5px;color:#94a3b8;margin-left:auto;text-align:right;line-height:1.1}
+  .clock{font-size:13px;color:#e2e8f0;font-weight:600;letter-spacing:.3px;background:#334155;padding:3px 9px;border-radius:6px}
   .grp{margin:0 10px 6px;border:1px solid #cbd5e1;border-radius:8px;overflow:hidden;font-size:12px}
   .grp.work{border-color:#d97706;box-shadow:0 0 0 1px #d9770655}
   .grp .gh{display:flex;align-items:center;gap:6px;padding:5px 8px;background:#f1f5f9;cursor:pointer}
@@ -77,8 +80,10 @@
   <header>
     <div class="nav"><button class="navbtn" id="navBtn" title="menu">☰</button>
       <div class="navmenu" id="navMenu"><a href="index.html">🏠 Home</a><a href="verify.html?ship=FED-CA">🛠️ Verify editor</a><a href="damage.html?ship=FED-CA">⚔️ Damage processor</a><a href="weapons.html">🎯 Weapon tables</a></div></div>
-    <b>Direct-Fire Sandbox</b><span class="sub">drag to move · [ ] rotate · click your ships then an enemy to form a fire group</span>
+    <b>Direct-Fire Sandbox</b><span class="sub">drag to move · [ ] turn · set speed on the fleet · ▶ steps impulses</span>
     <span class="sp"></span>
+    <div class="clock" id="clock">TURN 1 · IMP 0/32</div>
+    <button class="btn primary" id="stepBtn">▶ Impulse</button>
     <div class="zoomc"><button data-z="-1">−</button><button data-z="fit">fit</button><span id="zpct">50%</span><button data-z="1">+</button></div>
     <button class="btn" id="resetBtn">↺ Reset</button>
   </header>
@@ -86,7 +91,7 @@
     <aside class="rail" id="rail">
       <h3>Fleets</h3>
       <div id="fleet"></div>
-      <div class="rotc" id="rotc" style="display:none"><button data-rot="-1">↺ rotate</button><button data-rot="1">rotate ↻</button></div>
+      <div class="rotc" id="rotc" style="display:none"></div>
       <h3>Fire groups <button class="btn" id="newGrp">＋ new</button></h3>
       <div id="groups"></div>
     </aside>
@@ -125,11 +130,13 @@ import { shipLoadout } from './ship-loadout.js';
 import { buildShipModel } from './ship-model.js';
 import { newPlan, newGroup, assignMount, unassignMount, planEligibility, mountEligibility, combinedPreview } from './fire-plan.js';
 import { resolveAttackPlan } from './direct-fire.js';
+import { movesOnImpulse, neighbor, turnMode } from './movement.js';
 import { SCENARIO } from './scenario.js';
 
 const COLS = 42, ROWS = 30, COLORS = ['#2563eb', '#16a34a', '#d97706', '#7c3aed', '#0891b2'];   // standard SFB 42x30 map
 const map = document.getElementById('map');
 let ships = [], plan = newPlan(), workingId = null, activeId = null, dragging = null, zoom = 0.5, gridBuilt = false;
+let clock = { turn: 1, impulse: 0 };   // impulse 0 = pre-start setup phase
 const hexId = (q, r) => `${String(q + 1).padStart(2, '0')}${String(r + 1).padStart(2, '0')}`;   // XXYY hex number
 
 const byId = id => ships.find(s => s.id === id);
@@ -152,14 +159,34 @@ function pruneUnavailable() {
 function alphaStrike() { const g = working(); if (!g || !g.targetShipId) return; g.members.forEach(m => autoSelectShip(g, m.shipId)); render(); }
 
 async function load() {
-  ships = []; plan = newPlan(); workingId = null; activeId = null;
+  ships = []; plan = newPlan(); workingId = null; activeId = null; clock = { turn: 1, impulse: 0 };
   for (const s of SCENARIO) {
     const det = await (await fetch(`../data/${s.code}/detection.json`)).json();
     const ver = await (await fetch(`../data/${s.code}/verified.json`)).json();
     const { mounts, shields } = shipLoadout(ver, det);
-    ships.push({ ...s, mounts, shields, _ver: ver, _det: det, status: {}, fired: new Set() });
+    ships.push({ ...s, mounts, shields, _ver: ver, _det: det, status: {}, fired: new Set(), hexesSinceTurn: turnMode(s.speed), queuedTurn: 0 });
   }
   render();
+}
+
+const isDead = s => shipHealth(s) <= 0;
+function stepImpulse() {
+  clock.impulse++;
+  if (clock.impulse > 32) { clock.impulse = 1; clock.turn++; ships.forEach(s => { s.fired.clear(); s.hexesSinceTurn = turnMode(s.speed); }); }   // new turn: recharge + reset turn counters
+  for (const s of ships) {
+    if (isDead(s) || !movesOnImpulse(s.speed, clock.impulse)) continue;
+    if (s.queuedTurn && s.hexesSinceTurn >= turnMode(s.speed)) { s.facing = (s.facing + s.queuedTurn + 6) % 6; s.hexesSinceTurn = 0; s.queuedTurn = 0; }
+    const n = neighbor(s.q, s.r, s.facing);
+    if (n.q >= 0 && n.q < COLS && n.r >= 0 && n.r < ROWS) { s.q = n.q; s.r = n.r; s.hexesSinceTurn++; }
+  }
+  pruneUnavailable(); render();
+}
+// during setup (impulse 0) turning is instant; once the impulse loop is running a turn is QUEUED
+function turnAction(dir) {
+  if (!activeId) return; const s = byId(activeId);
+  if (clock.impulse === 0) s.facing = (s.facing + dir + 6) % 6;
+  else s.queuedTurn = s.queuedTurn === dir ? 0 : dir;
+  pruneUnavailable(); render();
 }
 
 // ---------- geometry ----------
@@ -239,8 +266,17 @@ function renderFleet() {
            <div class="hbar" title="${Math.round(h * 100)}% intact"><i style="width:${Math.round(h * 100)}%;background:${healthColor(h)}"></i></div></div>
        </div></div>`;
   }).join('');
-  document.getElementById('rotc').style.display = activeId ? 'flex' : 'none';
+  const rotc = document.getElementById('rotc');
+  if (activeId) {
+    const s = byId(activeId), tm = turnMode(s.speed), rem = Math.max(0, tm - s.hexesSinceTurn);
+    const cd = clock.impulse === 0 ? 'turns instant (setup)' : tm === 0 ? 'may turn freely' : rem === 0 ? 'may turn now' : `turn in ${rem} hex${rem !== 1 ? 'es' : ''}`;
+    rotc.style.display = 'flex';
+    rotc.innerHTML = `<button data-turn="-1" class="${s.queuedTurn === -1 ? 'lit' : ''}">↺ turn</button>
+      <button data-turn="1" class="${s.queuedTurn === 1 ? 'lit' : ''}">turn ↻</button><span class="tmc">${cd}</span>`;
+  } else rotc.style.display = 'none';
+  renderClock();
 }
+function renderClock() { document.getElementById('clock').textContent = `TURN ${clock.turn} · IMP ${clock.impulse}/32`; }
 
 function renderGroups() {
   const box = document.getElementById('groups');
@@ -330,9 +366,9 @@ window.addEventListener('mousemove', e => {
 });
 window.addEventListener('mouseup', () => { if (dragging && !dragging.moved) onShipClick(dragging.s); dragging = null; });
 
-function rotate(d) { if (!activeId || plan.committed) return; const s = byId(activeId); s.facing = (s.facing + (d > 0 ? 1 : 5)) % 6; pruneUnavailable(); render(); }
-document.getElementById('rotc').addEventListener('click', e => { const b = e.target.closest('[data-rot]'); if (b) rotate(+b.dataset.rot); });
-window.addEventListener('keydown', e => { if (e.target.tagName === 'INPUT') return; if (e.key === '[') rotate(-1); else if (e.key === ']') rotate(1); });
+document.getElementById('rotc').addEventListener('click', e => { const b = e.target.closest('[data-turn]'); if (b) turnAction(+b.dataset.turn); });
+window.addEventListener('keydown', e => { if (e.target.tagName === 'INPUT') return; if (e.key === '[') turnAction(-1); else if (e.key === ']') turnAction(1); });
+document.getElementById('stepBtn').onclick = () => stepImpulse();
 document.getElementById('fleet').addEventListener('click', e => { if (e.target.closest('.spin')) return; const row = e.target.closest('.shiprow'); if (row) { activeId = row.dataset.id; render(); } });
 document.getElementById('fleet').addEventListener('change', e => { const sp = e.target.closest('.spin'); if (!sp) return; const s = byId(sp.dataset.spd); if (s) s.speed = Math.max(0, Math.min(32, parseInt(sp.value) || 0)); });
 
