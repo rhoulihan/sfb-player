@@ -25,8 +25,12 @@
   .panel{border-right:0;border-left:1px solid #cbd5e1}
   .rail h3,.panel h3{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#64748b;margin:12px 12px 6px;display:flex;align-items:center;gap:6px}
   .rail h3 button{margin-left:auto;font-size:11px}
-  .stage{flex:1;min-width:0;overflow:auto;background:#eef2f7;display:flex;align-items:flex-start;justify-content:center;padding:10px}
-  #map{background:#fff;box-shadow:0 2px 12px rgba(15,23,42,.12);max-width:100%;height:auto;user-select:none}
+  .stage{flex:1;min-width:0;overflow:auto;background:#eef2f7;display:flex;align-items:flex-start;justify-content:flex-start;padding:10px}
+  #map{background:#fff;box-shadow:0 2px 12px rgba(15,23,42,.12);user-select:none;flex:none}
+  .zoomc{display:flex;align-items:center;gap:4px;font-size:12px;color:#cbd5e1}
+  .zoomc button{font:inherit;font-size:13px;background:#334155;color:#fff;border:1px solid #475569;border-radius:5px;width:24px;height:22px;cursor:pointer;padding:0}
+  .zoomc button[data-z="fit"]{width:auto;padding:0 7px}
+  #zpct{min-width:34px;text-align:center}
   .shiprow{display:flex;align-items:center;gap:8px;padding:6px 12px;cursor:pointer;font-size:13px;border-left:3px solid transparent}
   .shiprow:hover{background:#eef2f7}
   .shiprow.active{background:#eff6ff;border-left-color:#d97706}
@@ -64,6 +68,7 @@
       <div class="navmenu" id="navMenu"><a href="index.html">🏠 Home</a><a href="verify.html?ship=FED-CA">🛠️ Verify editor</a><a href="damage.html?ship=FED-CA">⚔️ Damage processor</a><a href="weapons.html">🎯 Weapon tables</a></div></div>
     <b>Direct-Fire Sandbox</b><span class="sub">drag to move · [ ] rotate · click your ships then an enemy to form a fire group</span>
     <span class="sp"></span>
+    <div class="zoomc"><button data-z="-1">−</button><button data-z="fit">fit</button><span id="zpct">50%</span><button data-z="1">+</button></div>
     <button class="btn" id="resetBtn">↺ Reset</button>
   </header>
   <div class="body">
@@ -100,9 +105,10 @@ import { newPlan, newGroup, assignMount, unassignMount, planEligibility, mountEl
 import { resolveAttackPlan } from './direct-fire.js';
 import { SCENARIO } from './scenario.js';
 
-const COLS = 17, ROWS = 13, COLORS = ['#2563eb', '#16a34a', '#d97706', '#7c3aed', '#0891b2'];
+const COLS = 42, ROWS = 30, COLORS = ['#2563eb', '#16a34a', '#d97706', '#7c3aed', '#0891b2'];   // standard SFB 42x30 map
 const map = document.getElementById('map');
-let ships = [], plan = newPlan(), workingId = null, activeId = null, dragging = null;
+let ships = [], plan = newPlan(), workingId = null, activeId = null, dragging = null, zoom = 0.5, gridBuilt = false;
+const hexId = (q, r) => `${String(q + 1).padStart(2, '0')}${String(r + 1).padStart(2, '0')}`;   // XXYY hex number
 
 const byId = id => ships.find(s => s.id === id);
 const working = () => plan.groups.find(g => g.id === workingId);
@@ -137,11 +143,25 @@ function eligForTarget(ship, target) {
   return out;
 }
 
-function render() {
+function applyZoom() {
   const W = GEOM.OX + GEOM.HW * COLS, H = GEOM.OY + GEOM.HH * ROWS + GEOM.HH / 2;
-  map.setAttribute('viewBox', `0 0 ${W} ${H}`); map.setAttribute('width', W); map.setAttribute('height', H);
+  map.setAttribute('width', Math.round(W * zoom)); map.setAttribute('height', Math.round(H * zoom));
+}
+function buildGrid() {                                     // static hex grid + XXYY labels, rendered once
+  const W = GEOM.OX + GEOM.HW * COLS, H = GEOM.OY + GEOM.HH * ROWS + GEOM.HH / 2;
+  map.setAttribute('viewBox', `0 0 ${W} ${H}`); applyZoom();
+  let g = '';
+  for (let q = 0; q < COLS; q++) for (let r = 0; r < ROWS; r++) {
+    const c = hexCenter(q, r);
+    g += `<path d="${hexPath(c.x, c.y)}" fill="#fff" stroke="#dbe3ec" stroke-width="1"/>`;
+    g += `<text x="${(c.x - GEOM.SIZE * 0.62).toFixed(0)}" y="${(c.y - GEOM.HH / 2 + 12).toFixed(0)}" font-size="9" fill="#c2ccd8" style="pointer-events:none">${hexId(q, r)}</text>`;
+  }
+  map.innerHTML = `<g id="grid">${g}</g><g id="dyn"></g>`;
+  gridBuilt = true;
+}
+function render() {
+  if (!gridBuilt) buildGrid();
   let svg = '';
-  for (let q = 0; q < COLS; q++) for (let r = 0; r < ROWS; r++) { const c = hexCenter(q, r); svg += `<path d="${hexPath(c.x, c.y)}" fill="#fff" stroke="#e2e8f0" stroke-width="1"/>`; }
   // overlays: lines of fire + exposed shields, per group
   for (const g of plan.groups) {
     if (!g.targetShipId) continue; const t = byId(g.targetShipId); if (!t) continue; const tc = hexCenter(t.q, t.r);
@@ -164,7 +184,7 @@ function render() {
       `<circle cx="${c.x}" cy="${c.y}" r="20" fill="${fill}" stroke="#fff" stroke-width="2"/>` +
       `<text x="${c.x}" y="${c.y + 4}" text-anchor="middle" fill="#fff" font-size="12" font-weight="700" style="pointer-events:none">${s.id}</text></g>`;
   }
-  map.innerHTML = svg;
+  map.querySelector('#dyn').innerHTML = svg;
   renderFleet(); renderGroups(); renderPanel(); renderTray();
 }
 
@@ -291,6 +311,11 @@ const navMenu = document.getElementById('navMenu');
 document.getElementById('navBtn').onclick = e => { e.stopPropagation(); navMenu.classList.toggle('open'); };
 document.addEventListener('click', () => navMenu.classList.remove('open'));
 document.getElementById('resetBtn').onclick = () => { document.getElementById('log').innerHTML = ''; load(); };
+
+// zoom
+function setZoom(z) { zoom = Math.max(0.2, Math.min(1.4, z)); applyZoom(); document.getElementById('zpct').textContent = Math.round(zoom * 100) + '%'; }
+function fitZoom() { const st = document.querySelector('.stage'); const W = GEOM.OX + GEOM.HW * COLS, H = GEOM.OY + GEOM.HH * ROWS + GEOM.HH / 2; setZoom(Math.min((st.clientWidth - 24) / W, (st.clientHeight - 24) / H)); }
+document.querySelector('.zoomc').addEventListener('click', e => { const b = e.target.closest('[data-z]'); if (!b) return; if (b.dataset.z === 'fit') fitZoom(); else setZoom(zoom + (+b.dataset.z) * 0.1); });
 
 // ---------- resolve (Task 9) ----------
 document.getElementById('resolveBtn').onclick = () => {
