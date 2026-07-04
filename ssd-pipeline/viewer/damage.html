@@ -12,10 +12,10 @@
   header .spacer{flex:1}
   header select,header input,header button{font:inherit}
   main{flex:1;display:flex;min-height:0}
-  #stage{flex:1;position:relative;overflow:auto;background:#f8fafc;display:flex;align-items:flex-start;justify-content:center;padding:16px}
-  #wrap{position:relative}
-  #img{display:block;max-width:none}
-  #ovl{position:absolute;inset:0}
+  #stage{flex:1;overflow:auto;background:#f8fafc;display:flex;align-items:flex-start;justify-content:center;padding:16px;position:relative}
+  #wrap{position:relative;background:#fff;box-shadow:0 3px 16px rgba(15,23,42,.2);line-height:0}
+  #img{display:block;width:100%;height:auto}
+  #ovl{position:absolute;inset:0;width:100%;height:100%}
   aside{width:320px;flex:none;background:#fff;border-left:1px solid #cbd5e1;padding:14px;overflow:auto}
   aside h3{margin:2px 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted)}
   .panel{border:1px solid #e2e8f0;border-radius:8px;padding:12px;margin-bottom:14px}
@@ -41,12 +41,24 @@
 <body>
 <header>
   <b id="ttl">SSD DAMAGE</b><span class="sub" id="sub"></span>
+  <input id="ssdSearch" placeholder="load SSD — RACE-HULL (e.g. GOR-DD)" autocomplete="off" spellcheck="false"
+    title="Type a ship as RACE-HULL and press Enter — loads it if it exists, else finds it in your PDFs and scans it"
+    style="font:inherit;font-size:12px;background:#334155;color:#fff;border:1px solid #475569;border-radius:7px;padding:5px 10px;width:240px;margin-left:10px">
   <span class="spacer"></span>
   <span class="sub">shields → armor → internal DAC (D3.6–D4.4)</span>
 </header>
 <div id="banner">◈ SHIP DESTROYED ◈</div>
+<div id="scanModal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:100;align-items:center;justify-content:center">
+  <div style="background:#fff;color:#0f172a;border-radius:10px;padding:22px 26px;min-width:360px;box-shadow:0 12px 44px rgba(0,0,0,.35)">
+    <div id="scanTitle" style="font-weight:700;font-size:15px;margin-bottom:3px">Scanning SSD…</div>
+    <div id="scanPhase" style="font-size:12px;color:#64748b;margin-bottom:12px">searching your PDFs…</div>
+    <div style="height:10px;background:#e2e8f0;border-radius:6px;overflow:hidden"><i id="scanBar" style="display:block;height:100%;width:0;background:#2563eb;transition:width .35s"></i></div>
+    <div id="scanErr" style="display:none;color:#b91c1c;font-size:12.5px;margin-top:12px"></div>
+    <div style="text-align:right;margin-top:14px"><button id="scanClose" style="display:none;font:inherit;background:#fff;border:1px solid #cbd5e1;border-radius:6px;padding:6px 12px;cursor:pointer">Close</button></div>
+  </div>
+</div>
 <main>
-  <div id="stage"><div id="wrap"><img id="img" alt="SSD"><svg id="ovl" xmlns="http://www.w3.org/2000/svg"></svg></div></div>
+  <div id="stage"><div id="wrap"><img id="img" alt="SSD"><svg id="ovl" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none"></svg></div></div>
   <aside>
     <div class="panel">
       <h3>Apply damage</h3>
@@ -80,20 +92,20 @@ const SVGNS="http://www.w3.org/2000/svg";
 const el=(t,a)=>{const e=document.createElementNS(SVGNS,t);for(const k in a)e.setAttribute(k,a[k]);return e;};
 const ship=new URLSearchParams(location.search).get("ship")||"FED-CA";
 
-let DET,IMGW,IMGH,boxIndex={},groupOf={},allBoxes=[],labels={},model,status={},CELL={w:24,h:24},verifiedData=null;
+let DET,IMGW,IMGH,boxIndex={},groupOf={},allBoxes=[],labels={},labelOv={},model,status={},CELL={w:24,h:24},verifiedData=null;
 
 async function load(){
   DET=await (await fetch(`../data/${ship}/detection.json`)).json();
   IMGW=DET.pxWidth; IMGH=DET.pxHeight;
   const img=document.getElementById("img");
-  img.src=`../data/${ship}/image.png`; img.width=IMGW; img.height=IMGH;
+  img.src=`../data/${ship}/image.png`;
   document.getElementById("ovl").setAttribute("viewBox",`0 0 ${IMGW} ${IMGH}`);
-  document.getElementById("ovl").setAttribute("width",IMGW); document.getElementById("ovl").setAttribute("height",IMGH);
   document.getElementById("ttl").textContent="SSD DAMAGE · "+ship.replace("-"," ");
   document.getElementById("sub").textContent=` — ${DET.orientationClass} · ${IMGW}×${IMGH}`;
   let verified=null; try{const r=await fetch(`../data/${ship}/verified.json`); if(r.ok)verified=await r.json();}catch(e){}
   if(!verified){document.getElementById("summary").textContent="No verified.json for this ship — damage needs a verified inventory.";return;}
   verifiedData=verified;
+  labelOv=verified.labels||{};                 // the cell-label edits saved in the verify editor
   const deleted=new Set(verified.deleted||[]);
   DET.boxes.forEach(b=>boxIndex[b.id]=b);
   (verified.extraBoxes||[]).forEach(b=>boxIndex[b.id]=b);
@@ -101,9 +113,50 @@ async function load(){
   verified.groups.forEach(g=>g.boxIds.forEach(id=>groupOf[id]=g));
   model=buildShipModel(verified,DET);
   fetch(`/api/labels/${ship}`).then(r=>r.json()).then(m=>{if(m&&!m.error){labels=m;render();}}).catch(()=>{});
-  render(); renderShields();
+  render(); renderShields(); fit();
 }
-const labelText=id=>labels[id]||"";
+function fit(){ if(!IMGW)return; const st=document.getElementById("stage");
+  const w=Math.min(st.clientWidth-32,(st.clientHeight-32)*(IMGW/IMGH)); document.getElementById("wrap").style.width=w+"px"; }
+window.addEventListener("resize",fit);
+document.getElementById("img").addEventListener("load",fit);
+
+// SSD search: load an existing ship here, or find + scan a new one from the PDFs (then verify it)
+const ssdSearch=document.getElementById("ssdSearch");
+ssdSearch.addEventListener("keydown",async e=>{
+  if(e.key!=="Enter")return;
+  const s=ssdSearch.value.trim().toUpperCase().replace(/\s+/g,"");
+  if(!s||s===ship)return;
+  const j=await (await fetch(`/api/find/${s}`)).json();
+  if(j.exists){ location.href=`damage.html?ship=${encodeURIComponent(s)}`; return; }
+  startScan(s);
+});
+function startScan(s){
+  document.getElementById("scanModal").style.display="flex";
+  document.getElementById("scanTitle").textContent=`Scanning ${s}…`;
+  document.getElementById("scanPhase").textContent="searching your PDFs…";
+  document.getElementById("scanBar").style.width="0%";
+  document.getElementById("scanErr").style.display="none";
+  document.getElementById("scanClose").style.display="none";
+  fetch(`/api/scanstart/${s}`).then(()=>pollScan(s));
+}
+function pollScan(s){
+  fetch(`/api/scanstatus/${s}`).then(r=>r.json()).then(j=>{
+    document.getElementById("scanPhase").textContent=j.phase||"…";
+    document.getElementById("scanBar").style.width=Math.round((j.progress||0)*100)+"%";
+    if(!j.done){ setTimeout(()=>pollScan(s),800); return; }
+    if(j.error){
+      const e=document.getElementById("scanErr"); e.textContent="⚠ "+j.error; e.style.display="block";
+      document.getElementById("scanPhase").textContent="could not scan";
+      document.getElementById("scanClose").style.display="inline-block";
+    } else {
+      document.getElementById("scanBar").style.width="100%";
+      document.getElementById("scanPhase").textContent=`found ${j.result?.boxes||""} boxes — opening the verify editor`;
+      setTimeout(()=>location.href=`verify.html?ship=${encodeURIComponent(s)}`,600);  // new ship must be verified before damage
+    }
+  }).catch(()=>setTimeout(()=>pollScan(s),1200));
+}
+document.getElementById("scanClose").onclick=()=>{document.getElementById("scanModal").style.display="none";};
+const labelText=id=>{const o=labelOv[id]; return o!==undefined?o:(labels[id]||"");};   // user edits win over OCR
 
 function render(){
   const ovl=document.getElementById("ovl"); ovl.innerHTML="";
