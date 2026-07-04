@@ -34,8 +34,18 @@
   .shiprow{display:flex;align-items:center;gap:8px;padding:6px 12px;cursor:pointer;font-size:13px;border-left:3px solid transparent}
   .shiprow:hover{background:#eef2f7}
   .shiprow.active{background:#eff6ff;border-left-color:#d97706}
-  .shiprow .dot{width:11px;height:11px;border-radius:50%;flex:none}
+  .shiprow{align-items:flex-start}
+  .shiprow .dot{width:11px;height:11px;border-radius:50%;flex:none;margin-top:3px}
   .shiprow .meta{color:#94a3b8;font-size:11px;margin-left:auto}
+  .sinfo{flex:1;min-width:0}
+  .stop{display:flex;align-items:center;gap:6px}
+  .sbot{display:flex;align-items:center;gap:8px;margin-top:3px}
+  .spd{font-size:11px;color:#64748b;display:flex;align-items:center;gap:3px}
+  .spin{width:36px;font:inherit;font-size:11px;text-align:center;border:1px solid #cbd5e1;border-radius:4px;padding:1px 2px}
+  .hbar{flex:1;height:5px;background:#e2e8f0;border-radius:3px;overflow:hidden}
+  .hbar i{display:block;height:100%}
+  .resizer{width:6px;flex:none;cursor:col-resize;background:transparent}
+  .resizer:hover{background:#cbd5e1}
   .rotc{display:flex;gap:6px;padding:4px 12px 10px}
   .rotc button{font:inherit;font-size:12px;background:#e2e8f0;border:1px solid #cbd5e1;border-radius:6px;padding:3px 9px;cursor:pointer}
   .grp{margin:0 10px 6px;border:1px solid #cbd5e1;border-radius:8px;overflow:hidden;font-size:12px}
@@ -115,13 +125,27 @@ const working = () => plan.groups.find(g => g.id === workingId);
 const groupOfShip = id => plan.groups.find(g => g.members.some(m => m.shipId === id));
 const shipMountsMap = () => Object.fromEntries(ships.map(s => [s.id, s.mounts]));
 
+const NEVER_BOX = new Set(['crew', 'boarding-party', 'ammo-track', 'cloaking-device', 'markers', 'shield', 'rating-track', 'excess-damage']);
+function totalBoxes(s) { if (s._tb != null) return s._tb; let n = 0; for (const g of (s._ver.groups || [])) if (!NEVER_BOX.has(g.family)) n += (g.boxIds || []).length; return s._tb = n; }
+const shipHealth = s => Math.max(0, 1 - Object.keys(s.status).length / (totalBoxes(s) || 1));
+
+// drop any assigned mount that is no longer in-arc + in-range (called after a ship moves or turns)
+function pruneUnavailable() {
+  for (const g of plan.groups) {
+    const t = byId(g.targetShipId); if (!t) continue;
+    for (const m of g.members) { const el = eligForTarget(byId(m.shipId), t); m.mountIds = m.mountIds.filter(id => el[id] && el[id].available); }
+  }
+}
+// select every in-arc mount across the working group's ships
+function alphaStrike() { const g = working(); if (!g || !g.targetShipId) return; g.members.forEach(m => autoSelectShip(g, m.shipId)); render(); }
+
 async function load() {
   ships = []; plan = newPlan(); workingId = null; activeId = null;
   for (const s of SCENARIO) {
     const det = await (await fetch(`../data/${s.code}/detection.json`)).json();
     const ver = await (await fetch(`../data/${s.code}/verified.json`)).json();
     const { mounts, shields } = shipLoadout(ver, det);
-    ships.push({ ...s, mounts, shields, _ver: ver, _det: det, status: {} });
+    ships.push({ ...s, mounts, shields, _ver: ver, _det: det, status: {}, fired: new Set() });
   }
   render();
 }
@@ -188,11 +212,21 @@ function render() {
   renderFleet(); renderGroups(); renderPanel(); renderTray();
 }
 
+const healthColor = h => h > 0.6 ? '#16a34a' : h > 0.3 ? '#d97706' : '#C74634';
+const chargedCount = s => s.mounts.length - s.fired.size;
+
 function renderFleet() {
-  document.getElementById('fleet').innerHTML = ships.map(s =>
-    `<div class="shiprow ${s.id === activeId ? 'active' : ''}" data-id="${s.id}">
-       <span class="dot" style="background:${sideFill(s)}"></span>${s.id} <span style="color:#64748b">${s.name}</span>
-       <span class="meta">${s.mounts.length}w</span></div>`).join('');
+  document.getElementById('fleet').innerHTML = ships.map(s => {
+    const h = shipHealth(s);
+    return `<div class="shiprow ${s.id === activeId ? 'active' : ''}" data-id="${s.id}">
+       <span class="dot" style="background:${sideFill(s)}"></span>
+       <div class="sinfo">
+         <div class="stop"><b>${s.id}</b> <span style="color:#64748b">${s.name}</span>
+           <span class="meta">${chargedCount(s)}/${s.mounts.length}w</span></div>
+         <div class="sbot"><label class="spd">spd <input class="spin" data-spd="${s.id}" value="${s.speed}"></label>
+           <div class="hbar" title="${Math.round(h * 100)}% intact"><i style="width:${Math.round(h * 100)}%;background:${healthColor(h)}"></i></div></div>
+       </div></div>`;
+  }).join('');
   document.getElementById('rotc').style.display = activeId ? 'flex' : 'none';
 }
 
@@ -210,25 +244,26 @@ function renderGroups() {
 }
 
 function renderPanel() {
-  const box = document.getElementById('mounts');
-  if (!activeId) { box.className = 'hint'; box.textContent = 'Select a ship.'; return; }
-  const s = byId(activeId), g = working(), assigned = planEligibility(plan), el = eligForTarget(s, g && byId(g.targetShipId));
+  const box = document.getElementById('mounts'), g = working();
+  // only ships in the working fire group appear here
+  const inWorking = g && activeId && g.members.some(m => m.shipId === activeId);
+  if (!inWorking) { box.className = 'hint'; box.innerHTML = g ? 'Select a ship in the fire group (or click a friendly ship to add it).' : 'Click your ships to build a fire group, then an enemy to target.'; return; }
   box.className = '';
-  // pager across the working group's ships
-  const wm = working() ? working().members.map(m => m.shipId) : [];
+  const s = byId(activeId), assigned = planEligibility(plan), el = eligForTarget(s, byId(g.targetShipId));
+  const wm = g.members.map(m => m.shipId);
   const pager = wm.length > 1 ? `<div class="pager"><button data-page="-1">◀</button>ship ${wm.indexOf(activeId) + 1}/${wm.length}<button data-page="1">▶</button></div>` : '';
-  const head = `<div style="padding:6px 12px 2px;font-weight:600">${s.id} — ${s.name} <span style="color:#94a3b8;font-weight:400;font-size:11px">facing ${s.facing}</span></div>`;
-  const inWorking = working() && working().members.some(m => m.shipId === activeId);
+  const head = `<div style="padding:6px 12px 2px;font-weight:600">${s.id} — ${s.name} <span style="color:#94a3b8;font-weight:400;font-size:11px">facing ${s.facing}${g.targetShipId ? ' → ' + g.targetShipId : ''}</span></div>`;
+  const alpha = g.targetShipId ? `<div style="padding:5px 12px"><button class="btn fire" id="alphaBtn" style="width:100%">⚡ Alpha Strike — all in-arc</button></div>` : '';
   const rows = s.mounts.map(mt => {
     const e = el[mt.id], a = assigned.get(mt.id);
     const pill = !e ? '<span class="pill no">no target</span>' : e.available ? '<span class="pill ok">in-arc R' + e.trueRange + '</span>' : e.inArc ? '<span class="pill rng">out-of-range</span>' : '<span class="pill arc">out-of-arc</span>';
-    const otherG = a && (!g || a.assignedGroupId !== g.id) ? `<span class="xg">→ ${a.assignedGroupId}</span>` : '';
-    const checked = a && g && a.assignedGroupId === g.id ? 'checked' : '';
-    const dis = !inWorking || !(e && e.available) ? 'disabled' : '';
+    const otherG = a && a.assignedGroupId !== g.id ? `<span class="xg">→ ${a.assignedGroupId}</span>` : '';
+    const checked = a && a.assignedGroupId === g.id ? 'checked' : '';
+    const dis = !(e && e.available) ? 'disabled' : '';
     return `<label class="mrow"><input type="checkbox" data-mount="${mt.id}" ${checked} ${dis}>
       <span class="cls">${mt.cls}</span><span style="color:#94a3b8;font-size:11px">${(mt.arc.arcs || []).join(',')}</span>${otherG}${pill}</label>`;
   }).join('');
-  box.innerHTML = pager + head + rows + (inWorking ? '' : '<div class="hint" style="font-size:11px">Add this ship to the working group (click it) to assign mounts.</div>');
+  box.innerHTML = pager + head + alpha + rows;
 }
 
 function renderTray() {
@@ -279,14 +314,15 @@ function nearestHex(px, py) { let b = { q: 0, r: 0 }, bd = Infinity; for (let q 
 map.addEventListener('mousedown', e => { const gg = e.target.closest('.ship'); if (!gg) return; dragging = { s: byId(gg.dataset.id), moved: false }; activeId = dragging.s.id; renderFleet(); e.preventDefault(); });
 window.addEventListener('mousemove', e => {
   if (!dragging) return; const p = svgPoint(e), h = nearestHex(p.x, p.y);
-  if (h.q !== dragging.s.q || h.r !== dragging.s.r) { dragging.s.q = h.q; dragging.s.r = h.r; dragging.moved = true; render(); }
+  if (h.q !== dragging.s.q || h.r !== dragging.s.r) { dragging.s.q = h.q; dragging.s.r = h.r; dragging.moved = true; pruneUnavailable(); render(); }
 });
 window.addEventListener('mouseup', () => { if (dragging && !dragging.moved) onShipClick(dragging.s); dragging = null; });
 
-function rotate(d) { if (!activeId || plan.committed) return; const s = byId(activeId); s.facing = (s.facing + (d > 0 ? 1 : 5)) % 6; render(); }
+function rotate(d) { if (!activeId || plan.committed) return; const s = byId(activeId); s.facing = (s.facing + (d > 0 ? 1 : 5)) % 6; pruneUnavailable(); render(); }
 document.getElementById('rotc').addEventListener('click', e => { const b = e.target.closest('[data-rot]'); if (b) rotate(+b.dataset.rot); });
 window.addEventListener('keydown', e => { if (e.target.tagName === 'INPUT') return; if (e.key === '[') rotate(-1); else if (e.key === ']') rotate(1); });
-document.getElementById('fleet').addEventListener('click', e => { const row = e.target.closest('.shiprow'); if (row) { activeId = row.dataset.id; render(); } });
+document.getElementById('fleet').addEventListener('click', e => { if (e.target.closest('.spin')) return; const row = e.target.closest('.shiprow'); if (row) { activeId = row.dataset.id; render(); } });
+document.getElementById('fleet').addEventListener('change', e => { const sp = e.target.closest('.spin'); if (!sp) return; const s = byId(sp.dataset.spd); if (s) s.speed = Math.max(0, Math.min(32, parseInt(sp.value) || 0)); });
 
 document.getElementById('groups').addEventListener('click', e => {
   const del = e.target.closest('[data-del]'); if (del) { plan.groups = plan.groups.filter(g => g.id !== del.dataset.del); if (workingId === del.dataset.del) workingId = plan.groups.length ? plan.groups[plan.groups.length - 1].id : null; render(); return; }
@@ -302,7 +338,11 @@ document.getElementById('mounts').addEventListener('change', e => {
   } else unassignMount(plan, g.id, activeId, id);
   render();
 });
-document.getElementById('mounts').addEventListener('click', e => { const b = e.target.closest('[data-page]'); if (!b) return; const wm = working().members.map(m => m.shipId); activeId = wm[(wm.indexOf(activeId) + (+b.dataset.page) + wm.length) % wm.length]; render(); });
+document.getElementById('mounts').addEventListener('click', e => {
+  if (e.target.closest('#alphaBtn')) { alphaStrike(); return; }
+  const b = e.target.closest('[data-page]'); if (!b) return;
+  const wm = working().members.map(m => m.shipId); activeId = wm[(wm.indexOf(activeId) + (+b.dataset.page) + wm.length) % wm.length]; render();
+});
 
 document.getElementById('commitBtn').onclick = () => { plan.committed = true; render(); };
 
@@ -323,6 +363,7 @@ document.getElementById('resolveBtn').onclick = () => {
   // clean plan: keep only mounts still in-arc + in-range
   const clean = { groups: plan.groups.map(g => ({ ...g, members: g.members.map(m => ({ shipId: m.shipId, mountIds: m.mountIds.filter(id => { const e = eligForTarget(byId(m.shipId), byId(g.targetShipId))[id]; return e && e.available; }) })) })) };
   const res = resolveAttackPlan(clean, ships, shipMountsMap(), models);
+  res.log.filter(l => l.kind === 'shot').forEach(l => { const s = byId(l.firer); if (s) s.fired.add(l.mount); });   // discharge fired mounts
   res.volleys.forEach(v => { const s = byId(v.targetShipId); v.effects.forEach(ef => { if (ef.boxId) s.status[ef.boxId] = 'destroyed'; }); });
   render(); renderLog(res);
 };
