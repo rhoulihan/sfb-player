@@ -301,9 +301,14 @@ class H(http.server.SimpleHTTPRequestHandler):
             if self.path == "/api/weapon-charts":
                 return self._json(200, {"ok": True, "bytes": write_weapon_charts(payload)})
             if self.path == "/api/battle":
-                with open(os.path.join(ROOT, "data", "_battle.json"), "w") as f:
-                    json.dump(payload, f, indent=1)
-                return self._json(200, {"ok": True, "ships": len(payload.get("ships", []))})
+                path = os.path.join(ROOT, "data", "_battle.json")
+                prev = 0
+                if os.path.exists(path):
+                    try: prev = json.load(open(path)).get("rev", 0)
+                    except Exception: prev = 0
+                payload["rev"] = prev + 1               # monotonic revision so pollers detect changes
+                with open(path, "w") as f: json.dump(payload, f, indent=1)
+                return self._json(200, {"ok": True, "rev": payload["rev"]})
         except Exception as e:
             return self._json(500, {"error": str(e)})
         return self._json(404, {"error": "unknown endpoint"})

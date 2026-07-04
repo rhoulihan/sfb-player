@@ -100,7 +100,7 @@
   </header>
   <div class="body">
     <aside class="rail" id="rail">
-      <h3>Fleets</h3>
+      <h3>Fleets <span id="cmdBadge" style="font-weight:600;font-size:11px;color:#2563eb;float:right"></span></h3>
       <div id="fleet"></div>
       <div class="rotc" id="rotc" style="display:none"></div>
       <h3>Fire groups <button class="btn" id="newGrp">＋ new</button></h3>
@@ -138,26 +138,37 @@
   <div style="background:#fff;border-radius:12px;padding:26px 30px;text-align:center;box-shadow:0 12px 44px rgba(0,0,0,.4);min-width:340px">
     <div style="font-size:20px;font-weight:700;margin-bottom:3px">Direct-Fire Sandbox</div>
     <div style="color:#64748b;font-size:13px;margin-bottom:20px">Resume your saved engagement or set up a new one.</div>
-    <div id="startResumeWrap" style="display:none;margin-bottom:10px">
-      <button class="btn primary" id="startResume" style="width:100%;padding:10px;font-size:14px">▶ Resume saved battle</button>
-      <div id="startResumeInfo" style="color:#94a3b8;font-size:12px;margin-top:5px"></div>
+    <div id="startResumeWrap" style="display:none;margin-bottom:12px">
+      <div id="startResumeInfo" style="color:#64748b;font-size:13px;margin-bottom:8px;line-height:1.5"></div>
+      <input id="joinCode" placeholder="CODE" maxlength="4" style="text-transform:uppercase;width:100%;padding:9px;font-size:16px;letter-spacing:4px;text-align:center;font-family:ui-monospace,monospace;border:1px solid #cbd5e1;border-radius:8px;box-sizing:border-box;margin-bottom:6px">
+      <button class="btn primary" id="startResume" style="width:100%;padding:10px;font-size:14px">Join battle</button>
+      <div id="joinErr" style="color:#C74634;font-size:12px;margin-top:5px;min-height:14px"></div>
     </div>
     <button class="btn" id="startNew" style="width:100%;padding:10px;font-size:14px">＋ New Battle</button>
+  </div>
+</div>
+<div id="codesModal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.8);z-index:600;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:12px;padding:24px 28px;text-align:center;box-shadow:0 12px 44px rgba(0,0,0,.4);min-width:320px;max-width:400px">
+    <div style="font-size:18px;font-weight:700;margin-bottom:3px">Battle created</div>
+    <div style="color:#64748b;font-size:13px;margin-bottom:12px">Share each fleet's commander code with its commanders. Others join by entering it.</div>
+    <div id="codesBody"></div>
+    <button class="btn primary" id="codesEnter" style="width:100%;padding:10px;font-size:14px;margin-top:12px">Enter battle</button>
   </div>
 </div>
 <div id="nbModal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:400;align-items:center;justify-content:center">
   <div style="background:#fff;border-radius:10px;width:min(780px,94vw);max-height:88vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 12px 44px rgba(0,0,0,.4)">
     <div style="padding:10px 16px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center"><b style="font-size:15px">＋ New Battle</b><span style="flex:1"></span><button class="btn" id="nbCancel">✕</button></div>
     <div style="flex:1;overflow:auto;padding:14px;display:grid;grid-template-columns:1fr 1fr;gap:16px">
-      <div><h4 style="margin:0 0 8px;color:#2563eb">Your fleet</h4>
+      <div><input class="nbname" data-name="friendly" value="Fleet 1" style="font:inherit;font-weight:700;font-size:15px;color:#2563eb;border:0;border-bottom:1px solid #e2e8f0;width:100%;margin-bottom:8px;padding:2px 0">
         <div class="nbadd"><select data-add="friendly"></select><button class="btn" data-addbtn="friendly">＋ add</button></div>
         <div class="nblist" data-list="friendly"></div></div>
-      <div><h4 style="margin:0 0 8px;color:#C74634">Enemy fleet</h4>
+      <div><input class="nbname" data-name="enemy" value="Fleet 2" style="font:inherit;font-weight:700;font-size:15px;color:#C74634;border:0;border-bottom:1px solid #e2e8f0;width:100%;margin-bottom:8px;padding:2px 0">
         <div class="nbadd"><select data-add="enemy"></select><button class="btn" data-addbtn="enemy">＋ add</button></div>
         <div class="nblist" data-list="enemy"></div></div>
     </div>
-    <div style="padding:10px 16px;border-top:1px solid #e2e8f0;display:flex;gap:10px;align-items:center">
-      <span style="color:#94a3b8;font-size:12px">Add verified ships per side. hexId / facing / speed default per position — change any you like.</span>
+    <div style="padding:10px 16px;border-top:1px solid #e2e8f0;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+      <label style="font-size:13px;display:flex;align-items:center;gap:5px">You command
+        <select id="nbCommand"><option value="friendly">Fleet 1</option><option value="enemy">Fleet 2</option></select></label>
       <span style="flex:1"></span><button class="btn primary" id="nbStart" disabled>Start Battle</button>
     </div>
   </div>
@@ -173,9 +184,14 @@ import { SCENARIO } from './scenario.js';
 
 const COLS = 42, ROWS = 30, COLORS = ['#2563eb', '#16a34a', '#d97706', '#7c3aed', '#0891b2'];   // standard SFB 42x30 map
 const map = document.getElementById('map');
-let ships = [], plan = newPlan(), workingId = null, activeId = null, dragging = null, zoom = 0.5, gridBuilt = false;
+let ships = [], plan = newPlan(), oppPlan = newPlan(), workingId = null, activeId = null, dragging = null, zoom = 0.5, gridBuilt = false, rev = 0;
+const otherFleet = f => f === 'friendly' ? 'enemy' : 'friendly';   // plan = my fleet's shared fire plan; oppPlan preserves the other fleet's
 let clock = { turn: 1, impulse: 0 };   // impulse 0 = pre-start setup phase
 let testMode = false;                   // when on, any ship (incl. enemy/target) can be turned
+let myFleet = 'friendly';               // which fleet the local commander controls
+let fleets = { friendly: { name: 'Fleet 1', code: '' }, enemy: { name: 'Fleet 2', code: '' } };
+const isMine = s => s.side === myFleet;                                     // my ships (turn/fire); the other fleet = targets
+const genCode = () => Array.from({ length: 4 }, () => 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'[Math.floor(Math.random() * 31)]).join('');
 const hexId = (q, r) => `${String(q + 1).padStart(2, '0')}${String(r + 1).padStart(2, '0')}`;   // XXYY hex number
 
 const byId = id => ships.find(s => s.id === id);
@@ -198,7 +214,7 @@ function pruneUnavailable() {
   }
 }
 // select every in-arc mount across the working group's ships
-function alphaStrike() { const g = working(); if (!g || !g.targetShipId) return; g.members.forEach(m => autoSelectShip(g, m.shipId)); render(); }
+function alphaStrike() { const g = working(); if (!g || !g.targetShipId) return; g.members.forEach(m => autoSelectShip(g, m.shipId)); render(); saveSoon(); }
 
 let battleDefs = [];   // the ship setup this engagement started from (for Reset)
 async function hydrate(d) {
@@ -209,31 +225,71 @@ async function hydrate(d) {
 }
 async function startBattle(defs, clk, restore) {
   battleDefs = defs.map(d => ({ ...d }));
-  ships = []; plan = newPlan(); workingId = null; activeId = null; clock = clk || { turn: 1, impulse: 0 };
+  ships = []; plan = newPlan(); oppPlan = newPlan(); workingId = null; activeId = null; clock = clk || { turn: 1, impulse: 0 };
   for (const d of defs) {
     const s = await hydrate(d), r = restore && restore[d.id];
     if (r) { (r.destroyed || []).forEach(id => (s.status[id] = 'destroyed')); s.firedAt = r.firedAt || {}; if (r.hexesSinceTurn != null) s.hexesSinceTurn = r.hexesSinceTurn; s.queuedTurn = r.queuedTurn || 0; }
     ships.push(s);
   }
   document.getElementById('log').innerHTML = '';
-  render(); requestAnimationFrame(fitToShips); autosave();
+  render(); requestAnimationFrame(fitToShips); startPolling();
 }
-function resumeSaved(saved) {
+async function resumeSaved(saved) {
   const defs = saved.ships.map(s => ({ id: s.id, code: s.code, name: s.name, side: s.side, q: s.map.q, r: s.map.r, facing: s.map.facing, speed: s.map.speed }));
   const restore = {};
   for (const s of saved.ships) restore[s.id] = { destroyed: s.status?.destroyed || [], firedAt: Object.fromEntries(Object.entries(s.weapons || {}).filter(([, w]) => w && w.firedAt).map(([k, w]) => [k, w.firedAt])), hexesSinceTurn: s.map.hexesSinceTurn, queuedTurn: s.map.queuedTurn };
-  return startBattle(defs, { turn: saved.turn, impulse: saved.impulse }, restore);
+  await startBattle(defs, { turn: saved.turn, impulse: saved.impulse }, restore);
+  fleets = saved.fleets || fleets;
+  plan = saved.plans?.[myFleet] || newPlan();
+  oppPlan = saved.plans?.[otherFleet(myFleet)] || newPlan();
+  rev = saved.rev || 0;
+  render();
 }
 let savedBattle = null;
 async function load() {   // startup: ask to resume a saved battle or set up a new one
   savedBattle = null;
   try { const j = await (await fetch('/api/battle')).json(); if (j && j.ships && j.ships.length) savedBattle = j; } catch {}
   const wrap = document.getElementById('startResumeWrap');
-  if (savedBattle) { wrap.style.display = 'block'; document.getElementById('startResumeInfo').textContent = `${savedBattle.ships.length} ships · Turn ${savedBattle.turn}, Impulse ${savedBattle.impulse}`; }
-  else wrap.style.display = 'none';
+  if (savedBattle) {
+    wrap.style.display = 'block';
+    const ff = savedBattle.fleets || {};
+    document.getElementById('startResumeInfo').innerHTML = `<b style="color:#2563eb">${ff.friendly?.name || 'Fleet 1'}</b> vs <b style="color:#C74634">${ff.enemy?.name || 'Fleet 2'}</b> — ${savedBattle.ships.length} ships · Turn ${savedBattle.turn}, Impulse ${savedBattle.impulse}.<br>Enter your fleet's commander code to join:`;
+    document.getElementById('joinErr').textContent = ''; document.getElementById('joinCode').value = '';
+  } else wrap.style.display = 'none';
   document.getElementById('startModal').style.display = 'flex';
 }
-async function autosave() { try { await fetch('/api/battle', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(serializeBattle()) }); } catch {} }
+let saveTimer = 0, applying = false;
+async function autosave() {
+  try { const j = await (await fetch('/api/battle', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(serializeBattle()) })).json(); if (j && j.rev) rev = j.rev; } catch {}
+}
+function saveSoon() { clearTimeout(saveTimer); saveTimer = setTimeout(() => { saveTimer = 0; autosave(); }, 200); }   // debounce rapid edits
+
+// apply a newer shared state from another commander (AJAX poll), keeping local UI selection
+function applyRemote(data) {
+  applying = true;
+  clock = { turn: data.turn || 1, impulse: data.impulse ?? 0 };
+  if (data.fleets) fleets = data.fleets;
+  plan = data.plans?.[myFleet] || newPlan();
+  oppPlan = data.plans?.[otherFleet(myFleet)] || newPlan();
+  if (workingId && !plan.groups.some(g => g.id === workingId)) workingId = null;
+  for (const sd of data.ships || []) {
+    const s = byId(sd.id); if (!s) continue; const m = sd.map || {};
+    if (!(dragging && dragging.s === s)) { s.q = m.q ?? s.q; s.r = m.r ?? s.r; s.facing = m.facing ?? s.facing; }
+    s.speed = m.speed ?? s.speed; s.hexesSinceTurn = m.hexesSinceTurn ?? s.hexesSinceTurn; s.queuedTurn = m.queuedTurn || 0;
+    s.status = {}; (sd.status?.destroyed || []).forEach(id => (s.status[id] = 'destroyed'));
+    s.firedAt = {}; for (const [mid, w] of Object.entries(sd.weapons || {})) if (w && w.firedAt) s.firedAt[mid] = w.firedAt;
+    s.model = null;
+  }
+  rev = data.rev || rev; render(); applying = false;
+}
+let poller = 0;
+function startPolling() {
+  clearInterval(poller);
+  poller = setInterval(async () => {
+    if (applying || saveTimer) return;                     // don't fight an in-flight local save
+    try { const j = await (await fetch('/api/battle')).json(); if (j && j.rev && j.rev > rev && j.ships) applyRemote(j); } catch {}
+  }, 1500);
+}
 
 const isDead = s => shipHealth(s) <= 0;
 function stepImpulse() {
@@ -250,15 +306,15 @@ function stepImpulse() {
 // during setup (impulse 0) turning is instant; once the impulse loop is running a turn is QUEUED
 function turnAction(dir) {
   if (!activeId) return; const s = byId(activeId);
-  if (s.side === 'enemy' && !testMode) return;           // only your own ships turn in game mode
+  if (!isMine(s) && !testMode) return;                   // only your own fleet's ships turn in game mode
   s.queuedTurn = s.queuedTurn === dir ? 0 : dir;         // always QUEUE — a ship only turns when it moves
-  pruneUnavailable(); render();
+  pruneUnavailable(); render(); saveSoon();
 }
 
 // ---------- geometry ----------
 const rad = f => headingDeg(f) * Math.PI / 180;
 function hexPath(cx, cy) { let p = ''; for (let i = 0; i < 6; i++) { const a = Math.PI / 180 * (60 * i); p += (i ? 'L' : 'M') + (cx + GEOM.SIZE * Math.cos(a)).toFixed(1) + ' ' + (cy + GEOM.SIZE * Math.sin(a)).toFixed(1) + ' '; } return p + 'Z'; }
-const sideFill = s => s.side === 'friendly' ? '#2563eb' : '#C74634';
+const sideFill = s => isMine(s) ? '#2563eb' : '#C74634';   // my fleet blue, opponents red (relative to the commander)
 function shieldArc(cx, cy, facing, n, color) {
   const mid = headingDeg(facing) + (n - 1) * 60, a0 = (mid - 30) * Math.PI / 180, a1 = (mid + 30) * Math.PI / 180, R = 25;
   const x0 = cx + R * Math.cos(a0), y0 = cy + R * Math.sin(a0), x1 = cx + R * Math.cos(a1), y1 = cy + R * Math.sin(a1);
@@ -329,6 +385,7 @@ function isCharged(s, mountId, cls) {
 const chargedCount = s => s.mounts.filter(m => isCharged(s, m.id, m.cls)).length;
 
 function renderFleet() {
+  document.getElementById('cmdBadge').textContent = ships.length ? '⚑ ' + (fleets[myFleet]?.name || myFleet) : '';
   document.getElementById('fleet').innerHTML = ships.map(s => {
     const h = shipHealth(s);
     return `<div class="shiprow ${s.id === activeId ? 'active' : ''}" data-id="${s.id}">
@@ -342,7 +399,7 @@ function renderFleet() {
   }).join('');
   const rotc = document.getElementById('rotc');
   if (activeId) {
-    const s = byId(activeId), canTurn = s.side === 'friendly' || testMode;
+    const s = byId(activeId), canTurn = isMine(s) || testMode;
     rotc.style.display = 'flex';
     if (canTurn) {
       const tm = turnMode(s.speed), rem = Math.max(0, tm - s.hexesSinceTurn);
@@ -414,7 +471,7 @@ function autoSelectShip(g, shipId) {
   for (const mt of s.mounts) if (el[mt.id] && el[mt.id].available && isCharged(s, mt.id, mt.cls) && !assigned.has(mt.id)) assignMount(plan, g.id, shipId, mt.id);
 }
 function onShipClick(s) {
-  if (s.side === 'enemy') {
+  if (!isMine(s)) {                                       // opponent ship → set as the working group's target
     const g = working();
     if (g && g.members.length) {
       g.targetShipId = s.id; g.members.forEach(m => autoSelectShip(g, m.shipId));
@@ -439,20 +496,20 @@ window.addEventListener('mousemove', e => {
   if (!dragging) return; const p = svgPoint(e), h = nearestHex(p.x, p.y);
   if (h.q !== dragging.s.q || h.r !== dragging.s.r) { dragging.s.q = h.q; dragging.s.r = h.r; dragging.moved = true; pruneUnavailable(); render(); }
 });
-window.addEventListener('mouseup', () => { if (dragging && !dragging.moved) onShipClick(dragging.s); dragging = null; });
+window.addEventListener('mouseup', () => { if (dragging) { if (!dragging.moved) onShipClick(dragging.s); dragging = null; saveSoon(); } });
 
 document.getElementById('rotc').addEventListener('click', e => { const b = e.target.closest('[data-turn]'); if (b) turnAction(+b.dataset.turn); });
 window.addEventListener('keydown', e => { if (e.target.tagName === 'INPUT') return; if (e.key === '[') turnAction(-1); else if (e.key === ']') turnAction(1); });
 document.getElementById('stepBtn').onclick = () => stepImpulse();
 document.getElementById('testMode').onchange = e => { testMode = e.target.checked; render(); };
 document.getElementById('fleet').addEventListener('click', e => { if (e.target.closest('.spin')) return; const row = e.target.closest('.shiprow'); if (row) { activeId = row.dataset.id; render(); } });
-document.getElementById('fleet').addEventListener('change', e => { const sp = e.target.closest('.spin'); if (!sp) return; const s = byId(sp.dataset.spd); if (s) s.speed = Math.max(0, Math.min(32, parseInt(sp.value) || 0)); });
+document.getElementById('fleet').addEventListener('change', e => { const sp = e.target.closest('.spin'); if (!sp) return; const s = byId(sp.dataset.spd); if (s) { s.speed = Math.max(0, Math.min(32, parseInt(sp.value) || 0)); render(); saveSoon(); } });
 
 document.getElementById('groups').addEventListener('click', e => {
-  const del = e.target.closest('[data-del]'); if (del) { plan.groups = plan.groups.filter(g => g.id !== del.dataset.del); if (workingId === del.dataset.del) workingId = plan.groups.length ? plan.groups[plan.groups.length - 1].id : null; render(); return; }
+  const del = e.target.closest('[data-del]'); if (del) { plan.groups = plan.groups.filter(g => g.id !== del.dataset.del); if (workingId === del.dataset.del) workingId = plan.groups.length ? plan.groups[plan.groups.length - 1].id : null; render(); saveSoon(); return; }
   const gh = e.target.closest('[data-grp]'); if (gh) { workingId = gh.dataset.grp; render(); }
 });
-document.getElementById('newGrp').onclick = () => { const g = newGroup('G' + (plan.groups.length + 1), COLORS[plan.groups.length % COLORS.length]); plan.groups.push(g); workingId = g.id; render(); };
+document.getElementById('newGrp').onclick = () => { const g = newGroup('G' + (plan.groups.length + 1), COLORS[plan.groups.length % COLORS.length]); plan.groups.push(g); workingId = g.id; render(); saveSoon(); };
 
 document.getElementById('mounts').addEventListener('change', e => {
   const cb = e.target.closest('[data-mount]'); if (!cb) return; const g = working(); if (!g) return; const id = cb.dataset.mount;
@@ -460,7 +517,7 @@ document.getElementById('mounts').addEventListener('change', e => {
     const res = assignMount(plan, g.id, activeId, id);
     if (res.conflict) { if (confirm(`That mount is committed to ${res.conflict.fromGroupId}. Move it to ${g.id}?`)) assignMount(plan, g.id, activeId, id, { force: true }); else cb.checked = false; }
   } else unassignMount(plan, g.id, activeId, id);
-  render();
+  render(); saveSoon();
 });
 document.getElementById('mounts').addEventListener('click', e => {
   if (e.target.closest('#alphaBtn')) { alphaStrike(); return; }
@@ -481,7 +538,8 @@ document.getElementById('newBattleBtn').onclick = () => openNewBattle();
 const shieldsNow = s => s.model ? [1, 2, 3, 4, 5, 6].map(n => { const sh = s.model.shields[n]; return sh ? sh.max - sh.down : (s.shields[n - 1] || 0); }) : s.shields.slice();
 function serializeBattle() {
   return {
-    turn: clock.turn, impulse: clock.impulse,
+    turn: clock.turn, impulse: clock.impulse, fleets,
+    plans: { [myFleet]: plan, [otherFleet(myFleet)]: oppPlan },   // per-fleet fire plans (shared among a fleet's commanders)
     ships: ships.map(s => ({
       id: s.id, code: s.code, name: s.name, side: s.side,
       map: { q: s.q, r: s.r, facing: s.facing, speed: s.speed, hexesSinceTurn: s.hexesSinceTurn, queuedTurn: s.queuedTurn, turnMode: turnMode(s.speed) },
@@ -574,20 +632,45 @@ document.getElementById('nbModal').addEventListener('click', e => {
   const x = e.target.closest('.nbx'); if (x) { const row = x.closest('.nbrow'); nbShips[row.dataset.side].splice(+row.dataset.i, 1); renderNb(); }
 });
 document.getElementById('nbModal').addEventListener('change', e => {
+  const nm = e.target.closest('.nbname');
+  if (nm) { const opt = document.querySelector(`#nbCommand option[value="${nm.dataset.name}"]`); if (opt) opt.textContent = nm.value.trim() || (nm.dataset.name === 'friendly' ? 'Fleet 1' : 'Fleet 2'); return; }
   const f = e.target.closest('.nbf'); if (!f) return; const row = f.closest('.nbrow'), s = nbShips[row.dataset.side][+row.dataset.i];
   if (f.dataset.f === 'facing') s.facing = +f.value; else if (f.dataset.f === 'speed') s.speed = Math.max(0, Math.min(32, parseInt(f.value) || 0)); else s.hexId = f.value.trim();
 });
 document.getElementById('nbCancel').onclick = () => { document.getElementById('nbModal').style.display = 'none'; if (!ships.length) load(); };   // back to startup if nothing loaded
-document.getElementById('startResume').onclick = () => { document.getElementById('startModal').style.display = 'none'; if (savedBattle) resumeSaved(savedBattle); };
 document.getElementById('startNew').onclick = () => { document.getElementById('startModal').style.display = 'none'; openNewBattle(); };
-document.getElementById('nbStart').onclick = () => {
+document.getElementById('startResume').onclick = () => {
+  const hasCodes = savedBattle?.fleets?.friendly?.code;
+  const code = document.getElementById('joinCode').value.trim().toUpperCase();
+  let side = 'friendly';
+  if (hasCodes) { side = ['friendly', 'enemy'].find(s => savedBattle.fleets[s]?.code === code); if (!side) { document.getElementById('joinErr').textContent = 'Invalid commander code for this battle.'; return; } }
+  myFleet = side;
+  document.getElementById('startModal').style.display = 'none';
+  resumeSaved(savedBattle);
+};
+function showCodes() {
+  document.getElementById('codesBody').innerHTML = ['friendly', 'enemy'].map(side => {
+    const f = fleets[side], mine = side === myFleet;
+    return `<div style="margin:8px 0;padding:9px 12px;border-radius:8px;background:${mine ? '#eff6ff' : '#f8fafc'};border:1px solid ${mine ? '#bfdbfe' : '#e2e8f0'};text-align:left">
+      <div style="font-weight:700;color:${side === 'friendly' ? '#2563eb' : '#C74634'}">${f.name}${mine ? ' — you command' : ''}</div>
+      <div style="font-size:24px;font-weight:700;letter-spacing:4px;font-family:ui-monospace,monospace">${f.code}</div></div>`;
+  }).join('');
+  document.getElementById('codesModal').style.display = 'flex';
+}
+document.getElementById('codesEnter').onclick = () => { document.getElementById('codesModal').style.display = 'none'; };
+document.getElementById('nbStart').onclick = async () => {
   const defs = []; let fi = 0, ei = 0;
   for (const side of ['friendly', 'enemy']) for (const s of nbShips[side]) {
     const q = Math.max(0, Math.min(COLS - 1, (parseInt(s.hexId.slice(0, 2)) || 1) - 1)), r = Math.max(0, Math.min(ROWS - 1, (parseInt(s.hexId.slice(2)) || 1) - 1));
     defs.push({ id: side === 'friendly' ? 'F' + (++fi) : 'E' + (++ei), code: s.code, name: s.code, side, q, r, facing: s.facing, speed: s.speed });
   }
+  const nm = side => document.querySelector(`.nbname[data-name="${side}"]`).value.trim();
+  fleets = { friendly: { name: nm('friendly') || 'Fleet 1', code: genCode() }, enemy: { name: nm('enemy') || 'Fleet 2', code: genCode() } };
+  myFleet = document.getElementById('nbCommand').value;
   document.getElementById('nbModal').style.display = 'none';
-  startBattle(defs, { turn: 1, impulse: 0 });
+  await startBattle(defs, { turn: 1, impulse: 0 });
+  await autosave();                       // persist the new battle (with commander codes) to the shared file
+  showCodes();
 };
 
 load();
