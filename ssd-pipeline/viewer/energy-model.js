@@ -42,3 +42,24 @@ export function shipPower(code, verified, detection) {
     },
   };
 }
+
+export function lifeSupportCost(power) { return LIFE_SUPPORT[power.sizeClass] ?? 0; }
+
+// the default "charge / hold / power all" column each turn opens with (spec §1.3)
+export function newEafColumn(power, prevSpeed = 0) {
+  const weapons = {};
+  for (const w of power.weapons) weapons[w.id] = { armed: true, overload: false };
+  return {
+    lifeSupport: lifeSupportCost(power),
+    fireControl: power.systems.fireControl ? 1 : 0,
+    phaserCap: power.capacitorCap,
+    weapons,
+    shieldsActive: true,
+    genReinf: 0,
+    specReinf: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 },
+    movement: prevSpeed * power.moveCost, impulseMove: 0, het: false,
+    damageControl: 0, recharge: 0, tractor: 0, transporter: 0,
+    ecm: 0, eccm: 0, labs: 0,
+    wildWeasel: false, suicide: false, cloak: false,
+  };
+}
