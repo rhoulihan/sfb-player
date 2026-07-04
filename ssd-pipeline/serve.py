@@ -6,7 +6,7 @@
   POST /api/audit/<ship>   body=state      -> group-aware consistency audit
   POST /api/rescan/<ship>  body={region}   -> border-based detector for missed (white/grey/shaded) boxes
 """
-import http.server, socketserver, json, os, subprocess, tempfile, threading
+import http.server, socketserver, json, os, subprocess, tempfile, threading, urllib.parse
 import numpy as np
 from PIL import Image, ImageOps
 from scipy import ndimage
@@ -252,6 +252,87 @@ def write_weapon_charts(weapons):
         f.write(js)
     return len(js)
 
+# ---------- shared battle state: per-ship optimistic locking + fog-of-war plan filtering ----------
+_BATTLE_LOCK = threading.Lock()
+def _battle_path(): return os.path.join(ROOT, "data", "_battle.json")
+def _load_battle():
+    p = _battle_path()
+    if os.path.exists(p):
+        try: return json.load(open(p))
+        except Exception: return {}
+    return {}
+
+def _fleet_for_code(data, code):
+    code = (code or "").strip().upper()
+    if not code: return None
+    for side in ("friendly", "enemy"):
+        if (((data.get("fleets", {}) or {}).get(side) or {}).get("code", "") or "").upper() == code:
+            return side
+    return None
+
+def battle_view(data, my_fleet):
+    """What a client may see: no commander codes; fire plans filtered to the commander's own fleet."""
+    fleets = {s: {"name": ((data.get("fleets", {}) or {}).get(s) or {}).get("name", "")} for s in ("friendly", "enemy")}
+    plans = {}
+    if my_fleet: plans[my_fleet] = (data.get("plans", {}) or {}).get(my_fleet, {"groups": []})
+    return {"rev": data.get("rev", 0), "turn": data.get("turn", 1), "impulse": data.get("impulse", 0),
+            "fleets": fleets, "myFleet": my_fleet, "plans": plans, "ships": data.get("ships", [])}
+
+def merge_plan(current, posted, touched):
+    """Per-ship merge: touched ships take their fire assignments from `posted`; other ships keep `current`."""
+    touched = set(touched)
+    groups = {}
+    for g in (current or {}).get("groups", []):
+        groups[g["id"]] = {"id": g["id"], "color": g.get("color"), "targetShipId": g.get("targetShipId"),
+                           "members": [m for m in g.get("members", []) if m.get("shipId") not in touched]}
+    for pg in (posted or {}).get("groups", []):
+        tmem = [m for m in pg.get("members", []) if m.get("shipId") in touched]
+        g = groups.get(pg["id"])
+        if g is None:
+            if not tmem: continue
+            g = {"id": pg["id"], "color": pg.get("color"), "targetShipId": pg.get("targetShipId"), "members": []}
+            groups[pg["id"]] = g
+        if tmem:
+            g["targetShipId"] = pg.get("targetShipId"); g["color"] = pg.get("color", g.get("color"))
+            g["members"] = g["members"] + tmem
+    return {"groups": [g for g in groups.values() if g.get("members")]}
+
+def apply_battle_post(payload):
+    """Atomic read-check-write. Reject if any affected ship changed since the client read it (first write wins)."""
+    with _BATTLE_LOCK:
+        cur = _load_battle()
+        kind = payload.get("kind", "edit")
+        if kind == "new" or not cur.get("ships"):                       # creator: accept full state, seed ship revs
+            data = {k: v for k, v in payload.items() if k not in ("kind", "code")}
+            for s in data.get("ships", []): s["rev"] = 0
+            data["rev"] = 1
+            with open(_battle_path(), "w") as f: json.dump(data, f, indent=1)
+            return 200, {"ok": True, "rev": 1, "ships": {s["id"]: 0 for s in data.get("ships", [])}}
+        my = _fleet_for_code(cur, payload.get("code", ""))
+        if my is None: return 403, {"error": "invalid commander code"}
+        curships = {s["id"]: s for s in cur.get("ships", [])}
+        posted = payload.get("ships", [])
+        if kind != "step":                                              # check every affected ship's version
+            conflict = [ps["id"] for ps in posted if ps["id"] in curships and ps.get("rev", 0) != curships[ps["id"]].get("rev", 0)]
+            if conflict: return 409, {"conflict": True, "ships": conflict, "view": battle_view(cur, my)}
+        touched, newrevs = [], {}
+        for ps in posted:
+            sid = ps["id"]; c = curships.get(sid); nr = (c.get("rev", 0) if c else 0) + 1
+            touched.append(sid); newrevs[sid] = nr
+            if c and kind != "step" and ps.get("side") != my:
+                c["status"] = ps.get("status", c.get("status")); c["rev"] = nr   # opponent ship: fire damage only
+            else:
+                ps["rev"] = nr; curships[sid] = ps                               # mine / step / new: full update
+        plans = cur.get("plans", {}) or {}
+        if kind != "step":
+            plans[my] = merge_plan(plans.get(my, {"groups": []}), payload.get("plan", {"groups": []}), touched)
+        result = {"rev": cur.get("rev", 0) + 1,
+                  "turn": payload.get("turn", cur.get("turn", 1)) if kind == "step" else cur.get("turn", 1),
+                  "impulse": payload.get("impulse", cur.get("impulse", 0)) if kind == "step" else cur.get("impulse", 0),
+                  "fleets": cur.get("fleets", {}), "plans": plans, "ships": list(curships.values())}
+        with open(_battle_path(), "w") as f: json.dump(result, f, indent=1)
+        return 200, {"ok": True, "rev": result["rev"], "ships": newrevs}
+
 class H(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *a, **k): super().__init__(*a, directory=ROOT, **k)
     def _json(self, code, obj):
@@ -280,8 +361,11 @@ class H(http.server.SimpleHTTPRequestHandler):
                     verified = [n for n in ships if os.path.isfile(os.path.join(d, n, "verified.json"))]
                     return self._json(200, {"ships": ships, "verified": verified})
                 if api == "battle":
-                    p = os.path.join(ROOT, "data", "_battle.json")
-                    return self._json(200, json.load(open(p)) if os.path.exists(p) else {"error": "no saved battle"})
+                    data = _load_battle()
+                    if not data.get("ships"): return self._json(200, {"error": "no saved battle"})
+                    q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+                    my = _fleet_for_code(data, q.get("code", [""])[0])
+                    return self._json(200, battle_view(data, my))
             except Exception as e:
                 return self._json(500, {"error": str(e)})
         return super().do_GET()
@@ -301,14 +385,8 @@ class H(http.server.SimpleHTTPRequestHandler):
             if self.path == "/api/weapon-charts":
                 return self._json(200, {"ok": True, "bytes": write_weapon_charts(payload)})
             if self.path == "/api/battle":
-                path = os.path.join(ROOT, "data", "_battle.json")
-                prev = 0
-                if os.path.exists(path):
-                    try: prev = json.load(open(path)).get("rev", 0)
-                    except Exception: prev = 0
-                payload["rev"] = prev + 1               # monotonic revision so pollers detect changes
-                with open(path, "w") as f: json.dump(payload, f, indent=1)
-                return self._json(200, {"ok": True, "rev": payload["rev"]})
+                status, body = apply_battle_post(payload)
+                return self._json(status, body)
         except Exception as e:
             return self._json(500, {"error": str(e)})
         return self._json(404, {"error": "unknown endpoint"})
@@ -317,7 +395,8 @@ class H(http.server.SimpleHTTPRequestHandler):
     def log_message(self, *a): pass
 
 if __name__ == "__main__":
-    socketserver.TCPServer.allow_reuse_address = True
-    with socketserver.TCPServer(("127.0.0.1", PORT), H) as httpd:
+    socketserver.ThreadingTCPServer.allow_reuse_address = True
+    socketserver.ThreadingTCPServer.daemon_threads = True
+    with socketserver.ThreadingTCPServer(("127.0.0.1", PORT), H) as httpd:   # concurrent commanders; battle writes guarded by _BATTLE_LOCK
         print(f"SSD pipeline serving {ROOT} on http://127.0.0.1:{PORT}")
         httpd.serve_forever()

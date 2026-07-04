@@ -58,6 +58,9 @@
   .rotc{display:flex;gap:6px;padding:4px 12px 10px;align-items:center}
   .rotc button{font:inherit;font-size:12px;background:#e2e8f0;border:1px solid #cbd5e1;border-radius:6px;padding:3px 9px;cursor:pointer}
   .rotc button.lit{background:#d97706;border-color:#d97706;color:#fff;font-weight:700}
+  .turnctl{display:flex;gap:6px;align-items:center;margin:-3px 0 7px;padding:6px 8px;background:#eef2f7;border-radius:7px}
+  .turnctl button{font:inherit;font-size:12px;background:#fff;border:1px solid #cbd5e1;border-radius:6px;padding:3px 9px;cursor:pointer}
+  .turnctl button.lit{background:#d97706;border-color:#d97706;color:#fff;font-weight:700}
   .tmc{font-size:10.5px;color:#94a3b8;margin-left:auto;text-align:right;line-height:1.1}
   .clock{font-size:13px;color:#e2e8f0;font-weight:600;letter-spacing:.3px;background:#334155;padding:3px 9px;border-radius:6px}
   .tmode{font-size:12px;color:#cbd5e1;display:flex;align-items:center;gap:4px;cursor:pointer}
@@ -85,6 +88,7 @@
   .log .hit{color:#166534}.log .miss{color:#94a3b8}.log .vol{color:#991b1b;font-weight:600}.log .kill{color:#b45309}
 </style></head>
 <body>
+<div id="toast" style="display:none;position:fixed;top:52px;left:50%;transform:translateX(-50%);z-index:700;background:#7c2d12;color:#fff;padding:8px 16px;border-radius:8px;font-size:13px;box-shadow:0 6px 20px rgba(0,0,0,.3)"></div>
 <div class="app">
   <header>
     <div class="nav"><button class="navbtn" id="navBtn" title="menu">☰</button>
@@ -184,8 +188,8 @@ import { SCENARIO } from './scenario.js';
 
 const COLS = 42, ROWS = 30, COLORS = ['#2563eb', '#16a34a', '#d97706', '#7c3aed', '#0891b2'];   // standard SFB 42x30 map
 const map = document.getElementById('map');
-let ships = [], plan = newPlan(), oppPlan = newPlan(), workingId = null, activeId = null, dragging = null, zoom = 0.5, gridBuilt = false, rev = 0;
-const otherFleet = f => f === 'friendly' ? 'enemy' : 'friendly';   // plan = my fleet's shared fire plan; oppPlan preserves the other fleet's
+let ships = [], plan = newPlan(), workingId = null, activeId = null, selectedId = null, dragging = null, zoom = 0.5, gridBuilt = false;
+let rev = 0, myCode = '', shipRev = {};   // rev: poll change-detection; shipRev: per-ship version for optimistic locking
 let clock = { turn: 1, impulse: 0 };   // impulse 0 = pre-start setup phase
 let testMode = false;                   // when on, any ship (incl. enemy/target) can be turned
 let myFleet = 'friendly';               // which fleet the local commander controls
@@ -214,7 +218,7 @@ function pruneUnavailable() {
   }
 }
 // select every in-arc mount across the working group's ships
-function alphaStrike() { const g = working(); if (!g || !g.targetShipId) return; g.members.forEach(m => autoSelectShip(g, m.shipId)); render(); saveSoon(); }
+function alphaStrike() { const g = working(); if (!g || !g.targetShipId) return; g.members.forEach(m => autoSelectShip(g, m.shipId)); render(); saveSoon(...g.members.map(m => m.shipId)); }
 
 let battleDefs = [];   // the ship setup this engagement started from (for Reset)
 async function hydrate(d) {
@@ -225,7 +229,7 @@ async function hydrate(d) {
 }
 async function startBattle(defs, clk, restore) {
   battleDefs = defs.map(d => ({ ...d }));
-  ships = []; plan = newPlan(); oppPlan = newPlan(); workingId = null; activeId = null; clock = clk || { turn: 1, impulse: 0 };
+  ships = []; plan = newPlan(); shipRev = {}; workingId = null; activeId = null; clock = clk || { turn: 1, impulse: 0 };
   for (const d of defs) {
     const s = await hydrate(d), r = restore && restore[d.id];
     if (r) { (r.destroyed || []).forEach(id => (s.status[id] = 'destroyed')); s.firedAt = r.firedAt || {}; if (r.hexesSinceTurn != null) s.hexesSinceTurn = r.hexesSinceTurn; s.queuedTurn = r.queuedTurn || 0; }
@@ -239,9 +243,9 @@ async function resumeSaved(saved) {
   const restore = {};
   for (const s of saved.ships) restore[s.id] = { destroyed: s.status?.destroyed || [], firedAt: Object.fromEntries(Object.entries(s.weapons || {}).filter(([, w]) => w && w.firedAt).map(([k, w]) => [k, w.firedAt])), hexesSinceTurn: s.map.hexesSinceTurn, queuedTurn: s.map.queuedTurn };
   await startBattle(defs, { turn: saved.turn, impulse: saved.impulse }, restore);
-  fleets = saved.fleets || fleets;
+  fleets = saved.fleets ? { friendly: { ...fleets.friendly, name: saved.fleets.friendly?.name }, enemy: { ...fleets.enemy, name: saved.fleets.enemy?.name } } : fleets;
   plan = saved.plans?.[myFleet] || newPlan();
-  oppPlan = saved.plans?.[otherFleet(myFleet)] || newPlan();
+  shipRev = {}; for (const s of saved.ships) shipRev[s.id] = s.rev ?? 0;
   rev = saved.rev || 0;
   render();
 }
@@ -258,22 +262,36 @@ async function load() {   // startup: ask to resume a saved battle or set up a n
   } else wrap.style.display = 'none';
   document.getElementById('startModal').style.display = 'flex';
 }
-let saveTimer = 0, applying = false;
-async function autosave() {
-  try { const j = await (await fetch('/api/battle', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(serializeBattle()) })).json(); if (j && j.rev) rev = j.rev; } catch {}
+let saveTimer = 0, applying = false, saving = false, pendingTouched = new Set();
+// POST affected ships + my fire plan; server checks each ship's version and applies all-or-nothing.
+async function save(touched, opts = {}) {
+  if (!myCode) return;
+  const step = !!opts.step;
+  const list = step ? ships : [...new Set(touched)].filter(Boolean).map(byId).filter(Boolean);
+  if (!step && !list.length) return;
+  const body = { code: myCode, kind: step ? 'step' : 'edit', turn: clock.turn, impulse: clock.impulse, plan,
+    ships: list.map(s => ({ ...serializeShip(s), rev: shipRev[s.id] ?? 0 })) };
+  saving = true;
+  try {
+    const r = await fetch('/api/battle', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const j = await r.json();
+    if (r.status === 409) { notifyConflict(); applyRemote(j.view); }   // first write won — refresh my view
+    else { if (j.rev) rev = j.rev; for (const [id, nr] of Object.entries(j.ships || {})) shipRev[id] = nr; }
+  } catch {} finally { saving = false; }
 }
-function saveSoon() { clearTimeout(saveTimer); saveTimer = setTimeout(() => { saveTimer = 0; autosave(); }, 200); }   // debounce rapid edits
+function saveSoon(...ids) { ids.forEach(i => pendingTouched.add(i)); clearTimeout(saveTimer); saveTimer = setTimeout(() => { saveTimer = 0; const t = [...pendingTouched]; pendingTouched.clear(); save(t); }, 200); }
 
-// apply a newer shared state from another commander (AJAX poll), keeping local UI selection
+// apply a newer shared state from another commander (AJAX poll / conflict refresh), keeping local UI selection
 function applyRemote(data) {
   applying = true;
   clock = { turn: data.turn || 1, impulse: data.impulse ?? 0 };
-  if (data.fleets) fleets = data.fleets;
-  plan = data.plans?.[myFleet] || newPlan();
-  oppPlan = data.plans?.[otherFleet(myFleet)] || newPlan();
+  if (data.myFleet) myFleet = data.myFleet;
+  if (data.fleets) fleets = { friendly: { ...fleets.friendly, name: data.fleets.friendly?.name }, enemy: { ...fleets.enemy, name: data.fleets.enemy?.name } };
+  plan = data.plans?.[myFleet] || plan || newPlan();
   if (workingId && !plan.groups.some(g => g.id === workingId)) workingId = null;
   for (const sd of data.ships || []) {
     const s = byId(sd.id); if (!s) continue; const m = sd.map || {};
+    shipRev[sd.id] = sd.rev ?? shipRev[sd.id] ?? 0;
     if (!(dragging && dragging.s === s)) { s.q = m.q ?? s.q; s.r = m.r ?? s.r; s.facing = m.facing ?? s.facing; }
     s.speed = m.speed ?? s.speed; s.hexesSinceTurn = m.hexesSinceTurn ?? s.hexesSinceTurn; s.queuedTurn = m.queuedTurn || 0;
     s.status = {}; (sd.status?.destroyed || []).forEach(id => (s.status[id] = 'destroyed'));
@@ -282,12 +300,18 @@ function applyRemote(data) {
   }
   rev = data.rev || rev; render(); applying = false;
 }
+let toastT = 0;
+function notifyConflict() {
+  const t = document.getElementById('toast'); if (!t) return;
+  t.textContent = '⚠ Another commander changed a ship first — your view was refreshed.'; t.style.display = 'block';
+  clearTimeout(toastT); toastT = setTimeout(() => (t.style.display = 'none'), 3500);
+}
 let poller = 0;
 function startPolling() {
   clearInterval(poller);
   poller = setInterval(async () => {
-    if (applying || saveTimer) return;                     // don't fight an in-flight local save
-    try { const j = await (await fetch('/api/battle')).json(); if (j && j.rev && j.rev > rev && j.ships) applyRemote(j); } catch {}
+    if (testMode || applying || saving || saveTimer) return;   // test mode is a solo sandbox; don't fight an in-flight save
+    try { const j = await (await fetch('/api/battle?code=' + encodeURIComponent(myCode))).json(); if (j && j.rev && j.rev > rev && j.ships) applyRemote(j); } catch {}
   }, 1500);
 }
 
@@ -301,14 +325,14 @@ function stepImpulse() {
     const n = neighbor(s.q, s.r, s.facing);
     if (n.q >= 0 && n.q < COLS && n.r >= 0 && n.r < ROWS) { s.q = n.q; s.r = n.r; s.hexesSinceTurn++; }
   }
-  pruneUnavailable(); render(); autosave();   // battle data auto-saves at the end of each impulse
+  pruneUnavailable(); render(); save(null, { step: true });   // movement syncs to all commanders (no per-ship lock on step)
 }
-// during setup (impulse 0) turning is instant; once the impulse loop is running a turn is QUEUED
-function turnAction(dir) {
-  if (!activeId) return; const s = byId(activeId);
-  if (!isMine(s) && !testMode) return;                   // only your own fleet's ships turn in game mode
+// a queued turn executes when the ship next moves; applies to the given ship (defaults to the last-clicked one)
+function turnAction(dir, shipId = selectedId) {
+  if (!shipId) return; const s = byId(shipId);
+  if (!s || (!isMine(s) && !testMode)) return;           // only your own fleet's ships turn in game mode
   s.queuedTurn = s.queuedTurn === dir ? 0 : dir;         // always QUEUE — a ship only turns when it moves
-  pruneUnavailable(); render(); saveSoon();
+  pruneUnavailable(); render(); saveSoon(shipId);
 }
 
 // ---------- geometry ----------
@@ -388,7 +412,7 @@ function renderFleet() {
   document.getElementById('cmdBadge').textContent = ships.length ? '⚑ ' + (fleets[myFleet]?.name || myFleet) : '';
   document.getElementById('fleet').innerHTML = ships.map(s => {
     const h = shipHealth(s);
-    return `<div class="shiprow ${s.id === activeId ? 'active' : ''}" data-id="${s.id}">
+    const row = `<div class="shiprow ${s.id === selectedId ? 'active' : ''}" data-id="${s.id}">
        <span class="dot" style="background:${sideFill(s)}"></span>
        <div class="sinfo">
          <div class="stop"><b>${s.id}</b> <span style="color:#64748b">${s.name}</span>
@@ -396,19 +420,17 @@ function renderFleet() {
          <div class="sbot"><label class="spd">spd <input class="spin" data-spd="${s.id}" value="${s.speed}"></label>
            <div class="hbar" title="${Math.round(h * 100)}% intact"><i style="width:${Math.round(h * 100)}%;background:${healthColor(h)}"></i></div></div>
        </div></div>`;
+    return row + (s.id === selectedId ? turnCtl(s) : '');   // turn controls follow the last-clicked ship
   }).join('');
-  const rotc = document.getElementById('rotc');
-  if (activeId) {
-    const s = byId(activeId), canTurn = isMine(s) || testMode;
-    rotc.style.display = 'flex';
-    if (canTurn) {
-      const tm = turnMode(s.speed), rem = Math.max(0, tm - s.hexesSinceTurn);
-      const cd = tm === 0 ? 'may turn freely' : rem === 0 ? 'may turn on next move' : `turn in ${rem} hex${rem !== 1 ? 'es' : ''}`;
-      rotc.innerHTML = `<button data-turn="-1" class="${s.queuedTurn === -1 ? 'lit' : ''}">↺ turn</button>
-        <button data-turn="1" class="${s.queuedTurn === 1 ? 'lit' : ''}">turn ↻</button><span class="tmc">${cd}</span>`;
-    } else rotc.innerHTML = `<span class="tmc" style="margin:0">target ship — Test mode to turn</span>`;
-  } else rotc.style.display = 'none';
+  document.getElementById('rotc').style.display = 'none';
   renderClock();
+}
+function turnCtl(s) {
+  if (!(isMine(s) || testMode)) return `<div class="turnctl"><span class="tmc" style="margin:0">target ship — enable Test mode to turn</span></div>`;
+  const tm = turnMode(s.speed), rem = Math.max(0, tm - s.hexesSinceTurn);
+  const cd = tm === 0 ? 'may turn freely' : rem === 0 ? 'may turn on next move' : `turn in ${rem} hex${rem !== 1 ? 'es' : ''}`;
+  return `<div class="turnctl"><button data-turn="-1" data-ship="${s.id}" class="${s.queuedTurn === -1 ? 'lit' : ''}">↺ turn</button>
+    <button data-turn="1" data-ship="${s.id}" class="${s.queuedTurn === 1 ? 'lit' : ''}">turn ↻</button><span class="tmc">${cd}</span></div>`;
 }
 function renderClock() { document.getElementById('clock').textContent = `TURN ${clock.turn} · IMP ${clock.impulse}/32`; }
 
@@ -471,11 +493,13 @@ function autoSelectShip(g, shipId) {
   for (const mt of s.mounts) if (el[mt.id] && el[mt.id].available && isCharged(s, mt.id, mt.cls) && !assigned.has(mt.id)) assignMount(plan, g.id, shipId, mt.id);
 }
 function onShipClick(s) {
+  let touched = [];
   if (!isMine(s)) {                                       // opponent ship → set as the working group's target
     const g = working();
     if (g && g.members.length) {
       g.targetShipId = s.id; g.members.forEach(m => autoSelectShip(g, m.shipId));
       if (!g.members.some(m => m.shipId === activeId)) activeId = g.members[0].shipId;   // keep panel on a firer
+      touched = g.members.map(m => m.shipId);              // target change affects every firer in the group
     }
   } else {
     let g = working();
@@ -483,33 +507,33 @@ function onShipClick(s) {
     const inG = g.members.find(m => m.shipId === s.id);
     if (inG) { inG.mountIds.slice().forEach(id => unassignMount(plan, g.id, s.id, id)); }
     else { g.members.push({ shipId: s.id, mountIds: [] }); if (g.targetShipId) autoSelectShip(g, s.id); }
-    activeId = s.id;
+    activeId = s.id; touched = [s.id];
   }
-  render();
+  render(); if (touched.length) saveSoon(...touched);
 }
 
 // pointer: drag to move, click (no drag) = select/group
 function svgPoint(evt) { const pt = map.createSVGPoint(); pt.x = evt.clientX; pt.y = evt.clientY; return pt.matrixTransform(map.getScreenCTM().inverse()); }
 function nearestHex(px, py) { let b = { q: 0, r: 0 }, bd = Infinity; for (let q = 0; q < COLS; q++) for (let r = 0; r < ROWS; r++) { const c = hexCenter(q, r), d = Math.hypot(c.x - px, c.y - py); if (d < bd) { bd = d; b = { q, r }; } } return b; }
-map.addEventListener('mousedown', e => { const gg = e.target.closest('.ship'); if (!gg) return; dragging = { s: byId(gg.dataset.id), moved: false }; activeId = dragging.s.id; renderFleet(); e.preventDefault(); });
+map.addEventListener('mousedown', e => { const gg = e.target.closest('.ship'); if (!gg) return; dragging = { s: byId(gg.dataset.id), moved: false }; selectedId = dragging.s.id; renderFleet(); e.preventDefault(); });
 window.addEventListener('mousemove', e => {
   if (!dragging) return; const p = svgPoint(e), h = nearestHex(p.x, p.y);
   if (h.q !== dragging.s.q || h.r !== dragging.s.r) { dragging.s.q = h.q; dragging.s.r = h.r; dragging.moved = true; pruneUnavailable(); render(); }
 });
-window.addEventListener('mouseup', () => { if (dragging) { if (!dragging.moved) onShipClick(dragging.s); dragging = null; saveSoon(); } });
+window.addEventListener('mouseup', () => { if (dragging) { const s = dragging.s, moved = dragging.moved; dragging = null; if (!moved) onShipClick(s); else saveSoon(s.id); } });
 
-document.getElementById('rotc').addEventListener('click', e => { const b = e.target.closest('[data-turn]'); if (b) turnAction(+b.dataset.turn); });
+document.getElementById('fleet').addEventListener('click', e => { const b = e.target.closest('[data-turn]'); if (b) turnAction(+b.dataset.turn, b.dataset.ship); });
 window.addEventListener('keydown', e => { if (e.target.tagName === 'INPUT') return; if (e.key === '[') turnAction(-1); else if (e.key === ']') turnAction(1); });
 document.getElementById('stepBtn').onclick = () => stepImpulse();
 document.getElementById('testMode').onchange = e => { testMode = e.target.checked; render(); };
-document.getElementById('fleet').addEventListener('click', e => { if (e.target.closest('.spin')) return; const row = e.target.closest('.shiprow'); if (row) { activeId = row.dataset.id; render(); } });
-document.getElementById('fleet').addEventListener('change', e => { const sp = e.target.closest('.spin'); if (!sp) return; const s = byId(sp.dataset.spd); if (s) { s.speed = Math.max(0, Math.min(32, parseInt(sp.value) || 0)); render(); saveSoon(); } });
+document.getElementById('fleet').addEventListener('click', e => { if (e.target.closest('.spin') || e.target.closest('[data-turn]')) return; const row = e.target.closest('.shiprow'); if (row) { selectedId = row.dataset.id; activeId = row.dataset.id; render(); } });
+document.getElementById('fleet').addEventListener('change', e => { const sp = e.target.closest('.spin'); if (!sp) return; const s = byId(sp.dataset.spd); if (s) { s.speed = Math.max(0, Math.min(32, parseInt(sp.value) || 0)); render(); saveSoon(s.id); } });
 
 document.getElementById('groups').addEventListener('click', e => {
-  const del = e.target.closest('[data-del]'); if (del) { plan.groups = plan.groups.filter(g => g.id !== del.dataset.del); if (workingId === del.dataset.del) workingId = plan.groups.length ? plan.groups[plan.groups.length - 1].id : null; render(); saveSoon(); return; }
+  const del = e.target.closest('[data-del]'); if (del) { const dg = plan.groups.find(g => g.id === del.dataset.del); const ids = dg ? dg.members.map(m => m.shipId) : []; plan.groups = plan.groups.filter(g => g.id !== del.dataset.del); if (workingId === del.dataset.del) workingId = plan.groups.length ? plan.groups[plan.groups.length - 1].id : null; render(); saveSoon(...ids); return; }
   const gh = e.target.closest('[data-grp]'); if (gh) { workingId = gh.dataset.grp; render(); }
 });
-document.getElementById('newGrp').onclick = () => { const g = newGroup('G' + (plan.groups.length + 1), COLORS[plan.groups.length % COLORS.length]); plan.groups.push(g); workingId = g.id; render(); saveSoon(); };
+document.getElementById('newGrp').onclick = () => { const g = newGroup('G' + (plan.groups.length + 1), COLORS[plan.groups.length % COLORS.length]); plan.groups.push(g); workingId = g.id; render(); };   // empty group persists once a mount is assigned
 
 document.getElementById('mounts').addEventListener('change', e => {
   const cb = e.target.closest('[data-mount]'); if (!cb) return; const g = working(); if (!g) return; const id = cb.dataset.mount;
@@ -517,7 +541,7 @@ document.getElementById('mounts').addEventListener('change', e => {
     const res = assignMount(plan, g.id, activeId, id);
     if (res.conflict) { if (confirm(`That mount is committed to ${res.conflict.fromGroupId}. Move it to ${g.id}?`)) assignMount(plan, g.id, activeId, id, { force: true }); else cb.checked = false; }
   } else unassignMount(plan, g.id, activeId, id);
-  render(); saveSoon();
+  render(); saveSoon(activeId);
 });
 document.getElementById('mounts').addEventListener('click', e => {
   if (e.target.closest('#alphaBtn')) { alphaStrike(); return; }
@@ -531,22 +555,22 @@ document.getElementById('fireBtn').onclick = () => fire6D();
 const navMenu = document.getElementById('navMenu');
 document.getElementById('navBtn').onclick = e => { e.stopPropagation(); navMenu.classList.toggle('open'); };
 document.addEventListener('click', () => navMenu.classList.remove('open'));
-document.getElementById('resetBtn').onclick = () => startBattle(battleDefs, { turn: 1, impulse: 0 });   // restart from this battle's setup
+document.getElementById('resetBtn').onclick = async () => { await startBattle(battleDefs, { turn: 1, impulse: 0 }); save(null, { step: true }); };   // restart + sync
 document.getElementById('newBattleBtn').onclick = () => openNewBattle();
 
 // ---------- battle data file: full engagement snapshot (auto-saved each impulse; extensible) ----------
 const shieldsNow = s => s.model ? [1, 2, 3, 4, 5, 6].map(n => { const sh = s.model.shields[n]; return sh ? sh.max - sh.down : (s.shields[n - 1] || 0); }) : s.shields.slice();
+const serializeShip = s => ({
+  id: s.id, code: s.code, name: s.name, side: s.side,
+  map: { q: s.q, r: s.r, facing: s.facing, speed: s.speed, hexesSinceTurn: s.hexesSinceTurn, queuedTurn: s.queuedTurn, turnMode: turnMode(s.speed) },
+  status: { destroyed: Object.keys(s.status), shields: shieldsNow(s) },
+  weapons: Object.fromEntries(s.mounts.map(m => [m.id, { cls: m.cls, arc: (m.arc.arcs || []), charged: isCharged(s, m.id, m.cls), firedAt: s.firedAt[m.id] || null }])),
+});
+// full snapshot for creating a new battle (both fire plans empty at creation)
 function serializeBattle() {
-  return {
-    turn: clock.turn, impulse: clock.impulse, fleets,
-    plans: { [myFleet]: plan, [otherFleet(myFleet)]: oppPlan },   // per-fleet fire plans (shared among a fleet's commanders)
-    ships: ships.map(s => ({
-      id: s.id, code: s.code, name: s.name, side: s.side,
-      map: { q: s.q, r: s.r, facing: s.facing, speed: s.speed, hexesSinceTurn: s.hexesSinceTurn, queuedTurn: s.queuedTurn, turnMode: turnMode(s.speed) },
-      status: { destroyed: Object.keys(s.status), shields: shieldsNow(s) },
-      weapons: Object.fromEntries(s.mounts.map(m => [m.id, { cls: m.cls, arc: (m.arc.arcs || []), charged: isCharged(s, m.id, m.cls), firedAt: s.firedAt[m.id] || null }])),
-    })),
-  };
+  return { turn: clock.turn, impulse: clock.impulse, fleets,
+    plans: { friendly: myFleet === 'friendly' ? plan : newPlan(), enemy: myFleet === 'enemy' ? plan : newPlan() },
+    ships: ships.map(serializeShip) };
 }
 
 // zoom
@@ -595,9 +619,10 @@ function fire6D() {
     return { shipId: m.shipId, mountIds: m.mountIds.filter(id => { const mt = s.mounts.find(x => x.id === id); return el[id] && el[id].available && isCharged(s, id, mt.cls); }) };
   }) })) };
   const res = resolveAttackPlan(clean, ships, shipMountsMap(), models);
-  res.log.filter(l => l.kind === 'shot').forEach(l => { const s = byId(l.firer); if (s) s.firedAt[l.mount] = { turn: clock.turn, impulse: clock.impulse }; });   // timestamped discharge
-  res.volleys.forEach(v => { const s = byId(v.targetShipId); v.effects.forEach(ef => { if (ef.boxId) s.status[ef.boxId] = 'destroyed'; }); });
-  pruneUnavailable(); render(); renderLog(res, true); autosave();
+  const affected = new Set();
+  res.log.filter(l => l.kind === 'shot').forEach(l => { const s = byId(l.firer); if (s) s.firedAt[l.mount] = { turn: clock.turn, impulse: clock.impulse }; affected.add(l.firer); affected.add(l.target); });   // timestamped discharge
+  res.volleys.forEach(v => { const s = byId(v.targetShipId); v.effects.forEach(ef => { if (ef.boxId) s.status[ef.boxId] = 'destroyed'; }); affected.add(v.targetShipId); });
+  pruneUnavailable(); render(); renderLog(res, true); save([...affected]);   // firers (charge) + targets (damage)
 }
 function renderLog(res, append) {
   const L = document.getElementById('log');
@@ -639,14 +664,15 @@ document.getElementById('nbModal').addEventListener('change', e => {
 });
 document.getElementById('nbCancel').onclick = () => { document.getElementById('nbModal').style.display = 'none'; if (!ships.length) load(); };   // back to startup if nothing loaded
 document.getElementById('startNew').onclick = () => { document.getElementById('startModal').style.display = 'none'; openNewBattle(); };
-document.getElementById('startResume').onclick = () => {
-  const hasCodes = savedBattle?.fleets?.friendly?.code;
+document.getElementById('startResume').onclick = async () => {
   const code = document.getElementById('joinCode').value.trim().toUpperCase();
-  let side = 'friendly';
-  if (hasCodes) { side = ['friendly', 'enemy'].find(s => savedBattle.fleets[s]?.code === code); if (!side) { document.getElementById('joinErr').textContent = 'Invalid commander code for this battle.'; return; } }
-  myFleet = side;
-  document.getElementById('startModal').style.display = 'none';
-  resumeSaved(savedBattle);
+  try {
+    const view = await (await fetch('/api/battle?code=' + encodeURIComponent(code))).json();   // server validates the code
+    if (!view.myFleet) { document.getElementById('joinErr').textContent = 'Invalid commander code for this battle.'; return; }
+    myCode = code; myFleet = view.myFleet;
+    document.getElementById('startModal').style.display = 'none';
+    resumeSaved(view);
+  } catch { document.getElementById('joinErr').textContent = 'Could not join the battle.'; }
 };
 function showCodes() {
   document.getElementById('codesBody').innerHTML = ['friendly', 'enemy'].map(side => {
@@ -667,9 +693,10 @@ document.getElementById('nbStart').onclick = async () => {
   const nm = side => document.querySelector(`.nbname[data-name="${side}"]`).value.trim();
   fleets = { friendly: { name: nm('friendly') || 'Fleet 1', code: genCode() }, enemy: { name: nm('enemy') || 'Fleet 2', code: genCode() } };
   myFleet = document.getElementById('nbCommand').value;
+  myCode = fleets[myFleet].code;
   document.getElementById('nbModal').style.display = 'none';
   await startBattle(defs, { turn: 1, impulse: 0 });
-  await autosave();                       // persist the new battle (with commander codes) to the shared file
+  try { const j = await (await fetch('/api/battle', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...serializeBattle(), kind: 'new', code: myCode }) })).json(); rev = j.rev || 1; for (const [id, nr] of Object.entries(j.ships || {})) shipRev[id] = nr; } catch {}
   showCodes();
 };
 
