@@ -75,7 +75,8 @@ published total with a flat coefficient, a small per-ship `powerOverride` is add
 (same pattern as the weapon charts — data transcribed from owned material, verified against the SSDs).
 `capacitorCap`, `sizeClass`, `moveCost`, and per-weapon `arm`/`overload` costs are likewise
 game-mechanics data (H6.21, B3.3, C2.11, E4.21/E3) transcribed and unit-tested against known values
-(Fed CA capacitor 6, Klingon D7 9; photon arm 2 / overload higher; disruptor arm cost).
+(Fed CA capacitor 9 — our SSD's fit is 8×PH-1 + 2×PH-3; Klingon D7 9×PH-2 = 9; photon arm 2 /
+overload 4; disruptor at photon parity 2/4 — all calibration-flagged data tasks).
 
 ### 1.2 The EAF column (21 lines)
 
@@ -234,7 +235,8 @@ startup/commander-code join, the poll/optimistic-lock sync.
 
 - Production from boxes: Fed CA / Klingon D7 totals match calibrated values; destroying source boxes
   reduces `total`.
-- `capacitorCap`: Fed CA 6, Klingon D7 9.
+- `capacitorCap`: Fed CA 9 (8×PH-1 + 2×PH-3), Klingon D7 9 (9×PH-2). Production anchors: Fed CA
+  total 36 / 4 batteries, Klingon D7 total 39 / 3 batteries (flat 1-power/box; calibration task).
 - Life support by size class (SC1=3 … SC5=0); mandatory and non-zeroable.
 - `newEafColumn`: default arms all weapons, fills capacitor, activates shields, funds current speed.
 - `validateEaf`: balanced/under/over; over-allocation and bad life-support flagged; capacitor-room and
