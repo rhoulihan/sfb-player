@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { shipPower, lifeSupportCost, newEafColumn, validateEaf } from '../viewer/energy-model.js';
+import { shipPower, lifeSupportCost, newEafColumn, validateEaf, foldEaf } from '../viewer/energy-model.js';
 
 const load = c => shipPower(
   c,
@@ -71,4 +71,20 @@ test('validateEaf: golden used, balance status, and hard errors', () => {
   assert.ok(validateEaf(fed, { ...col, phaserCap: 6 }, 4).errors.some(e => /capacitor/i.test(e)));
   // impulse-to-move <= 1
   assert.ok(validateEaf(fed, { ...col, impulseMove: 2 }).errors.some(e => /impulse/i.test(e)));
+});
+
+test('foldEaf applies a locked column to turn state', () => {
+  const fed = load('FED-CA'); const wId = fed.weapons[0].id;
+  const base = newEafColumn(fed, 0);
+  const col = { ...base, movement: 8, phaserCap: 5, genReinf: 3, ecm: 2,
+    weapons: { ...base.weapons, [wId]: { armed: true, overload: true } } };
+  const ts = foldEaf(fed, col, 4);
+  assert.equal(ts.speed, 8, 'movement 8 / moveCost 1 = speed 8');
+  assert.equal(ts.armed[wId].overload, true, 'overloaded weapon folded');
+  assert.equal(ts.capacitor, 9, 'carried 4 + charged 5');
+  assert.equal(ts.reinforce.gen, 3);
+  assert.equal(ts.ecmLevel, 2);
+  // an un-armed weapon is absent from armed{}
+  const noFire = foldEaf(fed, { ...base, weapons: Object.fromEntries(fed.weapons.map(w => [w.id, { armed: false, overload: false }])) }, 0);
+  assert.equal(Object.keys(noFire.armed).length, 0);
 });

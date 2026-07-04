@@ -96,3 +96,21 @@ export function validateEaf(power, column, carried = 0) {
   const status = used > produced ? 'over' : free > 0 ? 'under' : 'balanced';
   return { produced, used, batteryUsed, free, status, errors };
 }
+
+// apply a locked column to the ship's turn state (consumed by the impulse phase). carried carries
+// residual phaser-capacitor charge in from last turn.
+export function foldEaf(power, column, carried = 0) {
+  const armed = {};
+  for (const w of power.weapons) {
+    const st = column.weapons[w.id];
+    if (st && st.armed) armed[w.id] = { overload: !!st.overload };
+  }
+  return {
+    speed: Math.min(30, Math.floor(column.movement / power.moveCost)),
+    armed,
+    capacitor: carried + column.phaserCap,
+    reinforce: { gen: column.genReinf, spec: { ...column.specReinf } },
+    ecmLevel: column.ecm, eccmLevel: column.eccm,
+    wildWeasel: column.wildWeasel, suicide: column.suicide,
+  };
+}
