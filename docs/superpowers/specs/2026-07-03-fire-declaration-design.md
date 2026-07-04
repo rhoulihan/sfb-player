@@ -1,260 +1,265 @@
-# Direct-Fire Declaration — Fire Groups & Attack Plan (client prototype)
+# Direct-Fire Combat Sandbox — Fire Groups, Attack Plans & Damage
 
-**Date:** 2026-07-03 · **Status:** design (approved for spec) · **Phase:** prototype (pre-engine)
+**Date:** 2026-07-03 · **Status:** design (in review) · **Phase:** prototype (pre-server)
 
 ## Purpose & Scope
 
-A standalone, client-side prototype of the SFB direct-fire **declaration** step (the part of
-Segment 6D where a commander decides what fires at what). On a hex mapboard showing two fleets,
-the player:
+A standalone, client-side **direct-fire combat sandbox** — no server. On a hex mapboard the player
+can freely **reposition and re-face both fleets' ships** to test firing geometry, then run the full
+direct-fire declaration → resolution → damage loop:
 
-1. selects one or more of their own ships to form a **fire group**,
-2. picks an enemy ship as that group's **target**,
-3. pages through the group's ships and selects/deselects which of each ship's **in-arc weapons**
-   fire — the weapons that *bear on the target* auto-highlight from the target's position,
-4. builds up **one or more fire groups** into an **attack plan**, and
-5. **commits** the plan — which seals it and shows a per-target **combined-damage preview**.
+1. **Reposition** — drag any ship to a new hex and rotate its facing; arcs/ranges/exposed-shields
+   recompute live, so you can probe different angles.
+2. **Form fire groups** — select one or more friendly ships and pick an enemy **target**.
+3. **Select weapons per mount** — page through the group's ships; each ship's individual weapon
+   **mounts** that *bear on the target* auto-highlight (in-arc + in-range from the target's position),
+   and you toggle exactly which mounts fire. A ship may appear in **several fire groups** (split-fire):
+   a mount already committed to another group is **marked**, and selecting it prompts a confirm to
+   reassign it.
+4. **Commit the attack plan** — seal the groups; see a per-target combined-damage **preview** (D4.34).
+5. **Resolve** — roll each committed mount against its weapon chart, stack hits by struck shield into
+   volleys, and apply them through the **existing DAC damage engine** to the targets. Damage shows on
+   each target (shields down, systems destroyed).
 
-It stops at declaration. There are **no to-hit rolls, no damage application, and no multiplayer
-server** — those arrive when this is wired into the impulse engine (`C1`/`C4`). The whole point of
-building it now is the *interaction and data model*; both are shaped so a committed plan expands
-directly into C4's `FireIntent`/`SubmitSealedOrders` with no rework.
+The four **standard races** (Federation, Klingon, Kzinti, Gorn) and their **direct-fire** weapons are
+covered: **Phaser-1, Phaser-2, Phaser-3, Disruptor, Photon torpedo**. (Plasma and drones are *seeking*
+weapons — out of scope.) There is still **no server, no multiplayer, no movement/energy/impulse
+economy** — those arrive with the impulse engine. The data model mirrors C4 (`weaponInstanceId`,
+`FireIntent`, `SubmitSealedOrders`) so this drops into the authoritative engine later.
 
-Built in the existing static-HTML/vanilla-JS style as **`ssd-pipeline/viewer/battle.html`**,
-evolving the existing `docs/spec/wireframes/battle-screen.html` mockup and reusing the shared
-`arc-geom.js` (arc membership) plus each ship's **verified** SSD data (real weapon arcs + shields).
+Built in the existing static-HTML/vanilla-JS style as **`ssd-pipeline/viewer/battle.html`**, reusing
+`arc-geom.js` (arcs), `ship-model.js` + `dac-allocator.js` (the DAC damage engine already validated
+against the D4.5 worked example), and each ship's **verified** SSD data (weapon mounts + arcs +
+shields).
 
-## Rulebook References (mechanics summarized; no rules text reproduced)
+## Rulebook References (mechanics summarized; **no rules text or chart numbers reproduced here**)
 
-- **Declaration window:** direct fire is declared in Segment **6D**, *secret & simultaneous*
-  (B2.4) — everyone commits hidden orders, then all reveal together.
-- **Simultaneity:** the fire list is frozen before resolution; a ship killed this impulse still
-  fires (E1.13). *(Relevant to the future engine; the prototype only produces the frozen list.)*
-- **Firing arcs:** six 60° base arcs (LF, RF, R, L, RR, LR) and combined codes (FA/FX/RA/RX/RS/LS…),
-  with on-boundary hexes counting in-arc (D2.0–D2.2).
-- **Shields:** six fixed facings, **#1 = front**; the struck facing is the one the firer→target
+- **Firing arcs** — six 60° base arcs + combined codes; on-boundary hexes count in-arc (D2.0–D2.2).
+- **Shields** — six fixed facings, **#1 = front**; the struck facing is the one the firer→target
   center line crosses (D3.1, D3.4/D3.402).
-- **Combined fire:** when several ships strike the **same enemy shield in the same impulse**, their
-  damage stacks into one volley through that shield (D4.34) — the rules basis for the fire-group
-  combined-damage preview.
-- **Range:** true range measured in hexes (D1.4). Overload/energy economy is out of scope here.
+- **Combined fire** — several firers striking one shield in one impulse stack into one volley (D4.34).
+- **Direct-fire resolution models** — range-of-effect phasers (die-vs-range → variable points, E1.822);
+  hit-or-miss bolts — disruptor (chart E3.4), photon (chart E4.12, min true range 2, E4.14).
+- **Damage allocation** — shields → armor → internal DAC exactly as the built engine already does
+  (D3.6–D4.4); combined volleys per D4.34.
+- **Range** — true range in hexes (D1.4). Overload/proximity modes are a near-term add (see Phasing).
+
+## Weapon Catalog & Charts (`weapon-charts.js`)
+
+A committed data module holding the five direct-fire weapon definitions and their numeric charts,
+**transcribed from owned material and treated exactly like the existing `dac.js`** — functional
+game-mechanics data, not artwork or rules prose (`.gitignore` excludes only images + rules text).
+The actual chart numbers live only in that module, never in this design doc.
+
+```ts
+type Resolution = 'range-of-effect' | 'hit-or-miss';
+interface WeaponDef {
+  cls: 'PH-1'|'PH-2'|'PH-3'|'DISR'|'PHOTON';
+  resolution: Resolution;
+  maxRange: number;            // true-range max
+  minRange?: number;           // photon = 2 (E4.14)
+  dieSize: 1;                  // all five roll 1d6
+  // range-of-effect (phasers): effectGrid[die-1][bandIdx] → points; bands: RangeBand[]
+  // hit-or-miss (disr/photon): per band → hit test + fixed damage
+  chart: WeaponChart;          // shape mirrors C4's WeaponChart; numbers loaded from data
+}
+```
+
+`resolveMount` (below) branches on `resolution`: **range-of-effect** rolls 1d6 and reads the
+die×range cell for its points (always contributes); **hit-or-miss** rolls 1d6, hits if within the
+band's hit test and then contributes its fixed warhead, else contributes 0. EW/ECM die-shift,
+overload, and small-target ECM are **not** applied in v0 (flagged in Phasing).
 
 ## Domain Model
 
-Client-side, in-memory only (no persistence in the prototype). Coordinates and geometry come from
-the map; ship loadouts come from the verified SSD data.
+Client-side, in-memory. Geometry from the map; loadouts from verified SSD data.
 
 ```ts
 type Side = 'friendly' | 'enemy';
-type Facing = 0 | 1 | 2 | 3 | 4 | 5;          // the 6 hex directions; exact orientation matches the map geometry
-type ShieldFacing = 1 | 2 | 3 | 4 | 5 | 6;    // #1 = front
+type Facing = 0|1|2|3|4|5;                 // 6 hex directions; orientation matches map geometry
+type ShieldFacing = 1|2|3|4|5|6;           // #1 = front
 
+interface WeaponMount {                     // the selectable, individually-firable unit (≈ C4 weaponInstanceId)
+  id: string;                               // ship-unique, e.g. 'F1.PH-1.2'
+  cls: WeaponDef['cls'];
+  arc: ArcDef;                              // verified arc for this mount's group → arc-geom.js
+}
 interface PlacedShip {
-  id: string;                 // scenario-unique, e.g. 'F1'
-  code: string;               // ship code, e.g. 'FED-CA' (keys the verified data)
-  name: string;
-  side: Side;
-  q: number; r: number;       // hex position
-  facing: Facing;
-  shields: number[];          // [s1..s6] current box counts (from verified shield groups)
-  weapons: Weapon[];          // derived from verified weapon-family groups
+  id: string; code: string; name: string; side: Side;
+  q: number; r: number; facing: Facing;     // editable via drag + rotate
+  shields: number[];                        // [s1..s6] current boxes (from verified shield groups)
+  mounts: WeaponMount[];                     // expanded from verified weapon groups (one per box/mount)
+  model?: ShipModel;                         // lazy buildShipModel() for damage resolution
+  status?: Record<string,'destroyed'>;       // set by resolution (DAC)
 }
 
-interface Weapon {
-  id: string;                 // ship-unique, e.g. 'F1.disr.0'
-  cls: string;                // weapon class label, e.g. 'PH-1','DISR','PHOTON'
-  arc: ArcDef;                // the verified arc (base/combined/painted) — fed to arc-geom.js
-  maxRange: number;           // prototype per-class default (see MAX_RANGE)
-  count: number;              // mounts represented by this weapon row (from box count)
-}
-
-// ---- fire-group / attack-plan state ----
-interface FireGroupMember { shipId: string; weaponIds: string[]; }   // selected weapons (subset of in-arc)
-interface FireGroup { id: string; targetShipId: string | null; members: FireGroupMember[]; }
+interface FireGroupMember { shipId: string; mountIds: string[]; }   // selected mounts (subset that bear)
+interface FireGroup { id: string; color: string; targetShipId: string|null; members: FireGroupMember[]; }
 interface AttackPlan { groups: FireGroup[]; committed: boolean; }
 
-// ---- derived, per (weapon, target) — recomputed whenever the target or geometry changes ----
-interface WeaponEligibility {
-  weaponId: string;
-  inArc: boolean; coveringArc?: string;   // which base wedge satisfied it (D2.1)
+interface MountEligibility {                 // per (mount, target), recomputed on any geometry change
+  mountId: string;
+  inArc: boolean; coveringArc?: string;
   trueRange: number; inRange: boolean;
-  available: boolean;                     // inArc && inRange
-  struckShield?: ShieldFacing;            // if available, the facing this firer would strike
-}
-
-// ---- combined-damage preview (D4.34), per target ----
-interface TargetPreview {
-  targetShipId: string;
-  perShield: { shield: ShieldFacing; nominalDamage: number; firers: string[] }[];  // stacked
-  shieldStrength: number[];               // public shield boxes on each struck facing
-  totalNominal: number;                   // sum across firers (pre-shield, nominal)
+  available: boolean;                        // inArc && inRange
+  struckShield?: ShieldFacing;
+  assignedGroupId?: string;                  // set if this mount is committed to some fire group
 }
 ```
 
-**Selection invariants**
-- A weapon can be selected only when `available` (in-arc **and** in-range). Out-of-arc / out-of-range
-  weapons render disabled and cannot be toggled on.
-- A ship belongs to **at most one fire group** (targets one enemy per plan). True split-fire (one
-  ship's weapons across two targets) is a deliberate later refinement, not in this prototype.
-- On targeting, every `available` weapon starts **selected** (on-by-default); the player deselects to
-  hold. Changing a group's target recomputes availability and re-defaults the selection.
+**Exclusivity & split-fire (revised).** A **mount** belongs to at most one fire group (a mount fires
+at one target). A **ship** may belong to **several** groups — different mounts at different targets
+(split-fire). When selecting mounts for group B, any mount already assigned to group A shows
+`assignedGroupId = A` and is **marked, not auto-selected**; toggling it on prompts a confirm and, on
+accept, **reassigns** it from A to B.
+
+**On-target defaults.** Setting a group's target auto-selects that group's members' mounts that are
+`available` **and** unassigned; already-assigned mounts stay marked. Retargeting recomputes and
+re-defaults.
 
 ## Data Source & Scenario
 
-Each `PlacedShip` is hydrated from that ship's verified SSD data — the same `verified.json` the
-damage processor already consumes:
-
-- **Weapons:** each verified group whose family is a weapon system becomes a `Weapon` row —
-  `cls` from the family, `arc` from the group's `arcDef`, `count` from the group's box count.
-- **Shields:** the six shield-family groups give the `shields[]` box counts.
-
-A **scenario** is a small JSON literal listing `{ id, code, side, q, r, facing }` per ship; v0 ships a
-fixed ~2-v-2 (e.g. `FED-CA` + `FED-DD` vs `KLI-D7` + `KLI-F5`). The loadout adapter is:
-
-```ts
-function shipLoadout(verified, detection): { weapons: Weapon[]; shields: number[] };
-```
-
-Weapon **max ranges** are a prototype placeholder until the real per-instance ranges are imported
-from the C4 catalog:
-
-```ts
-const MAX_RANGE: Record<string, number> = {   // placeholder — replaced by C4 catalog import
-  'PH-1': 25, 'PH-2': 15, 'PH-3': 8, 'PH-4': 4,
-  'DISR': 30, 'PHOTON': 30, 'ADD': 12, 'FUSION': 8, 'HELLBORE': 30,
-  default: 20,
-};
-```
+Each ship is hydrated from its `verified.json` (the same data the damage processor uses): weapon
+groups → `mounts` (one mount per box, `cls` from family, `arc` from the group's `arcDef`); shield
+groups → `shields[]`; and `buildShipModel(verified, detection)` lazily builds the DAC model used at
+resolution. A **scenario** is a small JSON literal (`{id, code, side, q, r, facing}` per ship); v0
+ships a fixed ~2-v-2 (e.g. `FED-CA` + `GOR-DD` vs `KLI-D7` + `KZI-FF`) but every ship is drag/rotate
+editable, so the player builds any geometry.
 
 ## Screen Layout (four regions over the map — evolves `battle-screen.html`)
 
-- **(A) Fleet & fire-group rail (left).** My fleet listed; below it the current attack plan as a list
-  of fire groups, each showing its target and member ships. Selecting a group makes it the working
-  group; a "＋ New fire group" affordance starts an empty one.
-- **(B) Battle map (center).** Hex grid, both fleets drawn with facing pips. The working group's ships
-  are highlighted; each fire group is color-keyed, with a thin line-of-fire from each member to its
-  target. For the **active ship**, the selected weapons' **arc wedges** are shaded and the **exposed
-  enemy shield** on the target is highlighted with its current strength. Click a friendly ship to add/
-  remove it from the working group; click an enemy to set the working group's target.
-- **(C) Weapon panel (right).** The **active ship** of the working group, with **◀ / ▶ paging** across
-  the group's ships. One row per weapon: name · arc badge · true range · an eligibility pill
-  (`in-arc` / `out-of-arc` / `out-of-range`) · a toggle. In-arc weapons are highlighted and toggled on
-  by default; disabled rows can't be selected. A "→ shield #N" tag shows what each in-arc weapon would
-  strike.
-- **(D) Attack-plan tray (bottom).** Per fire group: target, member/weapon counts, and the
-  **combined-damage preview** — for each struck shield, the stacked nominal damage and which ships
-  contribute (D4.34), against that shield's public strength. A **"Commit attack plan"** button seals
-  the plan (and a "Clear" to start over). After commit, the tray switches to a read-only sealed view.
+- **(A) Fleet & fire-group rail (left).** Both fleets; below, the attack plan as color-keyed fire
+  groups (target + member ships). Select a group to make it the working group; "＋ New fire group".
+- **(B) Battle map (center).** Hex grid; every ship a token with a facing pip, **drag to move / rotate
+  handle to re-face** (either fleet). Working group highlighted; each group color-keyed with lines of
+  fire to its target. For the **active ship**, selected mounts' **arc wedges** shade and the **exposed
+  target shield** highlights with its strength. Click friendly = add/remove from working group; click
+  enemy = set working group's target.
+- **(C) Weapon-mount panel (right).** The **active ship** with **◀/▶ paging** across the group's ships.
+  One row **per mount**: type · arc badge · true range · eligibility pill (`in-arc`/`out-of-arc`/
+  `out-of-range`) · a **cross-group tag** (`→ Group B`) if committed elsewhere · a toggle. In-arc
+  unassigned mounts highlight and default on; out-of-arc disabled; assigned-elsewhere marked (toggling
+  → confirm-and-steal). A "→ shield #N" tag per bearing mount.
+- **(D) Attack-plan tray (bottom).** Per group: target, mount count, and the **combined-damage
+  preview** — per struck shield, stacked **nominal (pre-roll)** total + contributing ships, vs the
+  facing's strength (D4.34). **"Commit attack plan"** seals it; **"Resolve"** then rolls + applies
+  damage; a **combat log** lists per-mount rolls, per-volley allocation, and destroyed systems, and a
+  target can be opened to its SSD (reusing the damage-view render) to inspect applied damage.
 
 ## Interaction Flow
 
-1. **Load** the scenario; hydrate every ship's loadout from verified data; render map + fleets.
-2. **Select firers** — click ≥1 friendly ship → working `FireGroup.members` (no target yet).
-3. **Target** — click an enemy → `targetShipId`. Recompute `WeaponEligibility` for every member ship's
-   weapons against the target; auto-select all `available` weapons; paint arcs + exposed shield.
-4. **Refine** — page through member ships (◀/▶), toggle weapons on/off; the map + preview update live.
-5. **Repeat** — "＋ New fire group", select other ships, target another enemy. Groups coexist.
-6. **Commit** — validate (≥1 group with ≥1 selected weapon), seal the `AttackPlan`, freeze the preview.
+1. Load scenario; hydrate loadouts; render map + fleets.
+2. (Any time) **Reposition**: drag / rotate ships; all eligibility, arcs, previews recompute live.
+3. **Form group**: click ≥1 friendly → working group.
+4. **Target**: click enemy → recompute `MountEligibility`; auto-select available+unassigned mounts.
+5. **Refine per mount**: page ships, toggle mounts; stealing a mount from another group confirms first.
+6. **More groups**: "＋ New fire group", repeat; a ship may recur across groups (different mounts).
+7. **Commit**: validate (≥1 group, target, ≥1 mount); seal; freeze preview.
+8. **Resolve**: roll each committed mount; stack by (target, struck shield) into volleys; `applyVolley`
+   through the DAC engine per target; render damage + log.
 
 ## Engine / API (pure functions, unit-testable, no DOM)
 
-Geometry mirrors the mockup (flat-top hexes, odd-q offset); arc membership reuses the shared engine.
-
 ```ts
-function hexCenter(q, r): { x, y };
-function hexDistance(a, b): number;                          // true range in hexes (D1.4)
-function bearingDeg(fromHex, toHex): number;                 // 0..360 in map frame
+// geometry (flat-top hexes, odd-q offset — matches the mockup)
+function hexCenter(q,r): {x,y}; function hexDistance(a,b): number; function bearingDeg(from,to): number;
 
-// arc membership — generalizes the mockup's "forward hemisphere" to real arcs via arc-geom.js
-function isInArc(firer: PlacedShip, weapon: Weapon, target: PlacedShip):
-  { inArc: boolean; covering?: string };                     // bearing→ship-local→arcCoversBearing (D2.0–D2.2)
+// arcs / shields — reuse the shared engine
+function isInArc(firer: PlacedShip, mount: WeaponMount, target: PlacedShip): {inArc:boolean; covering?:string};
+function exposedShield(firer: PlacedShip, target: PlacedShip): ShieldFacing;          // D3.402 line-cross
 
-function exposedShield(firer: PlacedShip, target: PlacedShip): ShieldFacing;   // firer→target line-cross (D3.402)
+// declaration
+function mountEligibility(firer, mount, target, def): MountEligibility;
+function planEligibility(plan, ships, defs): Map<mountId, MountEligibility>;           // includes assignedGroupId
+function assignMount(plan, groupId, shipId, mountId): {plan; conflict?: {fromGroupId}}; // steal → conflict for confirm
+function combinedPreview(group, ships, defs): TargetPreview;                            // nominal, stacked by shield (D4.34)
 
-function weaponEligibility(firer, weapon, target): WeaponEligibility;          // inArc && inRange (+ struckShield)
-function groupEligibility(group: FireGroup, ships): Map<weaponId, WeaponEligibility>;
+// resolution + damage
+function makeDice(seed): DiceFn;                                                        // reuse dac-allocator.makeDice
+function resolveMount(firer, mount, target, def, dice): ScoredHit;                      // {hit, points, struckShield}
+function resolveAttackPlan(plan, ships, defs, dice): ResolveResult;                     // → per (target,shield) volleys
+//   for each volley: applyVolley(target.model, {shield, points,...}, dice)  (existing DAC engine)
 
-function combinedPreview(group: FireGroup, ships): TargetPreview;              // stack by struck shield (D4.34)
-
-// forward-integration shape (not called in the prototype, but asserted by a test)
-function expandPlanToIntents(plan: AttackPlan): FireIntent[];                  // one per selected weapon → C4
+// forward-integration (asserted by a test, not used in the prototype)
+function expandPlanToIntents(plan): FireIntent[];                                       // one per committed mount → C4
 ```
 
-`isInArc` converts the firer→target map bearing into the ship's local frame (subtract facing) and
-calls `arc-geom.js`'s `arcCoversBearing(weapon.arc, localBearing)` — the exact predicate the verify
-editor and damage engine already use, so arcs are consistent across the app.
+`isInArc` de-rotates the map bearing by the ship's `facing` into the ship-local frame and calls
+`arc-geom.js`'s `arcCoversBearing(mount.arc, localBearing)` — the same predicate the verify editor and
+damage engine use. `resolveAttackPlan` groups every committed mount's `ScoredHit` by
+`(targetShipId, struckShield)`, sums points per shield (D4.34), and applies each as one `applyVolley`
+against that target's `ShipModel`, collecting destroyed boxes into `PlacedShip.status`.
 
-## Validation & Rules Enforced (now)
+## Validation & Rules Enforced
 
-- **Arc/range gate:** only `available` weapons are selectable; the pill states the reason otherwise.
-- **One-group-per-ship:** adding a ship already in another group moves it (with a confirm) or is blocked
-  — the prototype **blocks** and flags it, keeping the model simple.
-- **Commit precondition:** at least one fire group with a target and ≥1 selected weapon.
-- **Public data only:** the preview uses public shield strength; it never asserts internal/penetration
-  results (consistent with fog-of-war in the real engine, though the prototype is single-player).
-- **Nominal, not rolled:** preview damage is the weapon's *nominal* value at that range (a fixed
-  per-class figure for the prototype), explicitly labelled "nominal (pre-roll)" so it is never mistaken
-  for a resolved result.
-
-## Combined-Damage Preview (D4.34)
-
-For a group, compute each selected weapon's `struckShield` and nominal damage, then **sum by struck
-shield** across all firers in the group. The tray shows, per struck facing: stacked nominal total, the
-contributing ships, and the facing's public strength — surfacing the "concentrate fire to overwhelm one
-shield" decision the combined-volley rule rewards. No dice, no allocation.
+- **Arc/range gate:** only `available` mounts are selectable; the pill states the reason otherwise.
+- **Mount exclusivity + split-fire:** a mount lives in one group; a ship may span groups; stealing a
+  mount requires an explicit confirm and moves it (never silently duplicates fire).
+- **Commit precondition:** ≥1 group with a target and ≥1 committed mount.
+- **Resolution faithfulness:** per-mount rolls use the weapon chart at true range; combined volleys
+  follow D4.34; allocation is the existing, D4.5-validated DAC engine — no bespoke damage math.
+- **Nominal vs rolled:** the tray preview is nominal (pre-roll) and labelled as such; only **Resolve**
+  produces rolled, allocated damage.
+- **Public data:** the preview reads public shield strength only (no reinforcement/internals), keeping
+  parity with the future fog-of-war engine even though the sandbox is single-viewer.
 
 ## Mapping to C4 (why this isn't throwaway)
 
-`expandPlanToIntents(plan)` turns each selected `(shipId, weaponId, group.targetShipId)` into a C4
-`FireIntent { firerShipId, weaponInstanceId, targetRef:{kind:'unit',unitId}, segment:'6D-direct' }`;
-the full plan becomes the `intents[]` of a future `SubmitSealedOrders`. The prototype's
-`isInArc`/`exposedShield`/`hexDistance` are the same predicates C4/D5 specify, so when the impulse
-engine lands, resolution consumes this plan directly.
+Each committed `WeaponMount` is a C4 `weaponInstanceId`; `expandPlanToIntents` emits one
+`FireIntent {firerShipId, weaponInstanceId, targetRef:{kind:'unit'}, segment:'6D-direct'}` per mount,
+and the plan becomes a future `SubmitSealedOrders.intents[]`. `isInArc`/`exposedShield`/`resolveMount`
+are the same predicates/model C4 specifies, so the impulse engine consumes this directly later.
 
 ## Out of Scope (deferred to the impulse-engine integration)
 
-To-hit rolls and damage application; the authoritative server, multiplayer, and sealed-simultaneous
-reveal; energy/arming/overload/hold economy; movement and the impulse clock (ships sit in a fixed
-scenario); EW/ECM effective-range and lock-on; seeking weapons; true per-ship weapon ranges (placeholder
-table until the C4 catalog import); split-fire (one ship across two targets).
+Server / multiplayer / sealed-simultaneous reveal; the impulse clock and movement (ships are placed and
+hand-repositioned, not moved by orders); energy/arming economy and overload/proximity **modes** (near-
+term toggle, see Phasing); EW/ECM die-shift, lock-on, small-target ECM; seeking weapons (plasma,
+drones) and anti-drones; per-instance disruptor max-range table (a per-class default until imported).
 
 ## Edge Cases & Open Questions
 
-- **Weapon count vs mounts.** A verified weapon *group* may represent several mounts; the prototype
-  treats one group as one `Weapon` row with a `count`. Whether the player selects per-mount is deferred
-  (row-level toggle only for now).
-- **Ambiguous struck shield (hexside).** When the firer→target line runs along a hexside (D3.41), the
-  prototype picks the lower-numbered candidate facing and tags it "≈"; the real defender-chooses rule
-  (D3.43) is an engine concern.
-- **Ships stacked in one hex / adjacent range 0.** Range clamps to a minimum of 1 hex for arc/preview
-  purposes (matches the mockup); range-0 special cases are an engine concern.
-- **No verified data for a scenario ship.** If a ship code lacks `verified.json`, it can't be fielded —
-  the loader flags it (consistent with "a ship isn't fielded until its audit is clean").
-- **Arc frame.** Verified arcs are stored in the ship's local frame (0° = front); the map bearing must
-  be de-rotated by `facing` before the arc test — covered by a dedicated unit test.
+- **Mount count vs boxes.** One mount per weapon-group box; if a system's box count ≠ its mount count
+  for some ship, that ship's loadout adapter needs a per-code override (flagged at load).
+- **Ambiguous struck shield (hexside).** Firer→target along a hexside (D3.41): pick the lower-numbered
+  candidate and tag "≈"; the true defender-chooses rule (D3.43) is an engine concern.
+- **Same/adjacent hex.** Range clamps to a minimum of 1 for arc/preview/resolution (matches mockup).
+- **Missing verified data.** A scenario ship lacking `verified.json` can't be fielded (flagged), same
+  rule as the rest of the app.
+- **Repositioning after commit.** Committing locks the plan; moving a ship afterward warns and
+  clears/invalidates affected groups rather than silently resolving stale geometry.
+- **Photon min range (E4.14).** A photon inside its minimum true range is `out-of-range` (not merely
+  weaker), consistent with the rule.
 
 ## Testing (Node `--test`, pure functions; no DOM)
 
-- **Arc membership:** for a ring of target hexes around a firer at each of the 6 facings, assert
-  `isInArc` matches `arc-geom.js` for base arcs and a combined code; assert on-boundary hexes register
-  in-arc (D2.1).
-- **Exposed shield:** table-driven firer/target/facing cases assert the crossed facing (#1 front, going
-  clockwise); include a hexside case asserting the documented tie pick.
-- **Eligibility:** a weapon just inside vs just outside its `maxRange` flips `inRange`; an out-of-arc
-  weapon is never `available`.
-- **Auto-select + defaults:** setting a target selects exactly the `available` weapons; retargeting
-  re-defaults; deselect persists until retarget.
-- **One-group-per-ship:** adding a ship already grouped is blocked.
-- **Combined preview (D4.34):** two firers whose lines strike the same facing sum on that facing; a
-  third striking a different facing lists separately.
-- **C4 mapping:** `expandPlanToIntents` emits one intent per selected weapon with the right
-  `firerShipId`/`weaponInstanceId`/`targetRef` and `segment:'6D-direct'`.
+- **Arc membership:** ring of targets at each of 6 facings matches `arc-geom.js` for base + a combined
+  code; on-boundary hexes register in-arc (D2.1).
+- **Exposed shield:** table-driven firer/target/facing → crossed facing (#1 front, clockwise); a
+  hexside case asserts the documented tie pick.
+- **Eligibility:** a mount just inside vs outside `maxRange` flips `inRange`; photon below `minRange`
+  is `out-of-range`; out-of-arc is never `available`.
+- **Auto-select + defaults:** targeting selects exactly available+unassigned mounts; retarget
+  re-defaults; a mount assigned elsewhere is marked, not auto-selected.
+- **Mount exclusivity:** stealing a mount reports a conflict for confirm and, on accept, removes it
+  from the prior group.
+- **Resolution models:** phaser reads the die×range cell (range-of-effect); disruptor/photon hit only
+  within the band and then contribute fixed warhead; misses contribute 0 — asserted against
+  `weapon-charts.js` with a seeded die.
+- **Combined volley (D4.34):** two firers striking one facing sum into one `applyVolley`; a third on a
+  different facing forms a separate volley; allocation matches the DAC engine.
+- **C4 mapping:** `expandPlanToIntents` emits one correctly-shaped intent per committed mount.
+- **Determinism:** same seed → identical rolls + allocation (reuses the seeded dice service).
 
 ## Phasing
 
-- **v0 (this build):** `battle.html` + fixed 2-v-2 scenario from verified ships, fire-group formation,
-  target-driven weapon auto-highlight with paged select/deselect, multi-group attack plan, commit +
-  combined-damage preview, the pure engine (`fire-plan.js`) + unit tests, and `expandPlanToIntents`.
-- **v1 (engine integration):** replace the fixed scenario with live map/movement state, submit the plan
-  through C1's 6D sealed gate, resolve via C4, hand scored hits to the DAC damage engine.
-- **later:** split-fire, energy/overload economy, per-instance ranges, EW/lock-on, seeking-weapon launch.
+- **v0 (this build):** `battle.html` + fixed 2-v-2 scenario; drag/rotate repositioning; fire-group
+  formation with per-mount, target-driven selection; multi-group split-fire with cross-group marking +
+  confirm-to-steal; commit + nominal preview; **Resolve** rolling the five weapons through
+  `weapon-charts.js` and applying damage via the existing DAC engine; combat log + per-target damage
+  view; the pure engine modules (`fire-plan.js`, `weapon-charts.js`, `direct-fire.js`) + unit tests;
+  `expandPlanToIntents`.
+- **near-term:** overload/proximity modes, EW/ECM die-shift + lock-on, per-instance disruptor ranges,
+  seeking-weapon launch, more races' direct-fire weapons.
+- **v1 (engine integration):** live map/movement/energy state, C1 6D sealed gate, C4 resolution,
+  multiplayer.
