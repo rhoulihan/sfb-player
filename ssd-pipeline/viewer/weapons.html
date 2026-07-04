@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SFB Online — Weapon Tables</title>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;font:14px/1.5 "Segoe UI",system-ui,sans-serif;color:#0f172a;background:#e2e8f0}
+  header{background:#1e293b;color:#f8fafc;padding:9px 16px;display:flex;align-items:center;gap:12px;border-bottom:3px solid #C74634;position:sticky;top:0;z-index:10}
+  header b{font-size:16px}
+  header .sub{color:#94a3b8;font-size:12px}
+  .sp{flex:1}
+  .btn{font:inherit;font-size:13px;background:#475569;color:#fff;border:1px solid #64748b;border-radius:7px;padding:6px 12px;cursor:pointer;text-decoration:none}
+  .btn.primary{background:#2563eb;border-color:#2563eb;font-weight:700}
+  #status{font-size:12px;color:#cbd5e1}
+  main{max-width:1180px;margin:0 auto;padding:18px}
+  .lead{color:#475569;margin:0 0 16px;font-size:13px}
+  .wpn{background:#fff;border:1px solid #cbd5e1;border-radius:10px;margin-bottom:16px;overflow:hidden;box-shadow:0 1px 6px rgba(15,23,42,.05)}
+  .wpn h2{margin:0;padding:9px 14px;background:#f1f5f9;font-size:15px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;gap:10px}
+  .wpn h2 .tag{font-size:11px;color:#64748b;font-weight:400;background:#e2e8f0;padding:1px 7px;border-radius:10px}
+  .grid{display:grid;grid-template-columns:minmax(260px,40%) 1fr;gap:16px;padding:14px;align-items:start}
+  .src{border:1px solid #e2e8f0;border-radius:6px;padding:6px;background:#fafafa}
+  .src img{width:100%;display:block;image-rendering:pixelated;border:1px solid #eee}
+  .src .cap{font-size:11px;color:#94a3b8;margin-top:5px}
+  table.edit{border-collapse:collapse;font-size:13px}
+  table.edit th,table.edit td{border:1px solid #cbd5e1;padding:1px 2px;text-align:center}
+  table.edit th{background:#f1f5f9;font-weight:600}
+  table.edit td:first-child,table.edit th:first-child{background:#f8fafc;font-weight:600;color:#475569}
+  table.edit input{width:42px;border:0;text-align:center;font:inherit;background:transparent;padding:3px 0}
+  table.edit input:focus{background:#eff6ff;outline:1px solid #2563eb;border-radius:3px}
+  table.edit th input{width:50px;font-weight:600;color:#0f172a}
+  .params{margin-top:9px;font-size:12px;color:#334155;display:flex;gap:16px;flex-wrap:wrap}
+  .params input{width:50px;border:1px solid #cbd5e1;border-radius:4px;text-align:center;font:inherit;padding:2px}
+  .dirty{outline:2px solid #d97706!important}
+  @media(max-width:740px){.grid{grid-template-columns:1fr}}
+</style></head>
+<body>
+<header>
+  <b>Weapon Tables</b><span class="sub">verify &amp; edit the extracted direct-fire damage charts</span>
+  <span class="sp"></span>
+  <span id="status"></span>
+  <a class="btn" href="index.html">Home</a>
+  <button class="btn primary" id="saveBtn">Save all</button>
+</header>
+<main>
+  <p class="lead">Each weapon's <b>scanned source table</b> is shown beside the <b>values extracted into the engine</b>. Compare them, fix any mis-read cell, then <b>Save all</b> — the combat sandbox and the tests use these numbers immediately.</p>
+  <div id="list"></div>
+</main>
+<script type="module">
+import { WEAPONS } from './weapon-charts.js';
+
+const bandLabel = b => b.minTrue === b.maxTrue ? String(b.minTrue) : b.minTrue + '-' + b.maxTrue;
+const parseBand = s => { const p = String(s).trim().split('-').map(Number); return { minTrue: p[0], maxTrue: p.length > 1 ? p[1] : p[0] }; };
+const hitLabel = h => h ? (h[0] === h[1] ? String(h[0]) : h[0] + '-' + h[1]) : '—';
+const parseHit = s => { const t = String(s).trim(); if (!t || t === '—' || /^na$/i.test(t)) return null; const p = t.split('-').map(Number); return [p[0], p.length > 1 ? p[1] : p[0]]; };
+
+const list = document.getElementById('list');
+for (const cls of Object.keys(WEAPONS)) {
+  const w = WEAPONS[cls], ro = w.resolution === 'range-of-effect';
+  const hdr = w.bands.map((b, j) => `<th><input data-role="band" data-j="${j}" value="${bandLabel(b)}"></th>`).join('');
+  let rows = '';
+  if (ro) {
+    for (let d = 0; d < 6; d++)
+      rows += `<tr><td>${d + 1}</td>${w.bands.map((_, j) => `<td><input data-role="cell" data-d="${d}" data-j="${j}" value="${w.effectGrid[d][j]}"></td>`).join('')}</tr>`;
+  } else {
+    rows += `<tr><td>Hit</td>${w.bands.map((_, j) => `<td><input data-role="hit" data-j="${j}" value="${hitLabel(w.hitBand1d[j])}"></td>`).join('')}</tr>`;
+    rows += `<tr><td>Dmg</td>${w.bands.map((_, j) => `<td><input data-role="dmg" data-j="${j}" value="${w.fixedDamage[j]}"></td>`).join('')}</tr>`;
+  }
+  const sec = document.createElement('div'); sec.className = 'wpn'; sec.dataset.cls = cls;
+  sec.innerHTML = `
+    <h2>${cls} <span class="tag">${w.resolution}</span></h2>
+    <div class="grid">
+      <div class="src"><img src="../data/_weapon-tables/${cls}.png" alt="${cls} source table"
+        onerror="this.parentElement.innerHTML='&lt;div class=cap&gt;source image not found — run the crop step&lt;/div&gt;'">
+        <div class="cap">scanned source — compare each cell to the values →</div></div>
+      <div>
+        <table class="edit"><tr><th>${ro ? 'Die \\ Range' : 'Range'}</th>${hdr}</tr>${rows}</table>
+        <div class="params">
+          <label>max range <input data-role="param" data-p="maxRange" value="${w.maxRange}"></label>
+          ${w.minRange != null ? `<label>min range <input data-role="param" data-p="minRange" value="${w.minRange}"></label>` : ''}
+        </div>
+      </div>
+    </div>`;
+  list.appendChild(sec);
+}
+
+list.addEventListener('input', e => { if (e.target.tagName === 'INPUT') e.target.classList.add('dirty'); });
+
+function collect() {
+  const out = {};
+  for (const sec of document.querySelectorAll('.wpn')) {
+    const cls = sec.dataset.cls, w = WEAPONS[cls], ro = w.resolution === 'range-of-effect';
+    const q = sel => [...sec.querySelectorAll(sel)];
+    const bands = q('input[data-role="band"]').sort((a, b) => +a.dataset.j - +b.dataset.j).map(i => parseBand(i.value));
+    const param = p => { const el = sec.querySelector(`input[data-p="${p}"]`); return el ? Number(el.value) : undefined; };
+    const def = { cls, resolution: w.resolution, maxRange: param('maxRange'), bands };
+    if (param('minRange') !== undefined) def.minRange = param('minRange');
+    if (ro) {
+      def.effectGrid = [];
+      for (let d = 0; d < 6; d++)
+        def.effectGrid.push(bands.map((_, j) => Number(sec.querySelector(`input[data-role="cell"][data-d="${d}"][data-j="${j}"]`).value)));
+    } else {
+      def.hitBand1d = bands.map((_, j) => parseHit(sec.querySelector(`input[data-role="hit"][data-j="${j}"]`).value));
+      def.fixedDamage = bands.map((_, j) => Number(sec.querySelector(`input[data-role="dmg"][data-j="${j}"]`).value));
+    }
+    out[cls] = def;
+  }
+  return out;
+}
+
+document.getElementById('saveBtn').onclick = async () => {
+  const status = document.getElementById('status');
+  status.textContent = 'saving…';
+  try {
+    const r = await fetch('/api/weapon-charts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(collect()) });
+    const j = await r.json();
+    if (j.ok) { status.textContent = 'saved ✓ — reloading'; setTimeout(() => location.reload(), 700); }
+    else { status.textContent = '⚠ ' + (j.error || 'save failed'); }
+  } catch (e) { status.textContent = '⚠ ' + e.message; }
+};
+</script>
+</body></html>

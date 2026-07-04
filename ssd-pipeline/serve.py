@@ -208,6 +208,50 @@ def start_scan(ship):
         SCAN_JOBS[ship] = {"phase": "searching PDFs", "progress": 0.0, "done": False, "error": None, "result": None}
     threading.Thread(target=find_and_scan, args=(ship,), daemon=True).start()
 
+WEAPON_CHARTS_FUNCS = """
+export function bandIndex(def, trueRange) {
+  return def.bands.findIndex(b => trueRange >= b.minTrue && trueRange <= b.maxTrue);
+}
+
+export function damageFor(def, trueRange, die) {
+  if (def.minRange && trueRange < def.minRange) return 0;
+  if (trueRange > def.maxRange) return 0;
+  const bi = bandIndex(def, trueRange);
+  if (bi < 0) return 0;
+  if (def.resolution === 'range-of-effect') return def.effectGrid[die - 1]?.[bi] ?? 0;
+  const hb = def.hitBand1d[bi];
+  if (!hb) return 0;
+  const [lo, hi] = hb;
+  return (die >= lo && die <= hi) ? def.fixedDamage[bi] : 0;
+}
+"""
+
+def _js_val(v, indent=0):
+    """Serialize to JS keeping scalar arrays and small objects inline (readable data file)."""
+    pad = "  " * indent
+    if isinstance(v, dict):
+        if len(v) <= 3 and all(not isinstance(x, (dict, list)) for x in v.values()):
+            return "{" + ", ".join(f"{json.dumps(k)}: {json.dumps(x)}" for k, x in v.items()) + "}"
+        items = [f"{pad}  {json.dumps(k)}: {_js_val(x, indent + 1)}" for k, x in v.items()]
+        return "{\n" + ",\n".join(items) + f"\n{pad}}}"
+    if isinstance(v, list):
+        if all(not isinstance(x, (dict, list)) for x in v):
+            return "[" + ", ".join(json.dumps(x) for x in v) + "]"
+        items = [f"{pad}  {_js_val(x, indent + 1)}" for x in v]
+        return "[\n" + ",\n".join(items) + f"\n{pad}]"
+    return json.dumps(v)
+
+def write_weapon_charts(weapons):
+    """Rewrite viewer/weapon-charts.js from edited chart data (functional game-mechanics data)."""
+    header = ("// Direct-fire weapon catalog for the standard races (v0, standard loads).\n"
+              "// Functional game-mechanics data transcribed from owned material (phaser Type I/II/III\n"
+              "// grids from the SSDs; disruptor E3.4 + photon E4.12 from the rulebook). Editable via\n"
+              "// viewer/weapons.html against the scanned source tables.\n\n")
+    js = header + "export const WEAPONS = " + _js_val(weapons) + ";\n" + WEAPON_CHARTS_FUNCS
+    with open(os.path.join(ROOT, "viewer", "weapon-charts.js"), "w") as f:
+        f.write(js)
+    return len(js)
+
 class H(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *a, **k): super().__init__(*a, directory=ROOT, **k)
     def _json(self, code, obj):
@@ -251,6 +295,8 @@ class H(http.server.SimpleHTTPRequestHandler):
                 return self._json(200, {"ok": True, "savedBytes": len(body)})
             if self.path.startswith("/api/audit/"): return self._json(200, audit(ship, payload))
             if self.path.startswith("/api/rescan/"): return self._json(200, rescan(ship, payload.get("region", {})))
+            if self.path == "/api/weapon-charts":
+                return self._json(200, {"ok": True, "bytes": write_weapon_charts(payload)})
         except Exception as e:
             return self._json(500, {"error": str(e)})
         return self._json(404, {"error": "unknown endpoint"})
