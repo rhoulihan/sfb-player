@@ -174,6 +174,7 @@ async function load() {
     ships.push({ ...s, mounts, shields, _ver: ver, _det: det, status: {}, firedAt: {}, model: null, hexesSinceTurn: turnMode(s.speed), queuedTurn: 0 });
   }
   render();
+  requestAnimationFrame(fitToShips);   // zoom/centre on the fleets once laid out
 }
 
 const isDead = s => shipHealth(s) <= 0;
@@ -459,6 +460,16 @@ document.getElementById('loadBtn').onclick = async () => {
 // zoom
 function setZoom(z) { zoom = Math.max(0.2, Math.min(1.4, z)); applyZoom(); document.getElementById('zpct').textContent = Math.round(zoom * 100) + '%'; }
 function fitZoom() { const st = document.querySelector('.stage'); const W = GEOM.OX + GEOM.HW * COLS, H = GEOM.OY + GEOM.HH * ROWS + GEOM.HH / 2; setZoom(Math.min((st.clientWidth - 24) / W, (st.clientHeight - 24) / H)); }
+// zoom as close to 100% as possible while still showing every ship, then centre them
+function fitToShips() {
+  if (!ships.length) return;
+  const st = document.querySelector('.stage'), cs = ships.map(s => hexCenter(s.q, s.r)), pad = GEOM.HW * 2.5;
+  const minX = Math.min(...cs.map(c => c.x)) - pad, maxX = Math.max(...cs.map(c => c.x)) + pad;
+  const minY = Math.min(...cs.map(c => c.y)) - pad, maxY = Math.max(...cs.map(c => c.y)) + pad;
+  setZoom(Math.min(1, (st.clientWidth - 8) / (maxX - minX), (st.clientHeight - 8) / (maxY - minY)));
+  st.scrollLeft = (minX + maxX) / 2 * zoom - st.clientWidth / 2;
+  st.scrollTop = (minY + maxY) / 2 * zoom - st.clientHeight / 2;
+}
 document.querySelector('.zoomc').addEventListener('click', e => { const b = e.target.closest('[data-z]'); if (!b) return; if (b.dataset.z === 'fit') fitZoom(); else setZoom(zoom + (+b.dataset.z) * 0.1); });
 
 // resizable side panels
