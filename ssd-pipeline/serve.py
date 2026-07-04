@@ -13,6 +13,7 @@ from scipy import ndimage
 
 PORT = 8741
 ROOT = os.path.dirname(os.path.abspath(__file__))
+ADMIN_CODE = "8783"   # gate for destructive admin actions (clear saved games)
 PDF_DIR = os.path.join(os.path.dirname(ROOT), "SFB")          # owner's PDFs live in repo/SFB
 SSD_PDFS = ["SFBBasicSetSSDscolor.pdf", "AMSSDs2014color.pdf"]  # searched in this order
 TITLE_INDEX = os.path.join(ROOT, "data", "_title_index.json")
@@ -387,6 +388,13 @@ class H(http.server.SimpleHTTPRequestHandler):
             if self.path == "/api/battle":
                 status, body = apply_battle_post(payload)
                 return self._json(status, body)
+            if self.path == "/api/clear-battles":
+                if str(payload.get("code", "")) != ADMIN_CODE:
+                    return self._json(403, {"error": "invalid admin code"})
+                with _BATTLE_LOCK:
+                    p = _battle_path(); removed = os.path.exists(p)
+                    if removed: os.remove(p)
+                return self._json(200, {"ok": True, "cleared": 1 if removed else 0})
         except Exception as e:
             return self._json(500, {"error": str(e)})
         return self._json(404, {"error": "unknown endpoint"})
