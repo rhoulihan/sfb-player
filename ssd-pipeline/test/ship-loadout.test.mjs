@@ -12,6 +12,13 @@ test('weaponClassOf maps family/type to a direct-fire class or null', () => {
   assert.equal(weaponClassOf({ family: 'shield', type: '' }), null);
 });
 
+test('weaponClassOf handles the older generic "weapon" family and excludes seeking weapons', () => {
+  assert.equal(weaponClassOf({ family: 'weapon', type: 'Phaser-1 (FA, L)' }), 'PH-1');
+  assert.equal(weaponClassOf({ family: 'weapon', type: 'Phaser-3 (LS)' }), 'PH-3');
+  assert.equal(weaponClassOf({ family: 'weapon', type: 'Plasma F' }), null, 'plasma is seeking, not direct fire');
+  assert.equal(weaponClassOf({ family: 'weapon', type: '' }), null, 'unlabeled weapon box is skipped');
+});
+
 test('shipLoadout expands weapon groups to one mount per box and reads shields', () => {
   const verified = { groups: [
     { id: 'g1', family: 'phaser', type: 'Phaser-1', arc: 'FH', arcDef: { arcs: ['FH'] }, boxIds: ['b1','b2'] },

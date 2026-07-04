@@ -1,16 +1,19 @@
 // Turn a ship's verified SSD data into a firing loadout: individual weapon mounts + shield strengths.
+// Handles both taxonomies seen in verified data: the granular one ('phaser' / 'heavy-weapon' family)
+// and the older generic one ('weapon' family with the class named in `type`, e.g. GOR-CA).
+const WEAPON_FAMS = new Set(['phaser', 'heavy-weapon', 'weapon']);
 export function weaponClassOf(group) {
   const t = (group.type || '').toLowerCase(), fam = group.family || '';
-  if (fam === 'phaser') {
-    if (/\b3\b|phaser-3|ph-3/.test(t)) return 'PH-3';
-    if (/\b2/.test(t) || /2k/.test(t)) return 'PH-2';
+  if (!WEAPON_FAMS.has(fam)) return null;
+  if (/plasma|drone/.test(t)) return null;               // seeking weapons → not direct fire
+  if (/disr/.test(t)) return 'DISR';
+  if (/photon/.test(t)) return 'PHOTON';
+  if (fam === 'phaser' || /phaser|ph-?\d/.test(t)) {     // phaser by family or by type name
+    if (/\b3\b|phaser-?3|ph-?3/.test(t)) return 'PH-3';
+    if (/\b2\b|phaser-?2|ph-?2|2k/.test(t)) return 'PH-2';
     return 'PH-1';
   }
-  if (fam === 'heavy-weapon') {
-    if (t.includes('disr')) return 'DISR';
-    if (t.includes('photon')) return 'PHOTON';
-  }
-  return null;    // seeking weapons (drone/plasma), non-weapons → excluded from direct fire
+  return null;    // unlabeled / non-direct-fire weapon box → skip
 }
 
 // shield-group facing: read a trailing digit in the type, e.g. "Shield 1" → 1 (fallback: sequential)
