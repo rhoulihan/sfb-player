@@ -106,11 +106,10 @@
   <div class="tray">
     <div class="plan">
       <div class="acts">
-        <button class="btn primary" id="commitBtn" disabled>Commit attack plan</button>
-        <button class="btn fire" id="resolveBtn" disabled>⚡ Resolve</button>
+        <button class="btn fire" id="fireBtn" disabled>⚡ Fire this impulse (6D)</button>
         <span id="planStatus" style="color:#94a3b8"></span>
       </div>
-      <div id="planBody" class="hint">Form fire groups to see the combined-damage preview.</div>
+      <div id="planBody" class="hint">Form fire groups to see the combined-damage preview, then Fire (6D).</div>
     </div>
     <div class="log" id="log"></div>
   </div>
@@ -152,7 +151,10 @@ const shipHealth = s => Math.max(0, 1 - Object.keys(s.status).length / (totalBox
 function pruneUnavailable() {
   for (const g of plan.groups) {
     const t = byId(g.targetShipId); if (!t) continue;
-    for (const m of g.members) { const el = eligForTarget(byId(m.shipId), t); m.mountIds = m.mountIds.filter(id => el[id] && el[id].available); }
+    for (const m of g.members) {
+      const s = byId(m.shipId), el = eligForTarget(s, t);
+      m.mountIds = m.mountIds.filter(id => { const mt = s.mounts.find(x => x.id === id); return el[id] && el[id].available && mt && isCharged(s, id, mt.cls); });
+    }
   }
 }
 // select every in-arc mount across the working group's ships
@@ -164,7 +166,7 @@ async function load() {
     const det = await (await fetch(`../data/${s.code}/detection.json`)).json();
     const ver = await (await fetch(`../data/${s.code}/verified.json`)).json();
     const { mounts, shields } = shipLoadout(ver, det);
-    ships.push({ ...s, mounts, shields, _ver: ver, _det: det, status: {}, fired: new Set(), hexesSinceTurn: turnMode(s.speed), queuedTurn: 0 });
+    ships.push({ ...s, mounts, shields, _ver: ver, _det: det, status: {}, firedAt: {}, model: null, hexesSinceTurn: turnMode(s.speed), queuedTurn: 0 });
   }
   render();
 }
@@ -172,7 +174,7 @@ async function load() {
 const isDead = s => shipHealth(s) <= 0;
 function stepImpulse() {
   clock.impulse++;
-  if (clock.impulse > 32) { clock.impulse = 1; clock.turn++; ships.forEach(s => { s.fired.clear(); s.hexesSinceTurn = turnMode(s.speed); }); }   // new turn: recharge + reset turn counters
+  if (clock.impulse > 32) { clock.impulse = 1; clock.turn++; }   // recharge is time-based (firedAt); turn-mode counter is continuous
   for (const s of ships) {
     if (isDead(s) || !movesOnImpulse(s.speed, clock.impulse)) continue;
     if (s.queuedTurn && s.hexesSinceTurn >= turnMode(s.speed)) { s.facing = (s.facing + s.queuedTurn + 6) % 6; s.hexesSinceTurn = 0; s.queuedTurn = 0; }
@@ -252,7 +254,15 @@ function render() {
 }
 
 const healthColor = h => h > 0.6 ? '#16a34a' : h > 0.3 ? '#d97706' : '#C74634';
-const chargedCount = s => s.mounts.length - s.fired.size;
+// refire cadence: phasers reload after 8 impulses (E1.52); heavy weapons re-arm over a turn
+const RATE = { 'PH-1': 8, 'PH-2': 8, 'PH-3': 8, DISR: 'turn', PHOTON: 'turn' };
+function isCharged(s, mountId, cls) {
+  const f = s.firedAt[mountId]; if (!f) return true;
+  const r = RATE[cls] || 'turn';
+  if (r === 'turn') return clock.turn > f.turn;
+  return (clock.turn - f.turn) * 32 + (clock.impulse - f.impulse) >= r;   // enough impulses elapsed
+}
+const chargedCount = s => s.mounts.filter(m => isCharged(s, m.id, m.cls)).length;
 
 function renderFleet() {
   document.getElementById('fleet').innerHTML = ships.map(s => {
@@ -303,11 +313,11 @@ function renderPanel() {
   const head = `<div style="padding:6px 12px 2px;font-weight:600">${s.id} — ${s.name} <span style="color:#94a3b8;font-weight:400;font-size:11px">facing ${s.facing}${g.targetShipId ? ' → ' + g.targetShipId : ''}</span></div>`;
   const alpha = g.targetShipId ? `<div style="padding:5px 12px"><button class="btn fire" id="alphaBtn" style="width:100%">⚡ Alpha Strike — all in-arc</button></div>` : '';
   const rows = s.mounts.map(mt => {
-    const e = el[mt.id], a = assigned.get(mt.id);
-    const pill = !e ? '<span class="pill no">no target</span>' : e.available ? '<span class="pill ok">in-arc R' + e.trueRange + '</span>' : e.inArc ? '<span class="pill rng">out-of-range</span>' : '<span class="pill arc">out-of-arc</span>';
+    const e = el[mt.id], a = assigned.get(mt.id), charged = isCharged(s, mt.id, mt.cls);
+    const pill = !e ? '<span class="pill no">no target</span>' : !charged ? '<span class="pill no">recharging</span>' : e.available ? '<span class="pill ok">in-arc R' + e.trueRange + '</span>' : e.inArc ? '<span class="pill rng">out-of-range</span>' : '<span class="pill arc">out-of-arc</span>';
     const otherG = a && a.assignedGroupId !== g.id ? `<span class="xg">→ ${a.assignedGroupId}</span>` : '';
     const checked = a && a.assignedGroupId === g.id ? 'checked' : '';
-    const dis = !(e && e.available) ? 'disabled' : '';
+    const dis = !(e && e.available && charged) ? 'disabled' : '';
     return `<label class="mrow"><input type="checkbox" data-mount="${mt.id}" ${checked} ${dis}>
       <span class="cls">${mt.cls}</span><span style="color:#94a3b8;font-size:11px">${(mt.arc.arcs || []).join(',')}</span>${otherG}${pill}</label>`;
   }).join('');
@@ -326,19 +336,17 @@ function renderTray() {
       return `<div class="prev"><span style="color:${g.color};font-weight:700">${g.id}</span> → ${t.id}: ${rows} <span style="color:#94a3b8">— nominal (pre-roll)</span></div>`;
     }).join('');
   }
-  const canCommit = withTarget.length > 0 && !plan.committed;
-  document.getElementById('commitBtn').disabled = !canCommit;
-  document.getElementById('resolveBtn').disabled = !plan.committed;
-  document.getElementById('planStatus').textContent = plan.committed ? 'sealed — ready to resolve' : '';
+  const nMounts = withTarget.reduce((a, g) => a + g.members.reduce((b, m) => b + m.mountIds.length, 0), 0);
+  document.getElementById('fireBtn').disabled = !nMounts;
+  document.getElementById('planStatus').textContent = nMounts ? `${nMounts} mount${nMounts !== 1 ? 's' : ''} ready · Turn ${clock.turn} Imp ${clock.impulse}` : '';
 }
 
 // ---------- interactions ----------
 function autoSelectShip(g, shipId) {
   const el = eligForTarget(byId(shipId), byId(g.targetShipId)), assigned = planEligibility(plan), s = byId(shipId);
-  for (const mt of s.mounts) if (el[mt.id] && el[mt.id].available && !assigned.has(mt.id)) assignMount(plan, g.id, shipId, mt.id);
+  for (const mt of s.mounts) if (el[mt.id] && el[mt.id].available && isCharged(s, mt.id, mt.cls) && !assigned.has(mt.id)) assignMount(plan, g.id, shipId, mt.id);
 }
 function onShipClick(s) {
-  if (plan.committed) return;
   if (s.side === 'enemy') {
     const g = working();
     if (g && g.members.length) {
@@ -392,7 +400,7 @@ document.getElementById('mounts').addEventListener('click', e => {
   const wm = working().members.map(m => m.shipId); activeId = wm[(wm.indexOf(activeId) + (+b.dataset.page) + wm.length) % wm.length]; render();
 });
 
-document.getElementById('commitBtn').onclick = () => { plan.committed = true; render(); };
+document.getElementById('fireBtn').onclick = () => fire6D();
 
 // nav + reset
 const navMenu = document.getElementById('navMenu');
@@ -427,22 +435,26 @@ document.getElementById('ssdClose').onclick = () => { document.getElementById('s
 // the weapon-tables editor is a local-only tool — hide its nav link when the page isn't present
 fetch('weapons.html', { method: 'HEAD' }).then(r => { if (!r.ok) throw 0; }).catch(() => document.querySelectorAll('a[href="weapons.html"]').forEach(a => a.remove()));
 
-// ---------- resolve (Task 9) ----------
-document.getElementById('resolveBtn').onclick = () => {
-  const models = {}; ships.forEach(s => { if (plan.groups.some(g => g.targetShipId === s.id)) models[s.id] = buildShipModel(s._ver, s._det); });
-  // clean plan: keep only mounts still in-arc + in-range
-  const clean = { groups: plan.groups.map(g => ({ ...g, members: g.members.map(m => ({ shipId: m.shipId, mountIds: m.mountIds.filter(id => { const e = eligForTarget(byId(m.shipId), byId(g.targetShipId))[id]; return e && e.available; }) })) })) };
+// ---------- direct fire (6D of each impulse) — cached target models so damage accumulates across impulses ----------
+function fire6D() {
+  const models = {};
+  for (const g of plan.groups) { const t = byId(g.targetShipId); if (t) models[t.id] = t.model || (t.model = buildShipModel(t._ver, t._det)); }
+  const clean = { groups: plan.groups.map(g => ({ ...g, members: g.members.map(m => {
+    const s = byId(m.shipId), el = eligForTarget(s, byId(g.targetShipId));
+    return { shipId: m.shipId, mountIds: m.mountIds.filter(id => { const mt = s.mounts.find(x => x.id === id); return el[id] && el[id].available && isCharged(s, id, mt.cls); }) };
+  }) })) };
   const res = resolveAttackPlan(clean, ships, shipMountsMap(), models);
-  res.log.filter(l => l.kind === 'shot').forEach(l => { const s = byId(l.firer); if (s) s.fired.add(l.mount); });   // discharge fired mounts
+  res.log.filter(l => l.kind === 'shot').forEach(l => { const s = byId(l.firer); if (s) s.firedAt[l.mount] = { turn: clock.turn, impulse: clock.impulse }; });   // timestamped discharge
   res.volleys.forEach(v => { const s = byId(v.targetShipId); v.effects.forEach(ef => { if (ef.boxId) s.status[ef.boxId] = 'destroyed'; }); });
-  render(); renderLog(res);
-};
-function renderLog(res) {
+  pruneUnavailable(); render(); renderLog(res, true);
+}
+function renderLog(res, append) {
   const L = document.getElementById('log');
   const lines = res.log.map(l => l.kind === 'shot'
     ? `<div class="${l.hit ? 'hit' : 'miss'}">${l.firer} ${l.cls} → ${l.target}: die ${l.die}, ${l.hit ? l.points + ' pts → shield #' + l.struckShield : 'miss'}</div>`
     : `<div class="vol">${l.target} shield #${l.shield}: ${l.points} pts → ${l.effects.filter(e => e.type === 'destroy').length} internal${l.effects.some(e => e.type === 'shipDestroyed') ? ' <span class="kill">◈ DESTROYED</span>' : ''}</div>`);
-  L.innerHTML = `<div style="font-weight:700;color:#0f172a;margin-bottom:4px">Combat log</div>` + lines.join('');
+  const block = `<div style="font-weight:700;color:#0f172a;margin:2px 0">▶ Turn ${clock.turn} · Impulse ${clock.impulse}</div>` + (lines.join('') || '<div class="miss">no shots</div>');
+  if (append) L.insertAdjacentHTML('afterbegin', block); else L.innerHTML = block;
 }
 
 load();
