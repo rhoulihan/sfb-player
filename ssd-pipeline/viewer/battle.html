@@ -86,6 +86,32 @@
   .prev b{color:#0f172a}
   .hint{color:#94a3b8;font-size:12px;padding:10px 12px}
   .log .hit{color:#166534}.log .miss{color:#94a3b8}.log .vol{color:#991b1b;font-weight:600}.log .kill{color:#b45309}
+  .epanel{width:46%;min-width:380px;flex:none;display:flex;flex-direction:column;background:#f8fafc;border-right:1px solid #cbd5e1;overflow:hidden}
+  .ephdr{padding:9px 14px;border-bottom:1px solid #e2e8f0;font-size:15px}
+  .eptabs{display:flex;gap:4px;padding:8px 10px 0;flex-wrap:wrap}
+  .eptab{font:inherit;font-size:12px;background:#e2e8f0;border:1px solid #cbd5e1;border-radius:7px 7px 0 0;padding:4px 9px;cursor:pointer;display:flex;align-items:center;gap:5px}
+  .eptab.on{background:#fff;border-bottom-color:#fff;font-weight:600}
+  .eptab .dot{width:9px;height:9px;border-radius:50%}
+  .epmeter{padding:8px 14px;border-bottom:1px solid #e2e8f0;background:#fff}
+  .epsrc{font-size:11px;color:#64748b;margin-bottom:6px}
+  .epbar{height:12px;background:#e2e8f0;border-radius:6px;overflow:hidden;margin-bottom:4px}
+  .epbar i{display:block;height:100%;transition:width .12s}
+  .epnums{font-size:13px;color:#334155}
+  .eprows{flex:1;overflow:auto;padding:6px 12px}
+  .egroup{font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:#94a3b8;margin:12px 0 3px;font-weight:700}
+  .earow{display:flex;align-items:center;gap:8px;padding:3px 0;font-size:12.5px}
+  .earow.ro{color:#64748b}
+  .elab{flex:1;min-width:0}
+  .eslider{flex:none;width:120px}
+  .enum{width:44px;font:inherit;font-size:12px;border:1px solid #cbd5e1;border-radius:4px;padding:1px 3px;text-align:right}
+  .eunits{width:74px;text-align:right;color:#0f172a;font-variant-numeric:tabular-nums;font-size:12px}
+  .etog{font:inherit;font-size:11px;background:#e2e8f0;border:1px solid #cbd5e1;border-radius:6px;padding:2px 8px;cursor:pointer;font-weight:600}
+  .etog.on{background:#2563eb;color:#fff;border-color:#2563eb}
+  .etog.ov.on{background:#d97706;border-color:#d97706}
+  .eseg button{font:inherit;font-size:11px;background:#e2e8f0;border:1px solid #cbd5e1;padding:2px 8px;cursor:pointer}
+  .eseg button.on{background:#2563eb;color:#fff;border-color:#2563eb}
+  .eseg button:first-child{border-radius:6px 0 0 6px}.eseg button:last-child{border-radius:0 6px 6px 0}
+  .epfoot{padding:9px 14px;border-top:1px solid #e2e8f0;display:flex;align-items:center;gap:10px}
 </style></head>
 <body>
 <div id="toast" style="display:none;position:fixed;top:52px;left:50%;transform:translateX(-50%);z-index:700;background:#7c2d12;color:#fff;padding:8px 16px;border-radius:8px;font-size:13px;box-shadow:0 6px 20px rgba(0,0,0,.3)"></div>
@@ -103,6 +129,15 @@
     <button class="btn" id="resetBtn" title="restart this engagement from its starting setup">↺ Reset</button>
   </header>
   <div class="body">
+    <div id="energyPanel" class="epanel" style="display:none">
+      <div class="ephdr"><b>⚡ Energy Allocation</b> <span id="epTurn" style="color:#94a3b8;font-weight:400;font-size:12px"></span>
+        <span id="epLockState" style="float:right;font-size:11px;color:#64748b"></span></div>
+      <div id="epTabs" class="eptabs"></div>
+      <div id="epMeter" class="epmeter"></div>
+      <div id="epRows" class="eprows"></div>
+      <div class="epfoot"><button class="btn fire" id="epLock">🔒 Lock allocation (final)</button>
+        <span id="epLockNote" style="font-size:11px;color:#94a3b8"></span></div>
+    </div>
     <aside class="rail" id="rail">
       <h3>Fleets <span id="cmdBadge" style="font-weight:600;font-size:11px;color:#2563eb;float:right"></span></h3>
       <div id="fleet"></div>
@@ -184,6 +219,7 @@ import { buildShipModel } from './ship-model.js';
 import { newPlan, newGroup, assignMount, unassignMount, planEligibility, mountEligibility, combinedPreview } from './fire-plan.js';
 import { resolveAttackPlan } from './direct-fire.js';
 import { movesOnImpulse, neighbor, turnMode } from './movement.js';
+import { shipPower, newEafColumn, validateEaf, foldEaf } from './energy-model.js';
 import { SCENARIO } from './scenario.js';
 
 const COLS = 42, ROWS = 30, COLORS = ['#2563eb', '#16a34a', '#d97706', '#7c3aed', '#0891b2'];   // standard SFB 42x30 map
@@ -191,6 +227,8 @@ const map = document.getElementById('map');
 let ships = [], plan = newPlan(), workingId = null, activeId = null, selectedId = null, dragging = null, zoom = 0.5, gridBuilt = false;
 let rev = 0, myCode = '', shipRev = {};   // rev: poll change-detection; shipRev: per-ship version for optimistic locking
 let committed = {}, myCommitted = false, lastFireShown = 0;   // 6D fire commits: fire resolves once all fleets commit
+let phase = 'energy', eafDraft = {}, eaSelected = null, myLockedEnergy = false;   // start-of-turn energy allocation
+const powerOf = s => s._power || (s._power = shipPower(s.code, s._ver, s._det));
 let clock = { turn: 1, impulse: 0 };   // impulse 0 = pre-start setup phase
 let testMode = false;                   // when on, any ship (incl. enemy/target) can be turned
 let myFleet = 'friendly';               // which fleet the local commander controls
@@ -228,9 +266,10 @@ async function hydrate(d) {
   const { mounts, shields } = shipLoadout(ver, det);
   return { ...d, mounts, shields, _ver: ver, _det: det, status: {}, firedAt: {}, model: null, hexesSinceTurn: turnMode(d.speed), queuedTurn: 0 };
 }
-async function startBattle(defs, clk, restore) {
+async function startBattle(defs, clk, restore, ph) {
   battleDefs = defs.map(d => ({ ...d }));
   ships = []; plan = newPlan(); shipRev = {}; workingId = null; activeId = null; clock = clk || { turn: 1, impulse: 0 };
+  phase = ph || 'energy'; eafDraft = {}; myLockedEnergy = false; eaSelected = null;   // turns open in energy allocation
   for (const d of defs) {
     const s = await hydrate(d), r = restore && restore[d.id];
     if (r) { (r.destroyed || []).forEach(id => (s.status[id] = 'destroyed')); s.firedAt = r.firedAt || {}; if (r.hexesSinceTurn != null) s.hexesSinceTurn = r.hexesSinceTurn; s.queuedTurn = r.queuedTurn || 0; }
@@ -243,9 +282,12 @@ async function resumeSaved(saved) {
   const defs = saved.ships.map(s => ({ id: s.id, code: s.code, name: s.name, side: s.side, q: s.map.q, r: s.map.r, facing: s.map.facing, speed: s.map.speed }));
   const restore = {};
   for (const s of saved.ships) restore[s.id] = { destroyed: s.status?.destroyed || [], firedAt: Object.fromEntries(Object.entries(s.weapons || {}).filter(([, w]) => w && w.firedAt).map(([k, w]) => [k, w.firedAt])), hexesSinceTurn: s.map.hexesSinceTurn, queuedTurn: s.map.queuedTurn };
-  await startBattle(defs, { turn: saved.turn, impulse: saved.impulse }, restore);
+  await startBattle(defs, { turn: saved.turn, impulse: saved.impulse }, restore, saved.phase || 'energy');
   fleets = saved.fleets ? { friendly: { ...fleets.friendly, name: saved.fleets.friendly?.name }, enemy: { ...fleets.enemy, name: saved.fleets.enemy?.name } } : fleets;
   plan = saved.plans?.[myFleet] || newPlan();
+  committed = saved.committed || {};
+  for (const [id, col] of Object.entries(saved.eaf || {})) eafDraft[id] = col;   // my locked column(s), if any
+  myLockedEnergy = !!committed[myFleet];
   shipRev = {}; for (const s of saved.ships) shipRev[s.id] = s.rev ?? 0;
   rev = saved.rev || 0;
   render();
@@ -272,6 +314,7 @@ async function save(touched, opts = {}) {
   if (!step && !list.length) return;
   const body = { code: myCode, kind: step ? 'step' : 'edit', turn: clock.turn, impulse: clock.impulse, plan,
     ships: list.map(s => ({ ...serializeShip(s), rev: shipRev[s.id] ?? 0 })) };
+  if (opts.phase) body.phase = opts.phase;
   saving = true;
   try {
     const r = await fetch('/api/battle', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -288,7 +331,11 @@ function applyRemote(data) {
   clock = { turn: data.turn || 1, impulse: data.impulse ?? 0 };
   if (data.myFleet) myFleet = data.myFleet;
   if (data.fleets) fleets = { friendly: { ...fleets.friendly, name: data.fleets.friendly?.name }, enemy: { ...fleets.enemy, name: data.fleets.enemy?.name } };
-  if (data.committed) { committed = data.committed; if (!committed[myFleet]) myCommitted = false; }   // fire resolved / new impulse → uncommit
+  if (data.committed) { committed = data.committed; if (!committed[myFleet]) { myCommitted = false; myLockedEnergy = false; } }   // resolved / new turn → un-commit
+  if (data.phase && data.phase !== phase) { const toEnergy = data.phase === 'energy'; phase = data.phase; if (toEnergy) { eafDraft = {}; myLockedEnergy = false; } }
+  else if (data.phase) phase = data.phase;
+  if (phase === 'energy' && data.eaf) for (const [id, col] of Object.entries(data.eaf)) eafDraft[id] = col;   // my locked column
+  if (data.committed) myLockedEnergy = phase === 'energy' && !!data.committed[myFleet];
   plan = data.plans?.[myFleet] || plan || newPlan();
   if (workingId && !plan.groups.some(g => g.id === workingId)) workingId = null;
   for (const sd of data.ships || []) {
@@ -321,16 +368,19 @@ function startPolling() {
 
 const isDead = s => shipHealth(s) <= 0;
 function stepImpulse() {
+  if (phase !== 'impulse') return;
   clock.impulse++;
   myCommitted = false; committed = {};                            // new impulse → fresh firing commits
-  if (clock.impulse > 32) { clock.impulse = 1; clock.turn++; }   // recharge is time-based (firedAt); turn-mode counter is continuous
+  let wrapped = false;
+  if (clock.impulse > 32) { clock.impulse = 1; clock.turn++; wrapped = true; }   // new turn → back to energy allocation
   for (const s of ships) {
     if (isDead(s) || !movesOnImpulse(s.speed, clock.impulse)) continue;
     if (s.queuedTurn && s.hexesSinceTurn >= turnMode(s.speed)) { s.facing = (s.facing + s.queuedTurn + 6) % 6; s.hexesSinceTurn = 0; s.queuedTurn = 0; }
     const n = neighbor(s.q, s.r, s.facing);
     if (n.q >= 0 && n.q < COLS && n.r >= 0 && n.r < ROWS) { s.q = n.q; s.r = n.r; s.hexesSinceTurn++; }
   }
-  pruneUnavailable(); render(); save(null, { step: true });   // movement syncs to all commanders (no per-ship lock on step)
+  if (wrapped) { phase = 'energy'; eafDraft = {}; myLockedEnergy = false; }
+  pruneUnavailable(); render(); save(null, wrapped ? { step: true, phase: 'energy' } : { step: true });   // movement syncs to all commanders
 }
 // a queued turn executes when the ship next moves; applies to the given ship (defaults to the last-clicked one)
 function turnAction(dir, shipId = selectedId) {
@@ -399,7 +449,83 @@ function render() {
       `<text x="${c.x}" y="${c.y + 4}" text-anchor="middle" fill="#fff" font-size="12" font-weight="700" style="pointer-events:none">${s.id}</text></g>`;
   }
   map.querySelector('#dyn').innerHTML = svg;
-  renderFleet(); renderGroups(); renderPanel(); renderTray();
+  applyPhaseUI();
+  if (phase === 'energy') renderEnergy();
+  else { renderFleet(); renderGroups(); renderPanel(); renderTray(); }
+}
+function applyPhaseUI() {
+  const energy = phase === 'energy';
+  document.getElementById('energyPanel').style.display = energy ? 'flex' : 'none';
+  document.getElementById('rail').style.display = energy ? 'none' : '';
+  document.getElementById('panel').style.display = energy ? 'none' : '';
+  document.querySelector('.tray').style.display = energy ? 'none' : 'flex';
+  document.querySelectorAll('.body .resizer').forEach(r => (r.style.display = energy ? 'none' : ''));
+  document.getElementById('stepBtn').style.display = energy ? 'none' : '';
+}
+// ---------- energy allocation panel ----------
+function eaColOf(s) {
+  if (!eafDraft[s.id]) eafDraft[s.id] = s.eaf ? { ...newEafColumn(powerOf(s), s.speed), ...s.eaf } : newEafColumn(powerOf(s), s.speed);
+  return eafDraft[s.id];
+}
+function renderEnergy() {
+  const mine = ships.filter(isMine);
+  if (!eaSelected || !mine.some(s => s.id === eaSelected)) eaSelected = mine[0] ? mine[0].id : null;
+  document.getElementById('epTurn').textContent = `Turn ${clock.turn}`;
+  document.getElementById('epLockState').textContent = ['friendly', 'enemy'].map(f => `${fleets[f]?.name || f} ${committed[f] ? '🔒' : '…'}`).join('  ·  ');
+  document.getElementById('epTabs').innerHTML = mine.map(s => {
+    const v = validateEaf(powerOf(s), eaColOf(s));
+    const dot = v.status === 'over' ? '#C74634' : v.status === 'under' ? '#d97706' : '#16a34a';
+    return `<button class="eptab ${s.id === eaSelected ? 'on' : ''}" data-eatab="${s.id}"><span class="dot" style="background:${dot}"></span>${s.id}</button>`;
+  }).join('') || '<span class="hint">no ships</span>';
+  const s = eaSelected ? byId(eaSelected) : null;
+  if (!s) { document.getElementById('epMeter').innerHTML = ''; document.getElementById('epRows').innerHTML = '<div class="hint">no ship selected</div>'; }
+  else { const p = powerOf(s), col = eaColOf(s); document.getElementById('epMeter').innerHTML = meterHtml(p, validateEaf(p, col)); document.getElementById('epRows').innerHTML = eaRowsHtml(p, col); }
+  const anyOver = mine.some(x => validateEaf(powerOf(x), eaColOf(x)).status === 'over');
+  const lock = document.getElementById('epLock');
+  lock.disabled = myLockedEnergy || anyOver;
+  lock.textContent = myLockedEnergy ? '🔒 Locked — waiting for other fleets' : '🔒 Lock allocation (final)';
+  document.getElementById('epLockNote').textContent = anyOver ? 'a ship is over-allocated (red)' : '';
+}
+function meterHtml(p, v) {
+  const pct = v.produced ? Math.min(100, Math.round((v.used / v.produced) * 100)) : 0;
+  const c = v.status === 'over' ? '#C74634' : v.status === 'under' ? '#d97706' : '#16a34a';
+  return `<div class="epsrc">Warp ${p.warp} · Impulse ${p.impulse} · Reactor ${p.apr} · Batteries ${p.batteries} · Capacitor ${p.capacitorCap}</div>
+    <div class="epbar"><i style="width:${pct}%;background:${c}"></i></div>
+    <div class="epnums"><b>${v.used}</b> used · <b>${v.free}</b> free · of ${v.produced} <span style="color:${c};font-weight:700">${v.status.toUpperCase()}</span></div>`;
+}
+function eaRowsHtml(p, col) {
+  const cap = p.total + p.batteries;
+  const slider = (label, key, max, note = '') => { const val = col[key] || 0; return `<div class="earow"><span class="elab">${label}</span>
+    <input type="range" class="eslider" data-ea="num" data-key="${key}" min="0" max="${max}" value="${val}">
+    <input type="number" class="enum" data-ea="num" data-key="${key}" min="0" max="${max}" value="${val}"><span class="eunits">${val}${note}</span></div>`; };
+  const toggle = (label, key, num) => `<div class="earow"><span class="elab">${label}</span>
+    <label class="eswitch"><input type="checkbox" data-ea="toggle" data-key="${key}"${num ? ' data-num="1"' : ''} ${col[key] ? 'checked' : ''}></label></div>`;
+  const ro = (label, val) => `<div class="earow ro"><span class="elab">${label}</span><span class="eunits">${val}</span></div>`;
+  let h = '<div class="egroup">Mandatory</div>' + ro('Life support', col.lifeSupport);
+  h += '<div class="egroup">Weapons</div>';
+  if (p.systems.fireControl) h += segRow('Fire control', 'fireControl', col.fireControl);
+  h += slider('Charge phaser capacitor', 'phaserCap', p.capacitorCap);
+  for (const w of p.weapons) { const st = col.weapons[w.id]; h += `<div class="earow"><span class="elab">${w.cls} <span style="color:#94a3b8">${w.id.slice(0, 7)}</span></span>
+    <button class="etog ${st.armed ? 'on' : ''}" data-ea="weap" data-wid="${w.id}" data-what="armed">${st.armed ? 'ARM' : 'hold'}</button>
+    <button class="etog ov ${st.overload ? 'on' : ''}" data-ea="weap" data-wid="${w.id}" data-what="overload">OL</button>
+    <span class="eunits">${st.armed ? (st.overload ? w.overload : w.arm) : 0}</span></div>`; }
+  h += '<div class="egroup">Defense</div>' + toggle('Activate shields', 'shieldsActive') + slider('General reinforcement', 'genReinf', cap);
+  for (const n of [1, 2, 3, 4, 5, 6]) h += `<div class="earow"><span class="elab" style="padding-left:12px">Specific reinf. shield ${n}</span>
+    <input type="number" class="enum" data-ea="spec" data-shield="${n}" min="0" value="${col.specReinf[n] || 0}"><span class="eunits">${col.specReinf[n] || 0}</span></div>`;
+  h += '<div class="egroup">Movement & systems</div>';
+  h += slider('Energy for movement', 'movement', cap, ` = ${Math.floor((col.movement || 0) / p.moveCost)} hex`);
+  h += toggle('Impulse point to move', 'impulseMove', true) + toggle('HET', 'het');
+  h += slider('Damage control', 'damageControl', cap) + slider('Recharge / reserve', 'recharge', cap);
+  if (p.systems.tractor) h += slider('Tractor', 'tractor', cap);
+  if (p.systems.transporter) h += slider('Transporters', 'transporter', cap);
+  if (p.systems.ecm) h += slider('ECM', 'ecm', 6) + slider('ECCM', 'eccm', 6);
+  if (p.systems.labs) h += slider('Labs', 'labs', p.systems.labs);
+  if (p.systems.shuttles) h += toggle('Wild weasel', 'wildWeasel') + toggle('Suicide shuttle', 'suicide');
+  if (p.systems.cloak) h += toggle('Cloak', 'cloak');
+  return h;
+}
+function segRow(label, key, val) {
+  return `<div class="earow"><span class="elab">${label}</span><div class="eseg">${[['Off', 0], ['Low', 0.5], ['Full', 1]].map(([t, x]) => `<button data-ea="seg" data-key="${key}" data-val="${x}" class="${val === x ? 'on' : ''}">${t}</button>`).join('')}</div><span class="eunits">${val}</span></div>`;
 }
 
 const healthColor = h => h > 0.6 ? '#16a34a' : h > 0.3 ? '#d97706' : '#C74634';
@@ -525,7 +651,7 @@ function onShipClick(s) {
 // pointer: drag to move, click (no drag) = select/group
 function svgPoint(evt) { const pt = map.createSVGPoint(); pt.x = evt.clientX; pt.y = evt.clientY; return pt.matrixTransform(map.getScreenCTM().inverse()); }
 function nearestHex(px, py) { let b = { q: 0, r: 0 }, bd = Infinity; for (let q = 0; q < COLS; q++) for (let r = 0; r < ROWS; r++) { const c = hexCenter(q, r), d = Math.hypot(c.x - px, c.y - py); if (d < bd) { bd = d; b = { q, r }; } } return b; }
-map.addEventListener('mousedown', e => { const gg = e.target.closest('.ship'); if (!gg) return; dragging = { s: byId(gg.dataset.id), moved: false }; selectedId = dragging.s.id; renderFleet(); e.preventDefault(); });
+map.addEventListener('mousedown', e => { if (phase !== 'impulse') return; const gg = e.target.closest('.ship'); if (!gg) return; dragging = { s: byId(gg.dataset.id), moved: false }; selectedId = dragging.s.id; renderFleet(); e.preventDefault(); });
 window.addEventListener('mousemove', e => {
   if (!dragging) return; const p = svgPoint(e), h = nearestHex(p.x, p.y);
   if (h.q !== dragging.s.q || h.r !== dragging.s.r) { dragging.s.q = h.q; dragging.s.r = h.r; dragging.moved = true; pruneUnavailable(); render(); }
@@ -561,6 +687,53 @@ document.getElementById('mounts').addEventListener('click', e => {
 });
 
 document.getElementById('fireBtn').onclick = () => commitFiring();
+
+// ---------- energy allocation interactions + lock ----------
+const epanel = document.getElementById('energyPanel');
+epanel.addEventListener('click', e => {
+  const tab = e.target.closest('[data-eatab]'); if (tab) { eaSelected = tab.dataset.eatab; renderEnergy(); return; }
+  if (myLockedEnergy) return;
+  const w = e.target.closest('[data-ea="weap"]');
+  if (w) { const st = eaColOf(byId(eaSelected)).weapons[w.dataset.wid]; st[w.dataset.what] = !st[w.dataset.what]; if (w.dataset.what === 'overload' && st.overload) st.armed = true; renderEnergy(); return; }
+  const seg = e.target.closest('[data-ea="seg"]'); if (seg) { eaColOf(byId(eaSelected))[seg.dataset.key] = +seg.dataset.val; renderEnergy(); }
+});
+function onEaInput(e) {
+  if (myLockedEnergy) return; const t = e.target, s = eaSelected ? byId(eaSelected) : null; if (!s || !t.dataset.ea) return; const col = eaColOf(s);
+  if (t.dataset.ea === 'num') { col[t.dataset.key] = Math.max(0, +t.value || 0); if (t.type === 'range') document.getElementById('epMeter').innerHTML = meterHtml(powerOf(s), validateEaf(powerOf(s), col)); else renderEnergy(); }
+  else if (t.dataset.ea === 'toggle') { col[t.dataset.key] = t.dataset.num ? (t.checked ? 1 : 0) : t.checked; renderEnergy(); }
+  else if (t.dataset.ea === 'spec') { col.specReinf[t.dataset.shield] = Math.max(0, +t.value || 0); renderEnergy(); }
+}
+epanel.addEventListener('input', onEaInput);
+epanel.addEventListener('change', e => { if (myLockedEnergy) return; if (e.target.dataset.ea === 'toggle') onEaInput(e); else if (e.target.dataset.ea === 'num' && e.target.type === 'range') renderEnergy(); });
+document.getElementById('epLock').onclick = () => lockEnergy();
+
+async function lockEnergy() {
+  if (myLockedEnergy) return;
+  const mine = ships.filter(isMine);
+  if (mine.some(s => validateEaf(powerOf(s), eaColOf(s)).status === 'over')) return;
+  if (!confirm('Lock your energy allocation for this turn?\n\nThis is FINAL — you cannot change it once locked.')) return;
+  myLockedEnergy = true; render();
+  const eaf = {}; for (const s of mine) eaf[s.id] = eaColOf(s);
+  if (testMode) { await resolveEnergy(eaf); return; }        // solo sandbox
+  try {
+    const j = await (await fetch('/api/battle', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: myCode, kind: 'lockEnergy', eaf }) })).json();
+    if (j.rev) rev = j.rev; if (j.committed) committed = j.committed;
+    if (j.resolve) await resolveEnergy(j.eaf);               // last to lock → resolver folds everyone
+    render();
+  } catch { myLockedEnergy = false; render(); }
+}
+async function resolveEnergy(allEaf) {                        // fold each locked column onto its ship; begin impulse 1
+  for (const s of ships) {
+    const col = allEaf[s.id]; if (!col) continue;
+    const ts = foldEaf(powerOf(s), col, s.capacitor || 0);
+    s.speed = ts.speed; s.armed = ts.armed; s.capacitor = ts.capacitor; s.reinforce = ts.reinforce;
+    s.ecmLevel = ts.ecmLevel; s.eccmLevel = ts.eccmLevel; s.hexesSinceTurn = turnMode(s.speed); s.queuedTurn = 0;
+  }
+  phase = 'impulse'; myLockedEnergy = false; committed = {}; eafDraft = {};
+  render(); requestAnimationFrame(fitToShips);
+  if (testMode) return;
+  try { const j = await (await fetch('/api/battle', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: myCode, kind: 'energyResolved', phase: 'impulse', ships: ships.map(serializeShip) }) })).json(); if (j.rev) rev = j.rev; for (const [id, nr] of Object.entries(j.ships || {})) shipRev[id] = nr; } catch {}
+}
 
 // nav + reset
 const navMenu = document.getElementById('navMenu');
