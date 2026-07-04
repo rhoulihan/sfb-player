@@ -11,7 +11,7 @@ import numpy as np
 from PIL import Image, ImageOps
 from scipy import ndimage
 
-PORT = 8741
+PORT = int(os.environ.get("SFB_PORT", "8741"))
 ROOT = os.path.dirname(os.path.abspath(__file__))
 ADMIN_CODE = "8783"   # gate for destructive admin actions (clear saved games)
 PDF_DIR = os.path.join(os.path.dirname(ROOT), "SFB")          # owner's PDFs live in repo/SFB
@@ -279,8 +279,11 @@ def battle_view(data, my_fleet):
     fleets = {s: {"name": ((data.get("fleets", {}) or {}).get(s) or {}).get("name", "")} for s in ("friendly", "enemy")}
     plans = {}
     if my_fleet: plans[my_fleet] = (data.get("plans", {}) or {}).get(my_fleet, {"groups": []})
+    my_ships = {s["id"] for s in data.get("ships", []) if s.get("side") == my_fleet}
+    eaf = {sid: col for sid, col in (data.get("eaf", {}) or {}).items() if sid in my_ships}   # energy allocation fog of war
     return {"rev": data.get("rev", 0), "turn": data.get("turn", 1), "impulse": data.get("impulse", 0),
-            "fleets": fleets, "myFleet": my_fleet, "plans": plans, "ships": data.get("ships", []),
+            "phase": data.get("phase", "energy"), "fleets": fleets, "myFleet": my_fleet, "plans": plans,
+            "eaf": eaf, "ships": data.get("ships", []),
             "committed": data.get("committed", {}), "lastFire": data.get("lastFire")}
 
 def merge_plan(current, posted, touched):
@@ -311,6 +314,7 @@ def apply_battle_post(payload):
             data = {k: v for k, v in payload.items() if k not in ("kind", "code")}
             for s in data.get("ships", []): s["rev"] = 0
             data["rev"] = 1
+            data["phase"] = data.get("phase", "energy")                 # a new battle opens in energy allocation
             with open(_battle_path(), "w") as f: json.dump(data, f, indent=1)
             return 200, {"ok": True, "rev": 1, "ships": {s["id"]: 0 for s in data.get("ships", [])}}
         my = _fleet_for_code(cur, payload.get("code", ""))
@@ -336,6 +340,25 @@ def apply_battle_post(payload):
             cur["ships"] = ships; cur["committed"] = {}; cur["lastFire"] = payload.get("lastFire"); cur["rev"] = cur.get("rev", 0) + 1
             with open(_battle_path(), "w") as f: json.dump(cur, f, indent=1)
             return 200, {"ok": True, "rev": cur["rev"], "ships": {s["id"]: s["rev"] for s in ships}}
+        if kind == "lockEnergy":                                         # seal this fleet's energy allocation for the turn
+            committed = cur.get("committed", {}) or {}
+            was_all = all(committed.get(s) for s in ("friendly", "enemy"))
+            committed[my] = True
+            eaf = cur.get("eaf", {}) or {}
+            eaf.update(payload.get("eaf", {}))
+            cur["committed"] = committed; cur["eaf"] = eaf; cur["rev"] = cur.get("rev", 0) + 1
+            with open(_battle_path(), "w") as f: json.dump(cur, f, indent=1)
+            resp = {"ok": True, "rev": cur["rev"], "committed": committed}
+            if all(committed.get(s) for s in ("friendly", "enemy")) and not was_all:   # last lock → resolver folds
+                resp["resolve"] = True; resp["eaf"] = eaf
+            return 200, resp
+        if kind == "energyResolved":                                    # authoritative fold (single resolver) → impulse phase
+            ships = payload.get("ships", cur.get("ships", []))
+            for s in ships: s["rev"] = s.get("rev", 0) + 1
+            cur["ships"] = ships; cur["phase"] = payload.get("phase", "impulse")
+            cur["committed"] = {}; cur["rev"] = cur.get("rev", 0) + 1
+            with open(_battle_path(), "w") as f: json.dump(cur, f, indent=1)
+            return 200, {"ok": True, "rev": cur["rev"], "ships": {s["id"]: s["rev"] for s in ships}}
         curships = {s["id"]: s for s in cur.get("ships", [])}
         posted = payload.get("ships", [])
         if kind != "step":                                              # check every affected ship's version
@@ -357,7 +380,8 @@ def apply_battle_post(payload):
                   "impulse": payload.get("impulse", cur.get("impulse", 0)) if kind == "step" else cur.get("impulse", 0),
                   "fleets": cur.get("fleets", {}), "plans": plans, "ships": list(curships.values()),
                   "committed": {} if kind == "step" else cur.get("committed", {}),   # new impulse clears commits
-                  "lastFire": cur.get("lastFire")}
+                  "phase": payload.get("phase", cur.get("phase", "impulse")),        # step may wrap turn → 'energy'
+                  "eaf": cur.get("eaf", {}), "lastFire": cur.get("lastFire")}
         with open(_battle_path(), "w") as f: json.dump(result, f, indent=1)
         return 200, {"ok": True, "rev": result["rev"], "ships": newrevs}
 
