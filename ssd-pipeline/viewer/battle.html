@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SFB Online — Direct-Fire Sandbox</title>
+<style>
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;font:14px/1.4 "Segoe UI",system-ui,sans-serif;color:#0f172a;background:#e2e8f0;overflow:hidden}
+  .app{display:flex;flex-direction:column;height:100vh}
+  header{background:#1e293b;color:#f8fafc;padding:7px 14px;display:flex;align-items:center;gap:12px;border-bottom:3px solid #C74634;flex:none}
+  header b{font-size:15px}header .sub{color:#94a3b8;font-size:12px}
+  .sp{flex:1}
+  .btn{font:inherit;font-size:12px;background:#475569;color:#fff;border:1px solid #64748b;border-radius:7px;padding:5px 11px;cursor:pointer;text-decoration:none}
+  .btn.primary{background:#2563eb;border-color:#2563eb;font-weight:700}
+  .btn.fire{background:#C74634;border-color:#C74634;font-weight:700}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+  .nav{position:relative}
+  .navbtn{font:inherit;font-size:15px;background:#334155;color:#fff;border:1px solid #475569;border-radius:7px;padding:2px 9px;cursor:pointer}
+  .navmenu{display:none;position:absolute;top:120%;left:0;background:#fff;color:#0f172a;border:1px solid #cbd5e1;border-radius:8px;box-shadow:0 8px 28px rgba(0,0,0,.25);min-width:184px;z-index:200;overflow:hidden}
+  .navmenu.open{display:block}
+  .navmenu a{display:block;padding:9px 14px;text-decoration:none;color:#334155;font-size:13px}
+  .navmenu a:hover{background:#eff6ff;color:#2563eb}
+  .body{flex:1;display:flex;min-height:0}
+  .rail,.panel{width:230px;flex:none;overflow:auto;background:#f8fafc;border-right:1px solid #cbd5e1}
+  .panel{border-right:0;border-left:1px solid #cbd5e1}
+  .rail h3,.panel h3{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#64748b;margin:12px 12px 6px}
+  .stage{flex:1;min-width:0;overflow:auto;background:#eef2f7;display:flex;align-items:flex-start;justify-content:center;padding:10px}
+  #map{background:#fff;box-shadow:0 2px 12px rgba(15,23,42,.12);max-width:100%;height:auto;user-select:none}
+  .shiprow{display:flex;align-items:center;gap:8px;padding:6px 12px;cursor:pointer;font-size:13px;border-left:3px solid transparent}
+  .shiprow:hover{background:#eef2f7}
+  .shiprow.sel{background:#eff6ff;border-left-color:#d97706}
+  .shiprow .dot{width:11px;height:11px;border-radius:50%;flex:none}
+  .shiprow .meta{color:#94a3b8;font-size:11px;margin-left:auto}
+  .rotc{display:flex;gap:6px;padding:4px 12px 10px}
+  .rotc button{font:inherit;font-size:12px;background:#e2e8f0;border:1px solid #cbd5e1;border-radius:6px;padding:3px 9px;cursor:pointer}
+  .tray{flex:none;height:120px;border-top:1px solid #cbd5e1;background:#fff;overflow:auto;padding:8px 12px;font-size:12.5px;color:#475569}
+  .hint{color:#94a3b8;font-size:12px;padding:10px 12px}
+</style></head>
+<body>
+<div class="app">
+  <header>
+    <div class="nav"><button class="navbtn" id="navBtn" title="menu">☰</button>
+      <div class="navmenu" id="navMenu"><a href="index.html">🏠 Home</a><a href="verify.html?ship=FED-CA">🛠️ Verify editor</a><a href="damage.html?ship=FED-CA">⚔️ Damage processor</a><a href="weapons.html">🎯 Weapon tables</a></div></div>
+    <b>Direct-Fire Sandbox</b><span class="sub">drag a ship to move · select it and press [ or ] to rotate</span>
+    <span class="sp"></span>
+    <button class="btn" id="resetBtn">↺ Reset battle</button>
+  </header>
+  <div class="body">
+    <aside class="rail">
+      <h3>Fleets</h3>
+      <div id="fleet"></div>
+      <div class="rotc" id="rotc" style="display:none">
+        <button data-rot="-1">↺ rotate</button><button data-rot="1">rotate ↻</button>
+      </div>
+      <h3>Fire groups</h3>
+      <div id="groups" class="hint">Select your ships, then click an enemy to target (coming next).</div>
+    </aside>
+    <div class="stage"><svg id="map" preserveAspectRatio="xMidYMid meet"></svg></div>
+    <aside class="panel">
+      <h3>Weapon mounts</h3>
+      <div id="mounts" class="hint">Select a ship to inspect its mounts.</div>
+    </aside>
+  </div>
+  <div class="tray" id="tray">Reposition ships to test firing angles. Fire-group declaration and resolution come next.</div>
+</div>
+<script type="module">
+import { hexCenter, headingDeg, GEOM, hexDistance } from './battle-geom.js';
+import { shipLoadout } from './ship-loadout.js';
+import { SCENARIO } from './scenario.js';
+
+const COLS = 17, ROWS = 13;
+const map = document.getElementById('map');
+let ships = [], selected = null, dragging = null;
+
+async function load() {
+  ships = [];
+  for (const s of SCENARIO) {
+    const det = await (await fetch(`../data/${s.code}/detection.json`)).json();
+    const ver = await (await fetch(`../data/${s.code}/verified.json`)).json();
+    const { mounts, shields } = shipLoadout(ver, det);
+    ships.push({ ...s, mounts, shields, _ver: ver, _det: det, status: {} });
+  }
+  render();
+}
+
+const rad = f => headingDeg(f) * Math.PI / 180;
+function hexPath(cx, cy) {
+  let p = '';
+  for (let i = 0; i < 6; i++) { const a = Math.PI / 180 * (60 * i); p += (i ? 'L' : 'M') + (cx + GEOM.SIZE * Math.cos(a)).toFixed(1) + ' ' + (cy + GEOM.SIZE * Math.sin(a)).toFixed(1) + ' '; }
+  return p + 'Z';
+}
+const sideFill = s => s.side === 'friendly' ? '#2563eb' : '#C74634';
+
+function render() {
+  const W = GEOM.OX + GEOM.HW * COLS, H = GEOM.OY + GEOM.HH * ROWS + GEOM.HH / 2;
+  map.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  map.setAttribute('width', W); map.setAttribute('height', H);
+  let svg = '';
+  for (let q = 0; q < COLS; q++) for (let r = 0; r < ROWS; r++) {
+    const c = hexCenter(q, r);
+    svg += `<path d="${hexPath(c.x, c.y)}" fill="#fff" stroke="#e2e8f0" stroke-width="1"/>`;
+  }
+  for (const s of ships) {
+    const c = hexCenter(s.q, s.r), fill = sideFill(s);
+    const nx = c.x + 27 * Math.cos(rad(s.facing)), ny = c.y + 27 * Math.sin(rad(s.facing));
+    const ring = s === selected ? `<circle cx="${c.x}" cy="${c.y}" r="27" fill="none" stroke="#d97706" stroke-width="3"/>` : '';
+    const dead = Object.keys(s.status).length ? 0.4 : 1;
+    svg += `<g class="ship" data-id="${s.id}" style="cursor:grab" opacity="${dead}">${ring}` +
+      `<line x1="${c.x}" y1="${c.y}" x2="${nx}" y2="${ny}" stroke="${fill}" stroke-width="4"/>` +
+      `<circle cx="${c.x}" cy="${c.y}" r="20" fill="${fill}" stroke="#fff" stroke-width="2"/>` +
+      `<text x="${c.x}" y="${c.y + 4}" text-anchor="middle" fill="#fff" font-size="12" font-weight="700" style="pointer-events:none">${s.id}</text></g>`;
+  }
+  map.innerHTML = svg;
+  renderFleet();
+}
+
+function renderFleet() {
+  const box = document.getElementById('fleet');
+  box.innerHTML = ships.map(s =>
+    `<div class="shiprow ${s === selected ? 'sel' : ''}" data-id="${s.id}">
+       <span class="dot" style="background:${sideFill(s)}"></span>${s.id} <span style="color:#64748b">${s.name}</span>
+       <span class="meta">${s.mounts.length}w</span></div>`).join('');
+  document.getElementById('rotc').style.display = selected ? 'flex' : 'none';
+  const m = document.getElementById('mounts');
+  if (!selected) { m.className = 'hint'; m.textContent = 'Select a ship to inspect its mounts.'; }
+  else {
+    m.className = '';
+    const counts = {}; selected.mounts.forEach(x => counts[x.cls] = (counts[x.cls] || 0) + 1);
+    m.innerHTML = `<div style="padding:2px 12px;font-weight:600">${selected.id} — ${selected.name}</div>` +
+      Object.entries(counts).map(([c, n]) => `<div style="padding:2px 12px;color:#475569">${c} × ${n}</div>`).join('') +
+      `<div style="padding:6px 12px;color:#94a3b8;font-size:11px">facing ${selected.facing} · shields [${selected.shields.join(',')}]</div>`;
+  }
+}
+
+function select(s) { selected = s; render(); }
+
+// ---- pointer: drag to move, click to select ----
+function svgPoint(evt) { const pt = map.createSVGPoint(); pt.x = evt.clientX; pt.y = evt.clientY; return pt.matrixTransform(map.getScreenCTM().inverse()); }
+function nearestHex(px, py) {
+  let best = { q: 0, r: 0 }, bd = Infinity;
+  for (let q = 0; q < COLS; q++) for (let r = 0; r < ROWS; r++) { const c = hexCenter(q, r), d = Math.hypot(c.x - px, c.y - py); if (d < bd) { bd = d; best = { q, r }; } }
+  return best;
+}
+map.addEventListener('mousedown', e => {
+  const g = e.target.closest('.ship'); if (!g) return;
+  const s = ships.find(x => x.id === g.dataset.id); select(s);
+  dragging = { s, moved: false }; e.preventDefault();
+});
+window.addEventListener('mousemove', e => {
+  if (!dragging) return;
+  const p = svgPoint(e), h = nearestHex(p.x, p.y);
+  if (h.q !== dragging.s.q || h.r !== dragging.s.r) { dragging.s.q = h.q; dragging.s.r = h.r; dragging.moved = true; render(); }
+});
+window.addEventListener('mouseup', () => { dragging = null; });
+
+// ---- rotate ----
+function rotate(dir) { if (!selected) return; selected.facing = (selected.facing + (dir > 0 ? 1 : 5)) % 6; render(); }
+document.getElementById('rotc').addEventListener('click', e => { const b = e.target.closest('[data-rot]'); if (b) rotate(+b.dataset.rot); });
+window.addEventListener('keydown', e => { if (e.key === '[') rotate(-1); else if (e.key === ']') rotate(1); });
+document.getElementById('fleet').addEventListener('click', e => { const row = e.target.closest('.shiprow'); if (row) select(ships.find(s => s.id === row.dataset.id)); });
+
+// ---- nav + reset ----
+const navMenu = document.getElementById('navMenu');
+document.getElementById('navBtn').onclick = e => { e.stopPropagation(); navMenu.classList.toggle('open'); };
+document.addEventListener('click', () => navMenu.classList.remove('open'));
+document.getElementById('resetBtn').onclick = () => { selected = null; load(); };
+
+load();
+</script>
+</body></html>
