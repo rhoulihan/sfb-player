@@ -46,6 +46,7 @@
   .hbar i{display:block;height:100%}
   .resizer{width:6px;flex:none;cursor:col-resize;background:transparent}
   .resizer:hover{background:#cbd5e1}
+  .ctxitem:hover{background:#eff6ff;color:#2563eb}
   .rotc{display:flex;gap:6px;padding:4px 12px 10px}
   .rotc button{font:inherit;font-size:12px;background:#e2e8f0;border:1px solid #cbd5e1;border-radius:6px;padding:3px 9px;cursor:pointer}
   .grp{margin:0 10px 6px;border:1px solid #cbd5e1;border-radius:8px;overflow:hidden;font-size:12px}
@@ -82,15 +83,17 @@
     <button class="btn" id="resetBtn">↺ Reset</button>
   </header>
   <div class="body">
-    <aside class="rail">
+    <aside class="rail" id="rail">
       <h3>Fleets</h3>
       <div id="fleet"></div>
       <div class="rotc" id="rotc" style="display:none"><button data-rot="-1">↺ rotate</button><button data-rot="1">rotate ↻</button></div>
       <h3>Fire groups <button class="btn" id="newGrp">＋ new</button></h3>
       <div id="groups"></div>
     </aside>
+    <div class="resizer" data-r="rail"></div>
     <div class="stage"><svg id="map" preserveAspectRatio="xMidYMid meet"></svg></div>
-    <aside class="panel">
+    <div class="resizer" data-r="panel"></div>
+    <aside class="panel" id="panel">
       <h3>Weapon mounts</h3>
       <div id="mounts" class="hint">Select a ship.</div>
     </aside>
@@ -105,6 +108,15 @@
       <div id="planBody" class="hint">Form fire groups to see the combined-damage preview.</div>
     </div>
     <div class="log" id="log"></div>
+  </div>
+</div>
+<div id="ctxMenu" style="display:none;position:fixed;background:#fff;border:1px solid #cbd5e1;border-radius:8px;box-shadow:0 8px 28px rgba(0,0,0,.25);z-index:300;font-size:13px;overflow:hidden;min-width:150px">
+  <div class="ctxitem" data-act="ssd" style="padding:8px 14px;cursor:pointer">🖥 View SSD</div>
+</div>
+<div id="ssdModal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:400;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:10px;width:92vw;height:90vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 12px 44px rgba(0,0,0,.4)">
+    <div style="padding:8px 14px;display:flex;align-items:center;gap:10px;border-bottom:1px solid #e2e8f0"><b id="ssdTitle"></b><span style="flex:1"></span><button class="btn" id="ssdClose">✕ Close</button></div>
+    <iframe id="ssdFrame" style="flex:1;border:0;width:100%"></iframe>
   </div>
 </div>
 <script type="module">
@@ -356,6 +368,25 @@ document.getElementById('resetBtn').onclick = () => { document.getElementById('l
 function setZoom(z) { zoom = Math.max(0.2, Math.min(1.4, z)); applyZoom(); document.getElementById('zpct').textContent = Math.round(zoom * 100) + '%'; }
 function fitZoom() { const st = document.querySelector('.stage'); const W = GEOM.OX + GEOM.HW * COLS, H = GEOM.OY + GEOM.HH * ROWS + GEOM.HH / 2; setZoom(Math.min((st.clientWidth - 24) / W, (st.clientHeight - 24) / H)); }
 document.querySelector('.zoomc').addEventListener('click', e => { const b = e.target.closest('[data-z]'); if (!b) return; if (b.dataset.z === 'fit') fitZoom(); else setZoom(zoom + (+b.dataset.z) * 0.1); });
+
+// resizable side panels
+let resizing = null;
+document.querySelectorAll('.resizer').forEach(rz => rz.addEventListener('mousedown', e => { resizing = { which: rz.dataset.r, x: e.clientX }; e.preventDefault(); }));
+window.addEventListener('mousemove', e => {
+  if (!resizing) return;
+  const el = document.getElementById(resizing.which), dx = e.clientX - resizing.x;
+  el.style.width = Math.max(160, Math.min(520, el.getBoundingClientRect().width + (resizing.which === 'rail' ? dx : -dx))) + 'px';
+  resizing.x = e.clientX;
+});
+window.addEventListener('mouseup', () => { resizing = null; });
+
+// ship context menu → View SSD (modal)
+let ctxShip = null;
+map.addEventListener('contextmenu', e => { const g = e.target.closest('.ship'); if (!g) return; e.preventDefault(); ctxShip = g.dataset.id; const m = document.getElementById('ctxMenu'); m.style.display = 'block'; m.style.left = Math.min(e.clientX, innerWidth - 160) + 'px'; m.style.top = e.clientY + 'px'; });
+document.addEventListener('click', () => { document.getElementById('ctxMenu').style.display = 'none'; });
+document.getElementById('ctxMenu').addEventListener('click', e => { const it = e.target.closest('[data-act]'); if (it && it.dataset.act === 'ssd' && ctxShip) openSSD(ctxShip); });
+function openSSD(id) { const s = byId(id); document.getElementById('ssdTitle').textContent = `${s.id} — ${s.name} (${s.code})`; document.getElementById('ssdFrame').src = `damage.html?ship=${encodeURIComponent(s.code)}`; document.getElementById('ssdModal').style.display = 'flex'; }
+document.getElementById('ssdClose').onclick = () => { document.getElementById('ssdModal').style.display = 'none'; document.getElementById('ssdFrame').src = 'about:blank'; };
 
 // ---------- resolve (Task 9) ----------
 document.getElementById('resolveBtn').onclick = () => {
