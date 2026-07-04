@@ -105,5 +105,6 @@ function pollScan(s){
 }
 document.getElementById("scanClose").onclick=()=>{document.getElementById("scanModal").style.display="none";};
 loadShips();
+fetch('weapons.html',{method:'HEAD'}).then(r=>{if(!r.ok)throw 0;}).catch(()=>document.querySelectorAll('a[href="weapons.html"]').forEach(a=>a.remove()));
 </script>
 </body></html>

@@ -8,11 +8,15 @@ existing wavemax stack, behind a gated portal on `chrsent.com`.
 
 ## ⚠️ You must own the source material
 
-*Star Fleet Battles* rules and SSD artwork are © **Amarillo Design Bureau, Inc.** This
-repository contains **none** of that copyrighted content — only our own **structural
-metadata** (box coordinates, system-family classifications, firing arcs, and OCR'd box
-labels). The SSD **page images are not distributed here**; you regenerate them locally from
-PDFs **you own**.
+*Star Fleet Battles* rules text and SSD artwork are © **Amarillo Design Bureau, Inc.** This
+repository does **not** distribute that expressive content — no SSD page images, no rules
+prose, no scanned rulebook/chart images. It contains our own **structural metadata** (box
+coordinates, system-family classifications, firing arcs, OCR'd box labels) plus the
+**functional game-mechanics data** the engine needs — the Damage Allocation Chart and the
+direct-fire weapon damage charts — transcribed as data from material **you own**. The SSD
+**page images and PDFs are regenerated locally from your own copies** and are never shipped
+here. (The optional weapon-table validation editor, `viewer/weapons.html`, is a local-only
+tool and is not tracked.)
 
 Buy the two products this project uses from the publisher's store, **Warehouse 23**:
 

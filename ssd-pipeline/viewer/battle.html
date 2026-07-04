@@ -388,6 +388,9 @@ document.getElementById('ctxMenu').addEventListener('click', e => { const it = e
 function openSSD(id) { const s = byId(id); document.getElementById('ssdTitle').textContent = `${s.id} — ${s.name} (${s.code})`; document.getElementById('ssdFrame').src = `damage.html?ship=${encodeURIComponent(s.code)}`; document.getElementById('ssdModal').style.display = 'flex'; }
 document.getElementById('ssdClose').onclick = () => { document.getElementById('ssdModal').style.display = 'none'; document.getElementById('ssdFrame').src = 'about:blank'; };
 
+// the weapon-tables editor is a local-only tool — hide its nav link when the page isn't present
+fetch('weapons.html', { method: 'HEAD' }).then(r => { if (!r.ok) throw 0; }).catch(() => document.querySelectorAll('a[href="weapons.html"]').forEach(a => a.remove()));
+
 // ---------- resolve (Task 9) ----------
 document.getElementById('resolveBtn').onclick = () => {
   const models = {}; ships.forEach(s => { if (plan.groups.some(g => g.targetShipId === s.id)) models[s.id] = buildShipModel(s._ver, s._det); });

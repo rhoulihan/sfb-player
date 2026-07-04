@@ -27,3 +27,6 @@ ssd-pipeline/data/_title_index.json
 
 # weapon-table source crops (from copyrighted SSD/rulebook)
 ssd-pipeline/data/_weapon-tables/
+
+# weapon-table validation editor — local-only tool (kept for adding future races)
+ssd-pipeline/viewer/weapons.html

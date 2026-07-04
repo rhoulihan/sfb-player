@@ -169,6 +169,7 @@ document.getElementById("navBtn").onclick=e=>{e.stopPropagation();navMenu.classL
 document.addEventListener("click",()=>navMenu.classList.remove("open"));
 document.getElementById("navVerify").href=`verify.html?ship=${encodeURIComponent(ship)}`;
 document.getElementById("navDamage").href=`damage.html?ship=${encodeURIComponent(ship)}`;
+fetch('weapons.html',{method:'HEAD'}).then(r=>{if(!r.ok)throw 0;}).catch(()=>document.querySelectorAll('a[href="weapons.html"]').forEach(a=>a.remove()));
 const labelText=id=>{const o=labelOv[id]; return o!==undefined?o:(labels[id]||"");};   // user edits win over OCR
 
 function render(){

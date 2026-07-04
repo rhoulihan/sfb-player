@@ -517,6 +517,7 @@ document.getElementById("navBtn").onclick=e=>{e.stopPropagation();navMenu.classL
 document.addEventListener("click",()=>navMenu.classList.remove("open"));
 document.getElementById("navVerify").href=`verify.html?ship=${encodeURIComponent(ship)}`;
 document.getElementById("navDamage").href=`damage.html?ship=${encodeURIComponent(ship)}`;
+fetch('weapons.html',{method:'HEAD'}).then(r=>{if(!r.ok)throw 0;}).catch(()=>document.querySelectorAll('a[href="weapons.html"]').forEach(a=>a.remove()));
 document.addEventListener("keydown",e=>{if(e.target.tagName==="INPUT"||e.target.tagName==="SELECT")return;if(e.key==="Escape"){document.getElementById("arcModal").classList.remove("open");sel=new Set();renderAll();}
   const g=gById(curG);if(g&&e.key>="1"&&e.key<="9"&&FAMS[+e.key-1]){g.family=FAMS[+e.key-1];renderAll();}
   if(g&&e.key==="v"){g.verified=!g.verified;renderAll();}});
