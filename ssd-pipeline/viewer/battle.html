@@ -345,7 +345,7 @@ function applyRemote(data) {
     s.speed = m.speed ?? s.speed; s.hexesSinceTurn = m.hexesSinceTurn ?? s.hexesSinceTurn; s.queuedTurn = m.queuedTurn || 0;
     s.status = {}; (sd.status?.destroyed || []).forEach(id => (s.status[id] = 'destroyed'));
     s.firedAt = {}; for (const [mid, w] of Object.entries(sd.weapons || {})) if (w && w.firedAt) s.firedAt[mid] = w.firedAt;
-    if (sd.armed !== undefined) s.armed = sd.armed; if (sd.capacitor !== undefined) s.capacitor = sd.capacitor; if (sd.reinforce !== undefined) s.reinforce = sd.reinforce;
+    if (sd.armed !== undefined) s.armed = sd.armed; if (sd.capacitor !== undefined) s.capacitor = sd.capacitor; if (sd.reinforce !== undefined) { s.reinforce = sd.reinforce; s.reinfLeft = null; }
     s.model = null;
   }
   rev = data.rev || rev;
@@ -531,12 +531,12 @@ function segRow(label, key, val) {
 
 const healthColor = h => h > 0.6 ? '#16a34a' : h > 0.3 ? '#d97706' : '#C74634';
 // refire cadence: phasers reload after 8 impulses (E1.52); heavy weapons re-arm over a turn
-const RATE = { 'PH-1': 8, 'PH-2': 8, 'PH-3': 8, DISR: 'turn', PHOTON: 'turn' };
+const PHASER_FIRE_COST = 1;   // each phaser draws 1 from the charged capacitor when fired (H6)
+const isPhaser = cls => cls === 'PH-1' || cls === 'PH-2' || cls === 'PH-3';
 function isCharged(s, mountId, cls) {
+  if (isPhaser(cls)) return (s.capacitor || 0) >= PHASER_FIRE_COST;   // phasers fire from the capacitor charged in energy allocation
   const f = s.firedAt[mountId]; if (!f) return true;
-  const r = RATE[cls] || 'turn';
-  if (r === 'turn') return clock.turn > f.turn;
-  return (clock.turn - f.turn) * 32 + (clock.impulse - f.impulse) >= r;   // enough impulses elapsed
+  return clock.turn > f.turn;   // heavy weapons re-arm with next turn's allocation
 }
 const chargedCount = s => s.mounts.filter(m => isCharged(s, m.id, m.cls)).length;
 const HEAVY_CLS = new Set(['PHOTON', 'DISR']);   // heavy weapons must be armed in energy allocation to fire; phasers aren't
@@ -728,8 +728,8 @@ async function lockEnergy() {
 async function resolveEnergy(allEaf) {                        // fold each locked column onto its ship; begin impulse 1
   for (const s of ships) {
     const col = allEaf[s.id]; if (!col) continue;
-    const ts = foldEaf(powerOf(s), col, s.capacitor || 0);
-    s.speed = ts.speed; s.armed = ts.armed; s.capacitor = ts.capacitor; s.reinforce = ts.reinforce;
+    const ts = foldEaf(powerOf(s), col, s.capacitor || 0);   // carried capacitor charge folds in
+    s.speed = ts.speed; s.armed = ts.armed; s.capacitor = ts.capacitor; s.reinforce = ts.reinforce; s.reinfLeft = null;
     s.ecmLevel = ts.ecmLevel; s.eccmLevel = ts.eccmLevel; s.hexesSinceTurn = turnMode(s.speed); s.queuedTurn = 0;
   }
   phase = 'impulse'; myLockedEnergy = false; committed = {}; eafDraft = {};
@@ -803,13 +803,25 @@ fetch('weapons.html', { method: 'HEAD' }).then(r => { if (!r.ok) throw 0; }).cat
 function resolvePlanInto(p, models, log, affected) {
   const mk = t => t.model || (t.model = buildShipModel(t._ver, t._det));
   for (const g of (p.groups || [])) { const t = byId(g.targetShipId); if (t) models[t.id] = mk(t); }
+  const capLeft = {}; for (const s of ships) capLeft[s.id] = Math.floor(s.capacitor || 0);   // phaser budget for this resolution
   const clean = { groups: (p.groups || []).map(g => ({ ...g, members: g.members.map(m => {
     const s = byId(m.shipId), el = eligForTarget(s, byId(g.targetShipId));
-    return { shipId: m.shipId, mountIds: m.mountIds.filter(id => { const mt = s.mounts.find(x => x.id === id); return el[id] && el[id].available && isCharged(s, id, mt.cls) && armedOk(s, id, mt.cls); }) };
+    return { shipId: m.shipId, mountIds: m.mountIds.filter(id => {
+      const mt = s.mounts.find(x => x.id === id); if (!(el[id] && el[id].available)) return false;
+      if (isPhaser(mt.cls)) { if (capLeft[s.id] < PHASER_FIRE_COST) return false; capLeft[s.id] -= PHASER_FIRE_COST; return true; }
+      return isCharged(s, id, mt.cls) && armedOk(s, id, mt.cls);   // heavy weapons: armed + not yet fired this turn
+    }) };
   }) })) };
   const overloadFn = (sid, mid) => !!(byId(sid)?.armed?.[mid]?.overload);   // overloaded heavy weapons hit harder, shorter range
-  const res = resolveAttackPlan(clean, ships, shipMountsMap(), models, undefined, overloadFn);
-  res.log.filter(l => l.kind === 'shot').forEach(l => { const s = byId(l.firer); if (s) s.firedAt[l.mount] = { turn: clock.turn, impulse: clock.impulse }; affected.add(l.firer); affected.add(l.target); });
+  const reinforceOf = (tid, sh, pts) => {                                   // shield reinforcement absorbs first (per-turn, consumed)
+    const t = byId(tid); if (!t) return 0;
+    if (!t.reinfLeft) t.reinfLeft = t.reinforce ? { gen: t.reinforce.gen || 0, spec: { ...t.reinforce.spec } } : { gen: 0, spec: {} };
+    const rl = t.reinfLeft, used = Math.min(pts, (rl.spec[sh] || 0) + (rl.gen || 0));
+    let u = used; const fromSpec = Math.min(u, rl.spec[sh] || 0); rl.spec[sh] = (rl.spec[sh] || 0) - fromSpec; u -= fromSpec; rl.gen = Math.max(0, (rl.gen || 0) - u);
+    return used;
+  };
+  const res = resolveAttackPlan(clean, ships, shipMountsMap(), models, undefined, overloadFn, reinforceOf);
+  res.log.filter(l => l.kind === 'shot').forEach(l => { const s = byId(l.firer); if (s) { s.firedAt[l.mount] = { turn: clock.turn, impulse: clock.impulse }; if (isPhaser(l.cls)) s.capacitor = Math.max(0, (s.capacitor || 0) - PHASER_FIRE_COST); } affected.add(l.firer); affected.add(l.target); });
   res.volleys.forEach(v => { const s = byId(v.targetShipId); v.effects.forEach(ef => { if (ef.boxId) s.status[ef.boxId] = 'destroyed'; }); affected.add(v.targetShipId); });
   log.push(...res.log);
 }

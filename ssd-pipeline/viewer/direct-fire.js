@@ -16,7 +16,7 @@ export function resolveMount(firer, mount, target, dieFn, overload = false) {
 
 // models[shipId] is that ship's buildShipModel() result. Rolls every committed mount, buckets hits by
 // (target, struck shield), and calls applyVolley once per bucket. Returns { volleys, log }.
-export function resolveAttackPlan(plan, ships, shipMounts, models, rand = Math.random, overloadFn = null) {
+export function resolveAttackPlan(plan, ships, shipMounts, models, rand = Math.random, overloadFn = null, reinforceOf = null) {
   const byId = Object.fromEntries(ships.map(s => [s.id, s]));
   const d6 = () => 1 + Math.floor(rand() * 6);
   const dice2d6 = makeDice(rand);
@@ -42,9 +42,11 @@ export function resolveAttackPlan(plan, ships, shipMounts, models, rand = Math.r
   const volleys = [];
   for (const b of buckets.values()) {
     const model = models[b.targetShipId];
-    const effects = model ? applyVolley(model, { shield: b.shield, points: b.points }, dice2d6) : [];
-    volleys.push({ targetShipId: b.targetShipId, shield: b.shield, points: b.points, firers: [...b.firers], effects });
-    log.push({ kind: 'volley', target: b.targetShipId, shield: b.shield, points: b.points, effects });
+    const absorbed = reinforceOf ? (reinforceOf(b.targetShipId, b.shield, b.points) || 0) : 0;   // reinforcement soaks first
+    const pts = b.points - absorbed;
+    const effects = model ? applyVolley(model, { shield: b.shield, points: pts }, dice2d6) : [];
+    volleys.push({ targetShipId: b.targetShipId, shield: b.shield, points: b.points, absorbed, firers: [...b.firers], effects });
+    log.push({ kind: 'volley', target: b.targetShipId, shield: b.shield, points: b.points, absorbed, effects });
   }
   return { volleys, log };
 }

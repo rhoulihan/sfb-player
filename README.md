@@ -62,8 +62,8 @@ More ships come from ADB's other SSD books — see the full
 - ✅ **Energy allocation phase** — start-of-turn control panel (`energy-model.js` derives each
   ship's power from its SSD boxes; the 21-line EAF with sliders/toggles, a live balance meter, and
   sealed per-fleet Lock) inside `battle.html`. Movement sets speed, heavy weapons must be armed to
-  fire (with overload), and when all fleets lock, impulse 1 begins. Energy engine unit-tested.
-  *In progress:* capacitor-drawn phaser fire and shield-reinforcement application to the DAC.
+  fire (with overload), phasers fire from the charged capacitor, shield reinforcement absorbs
+  incoming damage, and when all fleets lock, impulse 1 begins. Energy engine unit-tested.
 - ⏭️ **Platform build** — authoritative Node/Express + MongoDB + Socket.IO engine per the spec.
 
 ## Repository layout
