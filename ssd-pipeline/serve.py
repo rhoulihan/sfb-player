@@ -229,6 +229,12 @@ class H(http.server.SimpleHTTPRequestHandler):
                     return self._json(200, {"ship": ship, "started": True})
                 if api == "scanstatus":
                     return self._json(200, SCAN_JOBS.get(ship, {"done": True, "error": "no scan running"}))
+                if api == "ships":
+                    d = os.path.join(ROOT, "data")
+                    ships = sorted(n for n in os.listdir(d)
+                                   if os.path.isfile(os.path.join(d, n, "detection.json")))
+                    verified = [n for n in ships if os.path.isfile(os.path.join(d, n, "verified.json"))]
+                    return self._json(200, {"ships": ships, "verified": verified})
             except Exception as e:
                 return self._json(500, {"error": str(e)})
         return super().do_GET()

@@ -10,6 +10,12 @@
   header b{font-size:15px;letter-spacing:.3px}
   header .sub{color:#94a3b8;font-size:12px}
   header .spacer{flex:1}
+  .nav{position:relative}
+  .navbtn{font:inherit;font-size:15px;background:#334155;color:#fff;border:1px solid #475569;border-radius:7px;padding:3px 9px;cursor:pointer;line-height:1.2}
+  .navmenu{display:none;position:absolute;top:120%;left:0;background:#fff;color:#0f172a;border:1px solid #cbd5e1;border-radius:8px;box-shadow:0 8px 28px rgba(0,0,0,.25);min-width:184px;z-index:200;overflow:hidden}
+  .navmenu.open{display:block}
+  .navmenu a{display:block;padding:9px 14px;text-decoration:none;color:#334155;font-size:13.5px}
+  .navmenu a:hover{background:#eff6ff;color:#2563eb}
   header select,header input,header button{font:inherit}
   main{flex:1;display:flex;min-height:0}
   #stage{flex:1;overflow:auto;background:#f8fafc;display:flex;align-items:flex-start;justify-content:center;padding:16px;position:relative}
@@ -40,6 +46,7 @@
 </style></head>
 <body>
 <header>
+  <div class="nav"><button class="navbtn" id="navBtn" title="menu">☰</button><div class="navmenu" id="navMenu"><a href="index.html">🏠 Home</a><a id="navVerify">🛠️ Verify editor</a><a id="navDamage">⚔️ Damage processor</a></div></div>
   <b id="ttl">SSD DAMAGE</b><span class="sub" id="sub"></span>
   <input id="ssdSearch" placeholder="load SSD — RACE-HULL (e.g. GOR-DD)" autocomplete="off" spellcheck="false"
     title="Type a ship as RACE-HULL and press Enter — loads it if it exists, else finds it in your PDFs and scans it"
@@ -156,6 +163,12 @@ function pollScan(s){
   }).catch(()=>setTimeout(()=>pollScan(s),1200));
 }
 document.getElementById("scanClose").onclick=()=>{document.getElementById("scanModal").style.display="none";};
+// top-bar nav dropdown (ship-aware)
+const navMenu=document.getElementById("navMenu");
+document.getElementById("navBtn").onclick=e=>{e.stopPropagation();navMenu.classList.toggle("open");};
+document.addEventListener("click",()=>navMenu.classList.remove("open"));
+document.getElementById("navVerify").href=`verify.html?ship=${encodeURIComponent(ship)}`;
+document.getElementById("navDamage").href=`damage.html?ship=${encodeURIComponent(ship)}`;
 const labelText=id=>{const o=labelOv[id]; return o!==undefined?o:(labels[id]||"");};   // user edits win over OCR
 
 function render(){

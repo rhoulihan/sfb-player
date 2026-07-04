@@ -12,6 +12,12 @@
   header{display:flex;align-items:center;gap:10px;background:var(--slate);color:#fff;padding:6px 12px;border-bottom:3px solid var(--red)}
   header b{font-size:14px}header small{color:#cbd5e1}
   .sp{flex:1}
+  .nav{position:relative}
+  .navbtn{font:inherit;font-size:15px;background:#475569;color:#fff;border:1px solid #64748b;border-radius:7px;padding:3px 9px;cursor:pointer;line-height:1.2}
+  .navmenu{display:none;position:absolute;top:120%;left:0;background:#fff;color:#0f172a;border:1px solid #cbd5e1;border-radius:8px;box-shadow:0 8px 28px rgba(0,0,0,.25);min-width:184px;z-index:200;overflow:hidden}
+  .navmenu.open{display:block}
+  .navmenu a{display:block;padding:9px 14px;text-decoration:none;color:#334155;font-size:13.5px}
+  .navmenu a:hover{background:#eff6ff;color:#2563eb}
   .tool{display:flex;border:1px solid #64748b;border-radius:7px;overflow:hidden}
   .tool button{font:inherit;font-size:12px;border:0;background:#475569;color:#cbd5e1;padding:5px 11px;cursor:pointer}
   .tool button.on{background:var(--blue);color:#fff;font-weight:700}
@@ -61,6 +67,7 @@
 <body>
 <div class="app">
   <header>
+    <div class="nav"><button class="navbtn" id="navBtn" title="menu">☰</button><div class="navmenu" id="navMenu"><a href="index.html">🏠 Home</a><a id="navVerify">🛠️ Verify editor</a><a id="navDamage">⚔️ Damage processor</a></div></div>
     <b id="ttl">B4 VERIFY</b><small id="sub"></small>
     <input id="ssdSearch" placeholder="load SSD — RACE-HULL (e.g. GOR-DD)" autocomplete="off" spellcheck="false"
       title="Type a ship as RACE-HULL and press Enter — loads it if it exists, else finds it in your PDFs and scans it"
@@ -504,6 +511,12 @@ function pollScan(s){
   }).catch(()=>setTimeout(()=>pollScan(s),1200));
 }
 document.getElementById("scanClose").onclick=()=>{document.getElementById("scanModal").style.display="none";};
+// top-bar nav dropdown (ship-aware)
+const navMenu=document.getElementById("navMenu");
+document.getElementById("navBtn").onclick=e=>{e.stopPropagation();navMenu.classList.toggle("open");};
+document.addEventListener("click",()=>navMenu.classList.remove("open"));
+document.getElementById("navVerify").href=`verify.html?ship=${encodeURIComponent(ship)}`;
+document.getElementById("navDamage").href=`damage.html?ship=${encodeURIComponent(ship)}`;
 document.addEventListener("keydown",e=>{if(e.target.tagName==="INPUT"||e.target.tagName==="SELECT")return;if(e.key==="Escape"){document.getElementById("arcModal").classList.remove("open");sel=new Set();renderAll();}
   const g=gById(curG);if(g&&e.key>="1"&&e.key<="9"&&FAMS[+e.key-1]){g.family=FAMS[+e.key-1];renderAll();}
   if(g&&e.key==="v"){g.verified=!g.verified;renderAll();}});

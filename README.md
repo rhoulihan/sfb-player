@@ -35,9 +35,9 @@ More ships come from ADB's other SSD books — see the full
 3. Launch the tooling:
    ```bash
    python3 ssd-pipeline/serve.py
+   #  → http://127.0.0.1:8741/viewer/                          (home — pick a ship, or scan a new one)
    #  → http://127.0.0.1:8741/viewer/verify.html?ship=FED-CA   (verify editor)
    #  → http://127.0.0.1:8741/viewer/damage.html?ship=FED-CA   (damage processor)
-   #  → http://127.0.0.1:8741/viewer/index.html?ship=FED-CA    (read-only viewer)
    ```
    Run the engine's unit tests with `node --test ssd-pipeline/test/*.test.mjs` (30 tests, no deps).
 
@@ -64,7 +64,7 @@ More ships come from ADB's other SSD books — see the full
 | `ssd-pipeline/viewer/ssd-engine.js` | Shared render engine (taxonomy + cell geometry) |
 | `ssd-pipeline/viewer/{dac,ship-model,arc-geom,dac-allocator}.js` | Damage rules engine (D3.6–D4.4) |
 | `ssd-pipeline/test/*.test.mjs` | Node unit tests for the rules engine (D4.5 gate, leaky, tracks, excess…) |
-| `ssd-pipeline/viewer/index.html` | Read-only SSD viewer |
+| `ssd-pipeline/viewer/index.html` | Landing page — pick a ship (or scan a new one), open the editor or damage processor |
 | `ssd-pipeline/data/<ship>/` | Per ship: `detection.json`, `verified.json`, `boxlabels.json` (`image.png` is generated locally, **not** shipped) |
 | `ssd-pipeline/scripts/` | One-off dev scripts (PDF page finder, per-ship verification passes) |
 | `tasks/` | Running build log |
