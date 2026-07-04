@@ -55,12 +55,17 @@ export function planEligibility(plan) {
   return map;
 }
 
-// nominal (pre-roll) damage for the preview: phasers show best-case grid value, bolts show the warhead
+// expected (pre-roll) damage for the preview: phasers average over the 6 equally-likely die rows;
+// hit-or-miss bolts weight the warhead by hit probability (so photons don't count as guaranteed hits)
 function nominal(cls, trueRange) {
   const def = WEAPONS[cls]; if (!def) return 0;
   const bi = bandIndex(def, trueRange); if (bi < 0) return 0;
-  if (def.resolution === 'range-of-effect') return Math.max(...def.effectGrid.map(row => row[bi] || 0));
-  return def.fixedDamage[bi] || 0;
+  if (def.resolution === 'range-of-effect') {
+    const col = def.effectGrid.map(row => row[bi] || 0);
+    return col.reduce((a, v) => a + v, 0) / col.length;
+  }
+  const hb = def.hitBand1d[bi]; if (!hb) return 0;
+  return ((hb[1] - hb[0] + 1) / 6) * (def.fixedDamage[bi] || 0);
 }
 
 export function combinedPreview(group, ships, shipMounts) {

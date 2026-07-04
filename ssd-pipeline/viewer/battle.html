@@ -121,7 +121,7 @@
   <div class="tray">
     <div class="plan">
       <div class="acts">
-        <button class="btn fire" id="fireBtn" disabled>⚡ Fire this impulse (6D)</button>
+        <button class="btn fire" id="fireBtn" disabled>⚡ Commit firing plan</button>
         <span id="planStatus" style="color:#94a3b8"></span>
       </div>
       <div id="planBody" class="hint">Form fire groups to see the combined-damage preview, then Fire (6D).</div>
@@ -190,6 +190,7 @@ const COLS = 42, ROWS = 30, COLORS = ['#2563eb', '#16a34a', '#d97706', '#7c3aed'
 const map = document.getElementById('map');
 let ships = [], plan = newPlan(), workingId = null, activeId = null, selectedId = null, dragging = null, zoom = 0.5, gridBuilt = false;
 let rev = 0, myCode = '', shipRev = {};   // rev: poll change-detection; shipRev: per-ship version for optimistic locking
+let committed = {}, myCommitted = false, lastFireShown = 0;   // 6D fire commits: fire resolves once all fleets commit
 let clock = { turn: 1, impulse: 0 };   // impulse 0 = pre-start setup phase
 let testMode = false;                   // when on, any ship (incl. enemy/target) can be turned
 let myFleet = 'friendly';               // which fleet the local commander controls
@@ -218,7 +219,7 @@ function pruneUnavailable() {
   }
 }
 // select every in-arc mount across the working group's ships
-function alphaStrike() { const g = working(); if (!g || !g.targetShipId) return; g.members.forEach(m => autoSelectShip(g, m.shipId)); render(); saveSoon(...g.members.map(m => m.shipId)); }
+function alphaStrike() { if (myCommitted) return; const g = working(); if (!g || !g.targetShipId) return; g.members.forEach(m => autoSelectShip(g, m.shipId)); render(); saveSoon(...g.members.map(m => m.shipId)); }
 
 let battleDefs = [];   // the ship setup this engagement started from (for Reset)
 async function hydrate(d) {
@@ -287,6 +288,7 @@ function applyRemote(data) {
   clock = { turn: data.turn || 1, impulse: data.impulse ?? 0 };
   if (data.myFleet) myFleet = data.myFleet;
   if (data.fleets) fleets = { friendly: { ...fleets.friendly, name: data.fleets.friendly?.name }, enemy: { ...fleets.enemy, name: data.fleets.enemy?.name } };
+  if (data.committed) { committed = data.committed; if (!committed[myFleet]) myCommitted = false; }   // fire resolved / new impulse → uncommit
   plan = data.plans?.[myFleet] || plan || newPlan();
   if (workingId && !plan.groups.some(g => g.id === workingId)) workingId = null;
   for (const sd of data.ships || []) {
@@ -298,7 +300,9 @@ function applyRemote(data) {
     s.firedAt = {}; for (const [mid, w] of Object.entries(sd.weapons || {})) if (w && w.firedAt) s.firedAt[mid] = w.firedAt;
     s.model = null;
   }
-  rev = data.rev || rev; render(); applying = false;
+  rev = data.rev || rev;
+  if (data.lastFire && data.lastFire.id && data.lastFire.id !== lastFireShown) { lastFireShown = data.lastFire.id; renderLog({ log: data.lastFire.log || [] }, true); }   // show the resolver's fire result
+  render(); applying = false;
 }
 let toastT = 0;
 function notifyConflict() {
@@ -318,6 +322,7 @@ function startPolling() {
 const isDead = s => shipHealth(s) <= 0;
 function stepImpulse() {
   clock.impulse++;
+  myCommitted = false; committed = {};                            // new impulse → fresh firing commits
   if (clock.impulse > 32) { clock.impulse = 1; clock.turn++; }   // recharge is time-based (firedAt); turn-mode counter is continuous
   for (const s of ships) {
     if (isDead(s) || !movesOnImpulse(s.speed, clock.impulse)) continue;
@@ -478,13 +483,17 @@ function renderTray() {
     body.className = '';
     body.innerHTML = withTarget.map(g => {
       const pv = combinedPreview(g, ships, shipMountsMap()); const t = byId(g.targetShipId);
-      const rows = pv.perShield.map(r => `shield #${r.shield}: <b>${r.nominal}</b> nominal <span style="color:#94a3b8">(${r.firers.join('+')} vs ${t.shields[r.shield - 1]} boxes)</span>`).join(' · ');
-      return `<div class="prev"><span style="color:${g.color};font-weight:700">${g.id}</span> → ${t.id}: ${rows} <span style="color:#94a3b8">— nominal (pre-roll)</span></div>`;
+      const rows = pv.perShield.map(r => `shield #${r.shield}: <b>${r.nominal.toFixed(1)}</b> exp <span style="color:#94a3b8">(${r.firers.join('+')} vs ${t.shields[r.shield - 1]} boxes)</span>`).join(' · ');
+      return `<div class="prev"><span style="color:${g.color};font-weight:700">${g.id}</span> → ${t.id}: ${rows} <span style="color:#94a3b8">— expected damage (hit-weighted)</span></div>`;
     }).join('');
   }
   const nMounts = withTarget.reduce((a, g) => a + g.members.reduce((b, m) => b + m.mountIds.length, 0), 0);
-  document.getElementById('fireBtn').disabled = !nMounts;
-  document.getElementById('planStatus').textContent = nMounts ? `${nMounts} mount${nMounts !== 1 ? 's' : ''} ready · Turn ${clock.turn} Imp ${clock.impulse}` : '';
+  const fb = document.getElementById('fireBtn');
+  fb.disabled = myCommitted;
+  fb.textContent = myCommitted ? '✓ Committed — waiting' : nMounts ? '⚡ Commit firing plan' : '⚡ Commit (no fire)';
+  document.getElementById('planStatus').textContent = testMode
+    ? `${nMounts} mount${nMounts !== 1 ? 's' : ''} ready (test — resolves immediately)`
+    : ['friendly', 'enemy'].map(s => `${fleets[s]?.name || s} ${committed[s] ? '✓ committed' : '…'}`).join('  ·  ');
 }
 
 // ---------- interactions ----------
@@ -493,6 +502,7 @@ function autoSelectShip(g, shipId) {
   for (const mt of s.mounts) if (el[mt.id] && el[mt.id].available && isCharged(s, mt.id, mt.cls) && !assigned.has(mt.id)) assignMount(plan, g.id, shipId, mt.id);
 }
 function onShipClick(s) {
+  if (myCommitted) return;                                // firing plan is committed & final this impulse
   let touched = [];
   if (!isMine(s)) {                                       // opponent ship → set as the working group's target
     const g = working();
@@ -530,13 +540,14 @@ document.getElementById('fleet').addEventListener('click', e => { if (e.target.c
 document.getElementById('fleet').addEventListener('change', e => { const sp = e.target.closest('.spin'); if (!sp) return; const s = byId(sp.dataset.spd); if (s) { s.speed = Math.max(0, Math.min(32, parseInt(sp.value) || 0)); render(); saveSoon(s.id); } });
 
 document.getElementById('groups').addEventListener('click', e => {
+  if (myCommitted && e.target.closest('[data-del]')) return;   // plan is committed & final
   const del = e.target.closest('[data-del]'); if (del) { const dg = plan.groups.find(g => g.id === del.dataset.del); const ids = dg ? dg.members.map(m => m.shipId) : []; plan.groups = plan.groups.filter(g => g.id !== del.dataset.del); if (workingId === del.dataset.del) workingId = plan.groups.length ? plan.groups[plan.groups.length - 1].id : null; render(); saveSoon(...ids); return; }
   const gh = e.target.closest('[data-grp]'); if (gh) { workingId = gh.dataset.grp; render(); }
 });
-document.getElementById('newGrp').onclick = () => { const g = newGroup('G' + (plan.groups.length + 1), COLORS[plan.groups.length % COLORS.length]); plan.groups.push(g); workingId = g.id; render(); };   // empty group persists once a mount is assigned
+document.getElementById('newGrp').onclick = () => { if (myCommitted) return; const g = newGroup('G' + (plan.groups.length + 1), COLORS[plan.groups.length % COLORS.length]); plan.groups.push(g); workingId = g.id; render(); };   // empty group persists once a mount is assigned
 
 document.getElementById('mounts').addEventListener('change', e => {
-  const cb = e.target.closest('[data-mount]'); if (!cb) return; const g = working(); if (!g) return; const id = cb.dataset.mount;
+  const cb = e.target.closest('[data-mount]'); if (!cb) return; if (myCommitted) { render(); return; } const g = working(); if (!g) return; const id = cb.dataset.mount;
   if (cb.checked) {
     const res = assignMount(plan, g.id, activeId, id);
     if (res.conflict) { if (confirm(`That mount is committed to ${res.conflict.fromGroupId}. Move it to ${g.id}?`)) assignMount(plan, g.id, activeId, id, { force: true }); else cb.checked = false; }
@@ -549,7 +560,7 @@ document.getElementById('mounts').addEventListener('click', e => {
   const wm = working().members.map(m => m.shipId); activeId = wm[(wm.indexOf(activeId) + (+b.dataset.page) + wm.length) % wm.length]; render();
 });
 
-document.getElementById('fireBtn').onclick = () => fire6D();
+document.getElementById('fireBtn').onclick = () => commitFiring();
 
 // nav + reset
 const navMenu = document.getElementById('navMenu');
@@ -611,18 +622,48 @@ document.getElementById('ssdClose').onclick = () => { document.getElementById('s
 fetch('weapons.html', { method: 'HEAD' }).then(r => { if (!r.ok) throw 0; }).catch(() => document.querySelectorAll('a[href="weapons.html"]').forEach(a => a.remove()));
 
 // ---------- direct fire (6D of each impulse) — cached target models so damage accumulates across impulses ----------
-function fire6D() {
-  const models = {};
-  for (const g of plan.groups) { const t = byId(g.targetShipId); if (t) models[t.id] = t.model || (t.model = buildShipModel(t._ver, t._det)); }
-  const clean = { groups: plan.groups.map(g => ({ ...g, members: g.members.map(m => {
+// resolve one fleet's plan into shared models/log/affected (cached models keep pre-fire shields for simultaneity)
+function resolvePlanInto(p, models, log, affected) {
+  const mk = t => t.model || (t.model = buildShipModel(t._ver, t._det));
+  for (const g of (p.groups || [])) { const t = byId(g.targetShipId); if (t) models[t.id] = mk(t); }
+  const clean = { groups: (p.groups || []).map(g => ({ ...g, members: g.members.map(m => {
     const s = byId(m.shipId), el = eligForTarget(s, byId(g.targetShipId));
     return { shipId: m.shipId, mountIds: m.mountIds.filter(id => { const mt = s.mounts.find(x => x.id === id); return el[id] && el[id].available && isCharged(s, id, mt.cls); }) };
   }) })) };
   const res = resolveAttackPlan(clean, ships, shipMountsMap(), models);
-  const affected = new Set();
-  res.log.filter(l => l.kind === 'shot').forEach(l => { const s = byId(l.firer); if (s) s.firedAt[l.mount] = { turn: clock.turn, impulse: clock.impulse }; affected.add(l.firer); affected.add(l.target); });   // timestamped discharge
+  res.log.filter(l => l.kind === 'shot').forEach(l => { const s = byId(l.firer); if (s) s.firedAt[l.mount] = { turn: clock.turn, impulse: clock.impulse }; affected.add(l.firer); affected.add(l.target); });
   res.volleys.forEach(v => { const s = byId(v.targetShipId); v.effects.forEach(ef => { if (ef.boxId) s.status[ef.boxId] = 'destroyed'; }); affected.add(v.targetShipId); });
-  pruneUnavailable(); render(); renderLog(res, true); save([...affected]);   // firers (charge) + targets (damage)
+  log.push(...res.log);
+}
+function commitFiring() {
+  if (myCommitted) return;
+  if (!confirm('Commit your firing plan for this impulse?\n\nThis is FINAL — you cannot change your fire groups until all fleets have committed and direct fire resolves.')) return;
+  if (testMode) { fireNow(); return; }                 // solo sandbox: no other players to wait for
+  myCommitted = true; render(); postCommit();
+}
+function fireNow() {                                    // resolve my own plan immediately (solo/test)
+  const models = {}, log = [], affected = new Set();
+  resolvePlanInto(plan, models, log, affected);
+  pruneUnavailable(); render(); renderLog({ log }, true); save([...affected]);
+}
+async function postCommit() {
+  try {
+    const j = await (await fetch('/api/battle', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: myCode, kind: 'commit', plan }) })).json();
+    if (j.rev) rev = j.rev; if (j.committed) committed = j.committed;
+    if (j.resolve) await resolveAll(j.plans);          // my commit completed the set — I am the resolver
+    render();
+  } catch { myCommitted = false; render(); }
+}
+async function resolveAll(plans) {                      // single resolver: both fleets fire simultaneously vs pre-fire state
+  const models = {}, log = [], affected = new Set();
+  for (const side of ['friendly', 'enemy']) if (plans[side]) resolvePlanInto(plans[side], models, log, affected);
+  myCommitted = false; lastFireShown = Date.now();
+  pruneUnavailable(); render(); renderLog({ log }, true);
+  try {
+    const body = { code: myCode, kind: 'fireResult', ships: ships.map(serializeShip), lastFire: { turn: clock.turn, impulse: clock.impulse, id: lastFireShown, log } };
+    const j = await (await fetch('/api/battle', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })).json();
+    if (j.rev) rev = j.rev; for (const [id, nr] of Object.entries(j.ships || {})) shipRev[id] = nr;
+  } catch {}
 }
 function renderLog(res, append) {
   const L = document.getElementById('log');

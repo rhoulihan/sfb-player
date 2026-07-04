@@ -277,7 +277,8 @@ def battle_view(data, my_fleet):
     plans = {}
     if my_fleet: plans[my_fleet] = (data.get("plans", {}) or {}).get(my_fleet, {"groups": []})
     return {"rev": data.get("rev", 0), "turn": data.get("turn", 1), "impulse": data.get("impulse", 0),
-            "fleets": fleets, "myFleet": my_fleet, "plans": plans, "ships": data.get("ships", [])}
+            "fleets": fleets, "myFleet": my_fleet, "plans": plans, "ships": data.get("ships", []),
+            "committed": data.get("committed", {}), "lastFire": data.get("lastFire")}
 
 def merge_plan(current, posted, touched):
     """Per-ship merge: touched ships take their fire assignments from `posted`; other ships keep `current`."""
@@ -311,6 +312,27 @@ def apply_battle_post(payload):
             return 200, {"ok": True, "rev": 1, "ships": {s["id"]: 0 for s in data.get("ships", [])}}
         my = _fleet_for_code(cur, payload.get("code", ""))
         if my is None: return 403, {"error": "invalid commander code"}
+        if kind == "commit":                                            # lock in this fleet's firing plan for the impulse
+            committed = cur.get("committed", {}) or {}
+            was_all = all(committed.get(s) for s in ("friendly", "enemy"))
+            committed[my] = True
+            plans = cur.get("plans", {}) or {}
+            if payload.get("plan") is not None: plans[my] = payload["plan"]
+            cur["committed"] = committed; cur["plans"] = plans; cur["rev"] = cur.get("rev", 0) + 1
+            with open(_battle_path(), "w") as f: json.dump(cur, f, indent=1)
+            now_all = all(committed.get(s) for s in ("friendly", "enemy"))
+            resp = {"ok": True, "rev": cur["rev"], "allCommitted": now_all, "committed": committed}
+            if now_all and not was_all:                                 # this commit completed the set → resolve here
+                resp["resolve"] = True
+                resp["plans"] = {s: (plans.get(s) or {"groups": []}) for s in ("friendly", "enemy")}
+                resp["ships"] = cur.get("ships", [])
+            return 200, resp
+        if kind == "fireResult":                                        # authoritative simultaneous resolution (single writer)
+            ships = payload.get("ships", cur.get("ships", []))
+            for s in ships: s["rev"] = s.get("rev", 0) + 1
+            cur["ships"] = ships; cur["committed"] = {}; cur["lastFire"] = payload.get("lastFire"); cur["rev"] = cur.get("rev", 0) + 1
+            with open(_battle_path(), "w") as f: json.dump(cur, f, indent=1)
+            return 200, {"ok": True, "rev": cur["rev"], "ships": {s["id"]: s["rev"] for s in ships}}
         curships = {s["id"]: s for s in cur.get("ships", [])}
         posted = payload.get("ships", [])
         if kind != "step":                                              # check every affected ship's version
@@ -330,7 +352,9 @@ def apply_battle_post(payload):
         result = {"rev": cur.get("rev", 0) + 1,
                   "turn": payload.get("turn", cur.get("turn", 1)) if kind == "step" else cur.get("turn", 1),
                   "impulse": payload.get("impulse", cur.get("impulse", 0)) if kind == "step" else cur.get("impulse", 0),
-                  "fleets": cur.get("fleets", {}), "plans": plans, "ships": list(curships.values())}
+                  "fleets": cur.get("fleets", {}), "plans": plans, "ships": list(curships.values()),
+                  "committed": {} if kind == "step" else cur.get("committed", {}),   # new impulse clears commits
+                  "lastFire": cur.get("lastFire")}
         with open(_battle_path(), "w") as f: json.dump(result, f, indent=1)
         return 200, {"ok": True, "rev": result["rev"], "ships": newrevs}
 
