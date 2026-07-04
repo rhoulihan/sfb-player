@@ -24,3 +24,24 @@ export function bearingDeg(a, b) {
 }
 
 export const GEOM = { SIZE, HW, HH, OX, OY };
+
+import { arcCoversBearing } from './arc-geom.js';
+
+export const headingDeg = f => (((f % 6) * 60) % 360 + 360) % 360;
+
+export function localBearing(firer, target) {
+  return (((bearingDeg(firer, target) - headingDeg(firer.facing)) % 360) + 360) % 360;
+}
+
+export function isInArc(firer, mount, target) {
+  const lb = localBearing(firer, target);
+  const arcs = (mount.arc && mount.arc.arcs) || [];
+  for (const a of arcs) if (arcCoversBearing(a, lb)) return { inArc: true, covering: a };
+  return { inArc: false };
+}
+
+// which of the target's six facings faces the firer (D3.402 approximation by 60° sector)
+export function exposedShield(firer, target) {
+  const lb = (((bearingDeg(target, firer) - headingDeg(target.facing)) % 360) + 360) % 360;
+  return ((Math.round(lb / 60) % 6) + 6) % 6 + 1;     // #1 = front (0°), clockwise
+}

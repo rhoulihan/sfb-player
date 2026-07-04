@@ -29,3 +29,28 @@ test('bearingDeg normalizes into [0,360): due north is ~270°', () => {
   const north = bearingDeg({q:0,r:0},{q:0,r:-4});
   assert.ok(Math.abs(north - 270) < 1, 'north ≈ 270°, not -90');
 });
+
+import { isInArc, exposedShield, localBearing } from '../viewer/battle-geom.js';
+
+const ship = (q, r, facing) => ({ q, r, facing });
+const mount = (...arcs) => ({ arc: { arcs } });
+
+test('a target dead ahead is in a front-hemisphere arc, not a rear arc', () => {
+  const firer = ship(0, 0, 0);                 // facing 0 = heading 0° = east
+  const tgt = ship(2, 0, 0);                    // due east (even column, no odd-q offset) → local bearing ~0°
+  assert.ok(Math.abs(localBearing(firer, tgt)) < 1);
+  assert.equal(isInArc(firer, mount('FH'), tgt).inArc, true, 'front hemisphere covers dead-ahead');
+  assert.equal(isInArc(firer, mount('RA'), tgt).inArc, false, 'rear arc does not');
+});
+
+test('exposedShield: firer dead ahead of a target strikes shield #1 (front)', () => {
+  const target = ship(0, 0, 0);                 // target faces east
+  const firer = ship(3, 0, 0);                  // firer is to the target's east = its front
+  assert.equal(exposedShield(firer, target), 1);
+});
+
+test('exposedShield: firer behind the target strikes shield #4 (rear)', () => {
+  const target = ship(3, 0, 0);                 // faces east
+  const firer = ship(0, 0, 0);                  // firer is to the west = target rear
+  assert.equal(exposedShield(firer, target), 4);
+});
