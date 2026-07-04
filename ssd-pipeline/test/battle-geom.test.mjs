@@ -35,22 +35,33 @@ import { isInArc, exposedShield, localBearing } from '../viewer/battle-geom.js';
 const ship = (q, r, facing) => ({ q, r, facing });
 const mount = (...arcs) => ({ arc: { arcs } });
 
+test('each facing points straight at an adjacent hex (edge/neighbour direction, not a corner)', () => {
+  // even-column odd-q neighbour offsets in facing order 0..5 = SE, S, SW, NW, N, NE
+  const nb = [[1, 0], [0, 1], [-1, 0], [-1, -1], [0, -1], [1, -1]];
+  const base = { q: 4, r: 4 };
+  for (let f = 0; f < 6; f++) {
+    const firer = { ...base, facing: f };
+    const tgt = ship(base.q + nb[f][0], base.r + nb[f][1], 0);
+    assert.ok(Math.abs(localBearing(firer, tgt)) < 1, `facing ${f} aims dead-ahead at its forward neighbour`);
+  }
+});
+
 test('a target dead ahead is in a front-hemisphere arc, not a rear arc', () => {
-  const firer = ship(0, 0, 0);                 // facing 0 = heading 0° = east
-  const tgt = ship(2, 0, 0);                    // due east (even column, no odd-q offset) → local bearing ~0°
+  const firer = ship(2, 5, 4);                  // facing 4 = North (straight up)
+  const tgt = ship(2, 2, 4);                     // straight up the column → local bearing ~0°
   assert.ok(Math.abs(localBearing(firer, tgt)) < 1);
   assert.equal(isInArc(firer, mount('FH'), tgt).inArc, true, 'front hemisphere covers dead-ahead');
   assert.equal(isInArc(firer, mount('RA'), tgt).inArc, false, 'rear arc does not');
 });
 
 test('exposedShield: firer dead ahead of a target strikes shield #1 (front)', () => {
-  const target = ship(0, 0, 0);                 // target faces east
-  const firer = ship(3, 0, 0);                  // firer is to the target's east = its front
+  const target = ship(2, 5, 4);                 // faces North
+  const firer = ship(2, 2, 4);                  // north of target = its front
   assert.equal(exposedShield(firer, target), 1);
 });
 
 test('exposedShield: firer behind the target strikes shield #4 (rear)', () => {
-  const target = ship(3, 0, 0);                 // faces east
-  const firer = ship(0, 0, 0);                  // firer is to the west = target rear
+  const target = ship(2, 5, 4);                 // faces North
+  const firer = ship(2, 8, 4);                  // south of target = its rear
   assert.equal(exposedShield(firer, target), 4);
 });

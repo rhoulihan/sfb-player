@@ -22,7 +22,8 @@ test('resolveMount at long range beyond a phaser table returns 0 points', () => 
 });
 
 test('resolveAttackPlan stacks two firers on one shield into a single volley (D4.34)', () => {
-  const ships = [ ship('F1', 0, 4, 0), ship('F2', 0, 5, 0), ship('E1', 6, 4, 3) ];
+  // two friendly ships north of a north-facing target both strike its front shield #1
+  const ships = [ ship('F1', 6, 4, 1), ship('F2', 5, 4, 1), ship('E1', 6, 8, 4) ];
   const shipMounts = {
     F1: [{ id: 'F1.DISR.0', cls: 'DISR', arc: { arcs: ['FH'] } }],
     F2: [{ id: 'F2.DISR.0', cls: 'DISR', arc: { arcs: ['FH'] } }],

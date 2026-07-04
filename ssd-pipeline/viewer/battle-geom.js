@@ -27,7 +27,10 @@ export const GEOM = { SIZE, HW, HH, OX, OY };
 
 import { arcCoversBearing } from './arc-geom.js';
 
-export const headingDeg = f => (((f % 6) * 60) % 360 + 360) % 360;
+// Flat-top odd-q hexes: the 6 neighbours lie at 30/90/150/210/270/330° (edge/spine directions),
+// NOT at the 0/60/… corners. So a ship's facing points at an adjacent hex, not a vertex.
+// f: 0=SE 1=S 2=SW 3=NW 4=N 5=NE
+export const headingDeg = f => (((f % 6) * 60 + 30) % 360 + 360) % 360;
 
 export function localBearing(firer, target) {
   return (((bearingDeg(firer, target) - headingDeg(firer.facing)) % 360) + 360) % 360;
