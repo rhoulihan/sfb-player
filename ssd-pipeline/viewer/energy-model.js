@@ -6,7 +6,7 @@ import { shipLoadout } from './ship-loadout.js';
 
 export const PER_BOX_OUTPUT = { 'warp-engine': 1, 'impulse-engine': 1, 'apr': 1 };   // power per undestroyed box
 export const LIFE_SUPPORT = { 1: 3, 2: 1.5, 3: 1, 4: 0.5, 5: 0 };                    // by size class (B3.3)
-export const WEAPON_ARM = { PHOTON: { arm: 2, overload: 4 }, DISR: { arm: 1, overload: 2 } }; // per-turn cost
+export const WEAPON_ARM = { PHOTON: { arm: 2, overload: 4 }, DISR: { arm: 2, overload: 4 } }; // per-turn arming cost (disruptor at photon parity, E3.5 — calibration-flagged)
 export const CAP_PER_PHASER = { 'PH-1': 1, 'PH-2': 1, 'PH-3': 0.5 };                 // capacitor capacity (H6.21)
 export const SHIP_PROFILES = {   // size class + movement cost per ship code (default SC3 / cost 1)
   'FED-CA': { sizeClass: 3, moveCost: 1 }, 'FED-CL': { sizeClass: 3, moveCost: 1 },
@@ -45,14 +45,16 @@ export function shipPower(code, verified, detection) {
 
 export function lifeSupportCost(power) { return LIFE_SUPPORT[power.sizeClass] ?? 0; }
 
-// the default "charge / hold / power all" column each turn opens with (spec §1.3)
-export function newEafColumn(power, prevSpeed = 0) {
+// the default "charge / hold / power all" column each turn opens with (spec §1.3).
+// carried = phaser-capacitor charge left from last turn (H6 carry-over); the capacitor only needs
+// topping up to full, so default fill = capacitorCap - carried.
+export function newEafColumn(power, prevSpeed = 0, carried = 0) {
   const weapons = {};
   for (const w of power.weapons) weapons[w.id] = { armed: true, overload: false };
   return {
     lifeSupport: lifeSupportCost(power),
     fireControl: power.systems.fireControl ? 1 : 0,
-    phaserCap: power.capacitorCap,
+    phaserCap: Math.max(0, power.capacitorCap - carried),
     weapons,
     shieldsActive: true,
     genReinf: 0,

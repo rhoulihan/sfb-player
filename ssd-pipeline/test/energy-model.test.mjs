@@ -10,15 +10,22 @@ const load = c => shipPower(
 );
 
 test('shipPower derives production, capacitor, and weapons from the SSD', () => {
+  // Golden vectors from OUR verified SSD data (flat 1-power/box model; calibrated in the plan's
+  // final task). Fed CA: 30 warp + 4 impulse + 2 apr = 36; 4 batteries.
   const fed = load('FED-CA');
   assert.equal(fed.warp, 30, 'Fed CA warp boxes');
-  assert.equal(fed.total, fed.warp + fed.impulse + fed.apr, 'total = warp+impulse+apr');
-  assert.equal(fed.capacitorCap, 9, 'Fed CA capacitor: 8×PH-1 + 2×PH-3(0.5) = 9');
+  assert.equal(fed.impulse, 4); assert.equal(fed.apr, 2);
+  assert.equal(fed.total, 36, 'Fed CA total power (calibration anchor)');
+  assert.equal(fed.batteries, 4, 'Fed CA battery cells');
+  assert.equal(fed.capacitorCap, 9, 'Fed CA capacitor: 8×PH-1 + 2×PH-3(0.5) = 9 (our SSD fit)');
   assert.equal(fed.weapons.filter(w => w.cls === 'PHOTON').length, 4, 'Fed CA photons');
   assert.equal(fed.sizeClass, 3);
   assert.ok(fed.systems.shuttles > 0 && fed.systems.tractor && fed.systems.transporter);
 
+  // Klingon D7: 30 warp + 5 impulse + 4 apr = 39; 3 batteries; 9× PH-2 capacitor.
   const kli = load('KLI-D7');
+  assert.equal(kli.total, 39, 'Klingon D7 total power (calibration anchor)');
+  assert.equal(kli.batteries, 3);
   assert.equal(kli.capacitorCap, 9, 'Klingon D7 capacitor: 9×PH-2 = 9');
   assert.equal(kli.weapons.filter(w => w.cls === 'DISR').length, 4, 'Klingon D7 disruptors');
 });
@@ -34,4 +41,6 @@ test('lifeSupportCost is by size class; newEafColumn defaults to charge/hold/pow
   assert.equal(col.movement, 8 * fed.moveCost, 'movement funds prev speed');
   assert.equal(col.fireControl, 1, 'fire control full when the ship has it');
   assert.deepEqual(col.specReinf, { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 });
+  // carried capacitor charge from last turn: the default only tops up the remaining room (H6 carry-over)
+  assert.equal(newEafColumn(fed, 8, 4).phaserCap, fed.capacitorCap - 4, 'phaserCap fills only the empty room');
 });
