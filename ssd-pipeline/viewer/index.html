@@ -14,7 +14,7 @@
   .picker label{font-weight:600;font-size:13px;color:#334155}
   .picker select,.picker input{font:inherit;font-size:14px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;background:#fff}
   .picker .or{color:#94a3b8;font-size:13px}
-  .cards{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(232px,1fr));gap:18px}
   .card{background:#fff;border:1px solid #cbd5e1;border-radius:12px;padding:22px;text-decoration:none;color:inherit;box-shadow:0 2px 10px rgba(15,23,42,.06);transition:.15s;display:block}
   .card:hover{box-shadow:0 8px 26px rgba(15,23,42,.15);transform:translateY(-2px);border-color:#2563eb}
   .card .icon{font-size:30px;line-height:1}
@@ -47,6 +47,7 @@
   <div class="cards">
     <a class="card" id="cardVerify"><div class="icon">🛠️</div><h2>Verify Editor</h2><p>Assign each system a DAC family, set firing arcs, edit box labels, and tidy the overlay onto the real SSD.</p><div class="go">Open editor →</div></a>
     <a class="card" id="cardDamage"><div class="icon">⚔️</div><h2>Damage Processor</h2><p>Apply a volley through the full Damage Allocation Chart (shields → armor → internals) and watch the SSD update.</p><div class="go">Open processor →</div></a>
+    <a class="card" href="battle.html"><div class="icon">🚀</div><h2>Direct-Fire Sandbox</h2><p>Position two fleets on the hex map, form per-mount fire groups, and resolve direct fire through the DAC engine.</p><div class="go">Open sandbox →</div></a>
   </div>
   <p style="margin:16px 0 0;font-size:13px"><a href="weapons.html" style="color:#2563eb;text-decoration:none;font-weight:600">🎯 Weapon tables</a> <span style="color:#94a3b8">— verify &amp; edit the direct-fire damage charts against the scanned sources</span></p>
   <div class="ships">

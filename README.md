@@ -38,16 +38,23 @@ More ships come from ADB's other SSD books — see the full
    #  → http://127.0.0.1:8741/viewer/                          (home — pick a ship, or scan a new one)
    #  → http://127.0.0.1:8741/viewer/verify.html?ship=FED-CA   (verify editor)
    #  → http://127.0.0.1:8741/viewer/damage.html?ship=FED-CA   (damage processor)
+   #  → http://127.0.0.1:8741/viewer/battle.html                (direct-fire combat sandbox)
+   #  → http://127.0.0.1:8741/viewer/weapons.html               (weapon-table verify/edit)
    ```
-   Run the engine's unit tests with `node --test ssd-pipeline/test/*.test.mjs` (30 tests, no deps).
+   Run the engine's unit tests with `node --test ssd-pipeline/test/*.test.mjs` (61 tests, no deps).
 
 ## Status
 
 - ✅ **Platform spec** — full specification (34 documents + UI wireframes) in `docs/spec/`.
 - ✅ **SSD pipeline** — scan → CV-extract → human-verify tooling; 8 v1 ships inventoried.
-- ✅ **Damage processor** — the full DAC engine (D3.6–D4.4) is built and unit-tested (30 tests),
+- ✅ **Damage processor** — the full DAC engine (D3.6–D4.4) is built and unit-tested,
   validated cell-for-cell against the rulebook's D4.5 worked example; player view at
   `ssd-pipeline/viewer/damage.html`.
+- ✅ **Direct-fire combat sandbox** — reposition two fleets on a hex map, form per-mount fire
+  groups (split-fire across groups), and resolve direct fire through the DAC engine; a pure
+  engine (arcs, loadouts, weapon charts, fire plans, resolution) with 61 unit tests backs
+  `ssd-pipeline/viewer/battle.html`. Weapon charts are verifiable/editable against the scanned
+  source tables at `ssd-pipeline/viewer/weapons.html`.
 - ⏭️ **Platform build** — authoritative Node/Express + MongoDB + Socket.IO engine per the spec.
 
 ## Repository layout
@@ -63,6 +70,9 @@ More ships come from ADB's other SSD books — see the full
 | `ssd-pipeline/viewer/damage.html` | Damage processor — apply a volley, watch the DAC allocate it |
 | `ssd-pipeline/viewer/ssd-engine.js` | Shared render engine (taxonomy + cell geometry) |
 | `ssd-pipeline/viewer/{dac,ship-model,arc-geom,dac-allocator}.js` | Damage rules engine (D3.6–D4.4) |
+| `ssd-pipeline/viewer/battle.html` | Direct-fire combat sandbox — hex map, drag/rotate, fire groups, resolution |
+| `ssd-pipeline/viewer/weapons.html` | Weapon-table verify/edit — scanned source beside the extracted values |
+| `ssd-pipeline/viewer/{battle-geom,ship-loadout,weapon-charts,fire-plan,direct-fire}.js` | Direct-fire engine (arcs, loadouts, weapon charts, fire plans, resolution) |
 | `ssd-pipeline/test/*.test.mjs` | Node unit tests for the rules engine (D4.5 gate, leaky, tracks, excess…) |
 | `ssd-pipeline/viewer/index.html` | Landing page — pick a ship (or scan a new one), open the editor or damage processor |
 | `ssd-pipeline/data/<ship>/` | Per ship: `detection.json`, `verified.json`, `boxlabels.json` (`image.png` is generated locally, **not** shipped) |
