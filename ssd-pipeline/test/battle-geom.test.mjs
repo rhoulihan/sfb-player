@@ -19,3 +19,13 @@ test('bearingDeg: a hex due east is ~0°, due south ~90° (screen y-down)', () =
   const south = bearingDeg({q:0,r:0},{q:0,r:4});
   assert.ok(Math.abs(south - 90) < 1, 'south ≈ 90°');
 });
+
+test('hexDistance is exact hex range, not a Euclidean overestimate', () => {
+  assert.equal(hexDistance({q:0,r:0},{q:0,r:4}), 4, 'straight down a column is 4, not 5');
+  assert.equal(hexDistance({q:0,r:0},{q:3,r:0}), 3, 'three columns east is 3');
+});
+
+test('bearingDeg normalizes into [0,360): due north is ~270°', () => {
+  const north = bearingDeg({q:0,r:0},{q:0,r:-4});
+  assert.ok(Math.abs(north - 270) < 1, 'north ≈ 270°, not -90');
+});
