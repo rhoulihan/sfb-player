@@ -86,21 +86,21 @@
   .prev b{color:#0f172a}
   .hint{color:#94a3b8;font-size:12px;padding:10px 12px}
   .log .hit{color:#166534}.log .miss{color:#94a3b8}.log .vol{color:#991b1b;font-weight:600}.log .kill{color:#b45309}
-  .epanel{width:46%;min-width:380px;flex:none;display:flex;flex-direction:column;background:#f8fafc;border-right:1px solid #cbd5e1;overflow:hidden}
-  .ephdr{padding:9px 14px;border-bottom:1px solid #e2e8f0;font-size:15px}
-  .eptabs{display:flex;gap:4px;padding:8px 10px 0;flex-wrap:wrap}
-  .eptab{font:inherit;font-size:12px;background:#e2e8f0;border:1px solid #cbd5e1;border-radius:7px 7px 0 0;padding:4px 9px;cursor:pointer;display:flex;align-items:center;gap:5px}
-  .eptab.on{background:#fff;border-bottom-color:#fff;font-weight:600}
+  .epanel{position:fixed;top:66px;left:18px;width:540px;max-width:94vw;height:82vh;z-index:250;display:flex;flex-direction:column;border-radius:12px;overflow:hidden;box-shadow:0 18px 55px rgba(0,0,0,.6);border:2px solid #0b1220;background-size:cover;background-position:center;color:#e2e8f0}
+  .ephdr{padding:8px 14px;font-size:15px;background:rgba(11,18,32,.94);cursor:move;user-select:none;border-bottom:1px solid rgba(148,163,184,.25)}
+  .eptabs{display:flex;gap:4px;padding:8px 10px 0;flex-wrap:wrap;background:rgba(11,18,32,.72)}
+  .eptab{font:inherit;font-size:12px;background:rgba(51,65,85,.85);border:1px solid rgba(148,163,184,.35);border-radius:7px 7px 0 0;padding:4px 9px;cursor:pointer;color:#e2e8f0;display:flex;align-items:center;gap:5px}
+  .eptab.on{background:rgba(30,41,59,.95);font-weight:700}
   .eptab .dot{width:9px;height:9px;border-radius:50%}
-  .epmeter{padding:8px 14px;border-bottom:1px solid #e2e8f0;background:#fff}
-  .epsrc{font-size:11px;color:#64748b;margin-bottom:6px}
-  .epbar{height:12px;background:#e2e8f0;border-radius:6px;overflow:hidden;margin-bottom:4px}
+  .epmeter{padding:8px 14px;background:rgba(11,18,32,.86)}
+  .epsrc{font-size:11px;color:#94a3b8;margin-bottom:6px}
+  .epbar{height:12px;background:rgba(51,65,85,.9);border-radius:6px;overflow:hidden;margin-bottom:4px}
   .epbar i{display:block;height:100%;transition:width .12s}
-  .epnums{font-size:13px;color:#334155}
-  .eprows{flex:1;overflow:auto;padding:6px 12px}
-  .egroup{font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:#94a3b8;margin:12px 0 3px;font-weight:700}
-  .earow{display:flex;align-items:center;gap:8px;padding:3px 0;font-size:12.5px}
-  .earow.ro{color:#64748b}
+  .epnums{font-size:13px;color:#e2e8f0}
+  .eprows{flex:1;overflow:auto;padding:6px 12px;background:rgba(11,18,32,.82)}
+  .egroup{font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:#93c5fd;margin:12px 0 3px;font-weight:700}
+  .earow{display:flex;align-items:center;gap:8px;padding:3px 0;font-size:12.5px;color:#e2e8f0}
+  .earow.ro{color:#94a3b8}
   .elab{flex:1;min-width:0}
   .eslider{flex:none;width:120px}
   .enum{width:44px;font:inherit;font-size:12px;border:1px solid #cbd5e1;border-radius:4px;padding:1px 3px;text-align:right}
@@ -555,6 +555,8 @@ function eaColOf(s) {
 }
 function renderEnergy() {
   const mine = ships.filter(isMine);
+  const race = mine[0]?.code?.split('-')[0];   // race console art (Klingon vs Federation default)
+  document.getElementById('energyPanel').style.backgroundImage = `url('assets/${race === 'KLI' ? 'Klingon_EAF' : 'Fed_EAF'}.png')`;
   if (!eaSelected || !mine.some(s => s.id === eaSelected)) eaSelected = mine[0] ? mine[0].id : null;
   document.getElementById('epTurn').textContent = `Turn ${clock.turn}`;
   document.getElementById('epLockState').textContent = ['friendly', 'enemy'].map(f => `${fleets[f]?.name || f} ${committed[f] ? '🔒' : '…'}`).join('  ·  ');
@@ -810,6 +812,11 @@ epanel.addEventListener('change', e => {
   if (myLockedEnergy) return; if (e.target.dataset.ea === 'toggle') onEaInput(e); else if (e.target.dataset.ea === 'num' && e.target.type === 'range') renderEnergy();
 });
 document.getElementById('epLock').onclick = () => lockEnergy();
+// draggable console modal (drag by its title bar)
+let epDrag = null;
+document.querySelector('.ephdr').addEventListener('mousedown', e => { const r = epanel.getBoundingClientRect(); epDrag = { dx: e.clientX - r.left, dy: e.clientY - r.top }; e.preventDefault(); });
+window.addEventListener('mousemove', e => { if (!epDrag) return; epanel.style.left = Math.max(0, Math.min(innerWidth - 120, e.clientX - epDrag.dx)) + 'px'; epanel.style.top = Math.max(48, Math.min(innerHeight - 60, e.clientY - epDrag.dy)) + 'px'; });
+window.addEventListener('mouseup', () => { epDrag = null; });
 
 async function lockEnergy() {
   if (myLockedEnergy) return;
