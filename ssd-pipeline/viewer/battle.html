@@ -457,6 +457,9 @@ function stepImpulse() {
   for (const s of ships) {
     s.speed = speedAt(s.speedPlot || { base: s.speed, changes: [] }, clock.impulse);   // plotted speed changes fire on their locked impulses (C12.36)
     if (isDead(s) || !movesOnImpulse(s.speed, clock.impulse)) continue;
+    const auto = s.autopilot && s.course && s.course.steps[s._autoIdx || 0];
+    if (auto) { const st = s.course.steps[s._autoIdx || 0], turned = st.facing !== s.facing;   // follow the plotted course
+      s.facing = st.facing; s.q = st.q; s.r = st.r; s.hexesSinceTurn = turned ? 1 : s.hexesSinceTurn + 1; s._autoIdx = (s._autoIdx || 0) + 1; continue; }
     if (s.queuedTurn && s.hexesSinceTurn >= turnMode(s.speed)) { s.facing = (s.facing + s.queuedTurn + 6) % 6; s.hexesSinceTurn = 0; s.queuedTurn = 0; }
     const n = neighbor(s.q, s.r, s.facing);
     if (n.q >= 0 && n.q < COLS && n.r >= 0 && n.r < ROWS) { s.q = n.q; s.r = n.r; s.hexesSinceTurn++; }
@@ -562,7 +565,10 @@ function renderEnergy() {
   }).join('') || '<span class="hint">no ships</span>';
   const s = eaSelected ? byId(eaSelected) : null;
   if (!s) { document.getElementById('epMeter').innerHTML = ''; document.getElementById('epRows').innerHTML = '<div class="hint">no ship selected</div>'; }
-  else { const p = powerOf(s), col = eaColOf(s); document.getElementById('epMeter').innerHTML = meterHtml(p, validateEaf(p, col)); document.getElementById('epRows').innerHTML = eaRowsHtml(p, col); }
+  else { const p = powerOf(s), col = eaColOf(s);
+    document.getElementById('epMeter').innerHTML = meterHtml(p, validateEaf(p, col)) +
+      (s.course && s.course.steps.length ? `<label style="display:block;margin-top:6px;font-size:12px;cursor:pointer"><input type="checkbox" id="epAuto" ${s.autopilot ? 'checked' : ''}> 🅰 Autopilot — follow the plotted course</label>` : '');
+    document.getElementById('epRows').innerHTML = eaRowsHtml(p, col); }
   const anyOver = mine.some(x => validateEaf(powerOf(x), eaColOf(x)).status === 'over');
   const lock = document.getElementById('epLock');
   lock.disabled = myLockedEnergy || anyOver;
@@ -635,7 +641,7 @@ function renderFleet() {
        <span class="dot" style="background:${sideFill(s)}"></span>
        <div class="sinfo">
          <div class="stop"><b>${s.id}</b> <span style="color:#64748b">${s.name}</span>
-           <span class="meta">${chargedCount(s)}/${s.mounts.length}w</span></div>
+           <span class="meta">${chargedCount(s)}/${s.mounts.length}w</span>${isMine(s) && s.course && s.course.steps.length ? `<span class="auto" data-auto="${s.id}" title="${s.autopilot ? 'autopilot on — click to disable' : 'enable autopilot'}" style="cursor:pointer;margin-left:5px;color:${s.autopilot ? '#16a34a' : '#cbd5e1'}">🅰</span>` : ''}</div>
          <div class="sbot"><label class="spd" title="speed is set by Energy for Movement in the allocation phase">spd <input class="spin" data-spd="${s.id}" value="${s.speed}" readonly style="background:#f1f5f9;color:#475569"></label>
            <div class="hbar" title="${Math.round(h * 100)}% intact"><i style="width:${Math.round(h * 100)}%;background:${healthColor(h)}"></i></div></div>
        </div></div>`;
@@ -746,7 +752,10 @@ window.addEventListener('mousemove', e => {
 });
 window.addEventListener('mouseup', () => { if (dragging) { const s = dragging.s, moved = dragging.moved; dragging = null; if (!moved) onShipClick(s); else saveSoon(s.id); } });
 
-document.getElementById('fleet').addEventListener('click', e => { const b = e.target.closest('[data-turn]'); if (b) turnAction(+b.dataset.turn, b.dataset.ship); });
+document.getElementById('fleet').addEventListener('click', e => {
+  const a = e.target.closest('[data-auto]'); if (a) { const s = byId(a.dataset.auto); if (s) { s.autopilot = !s.autopilot; s._autoIdx = 0; saveSoon(s.id); render(); } return; }
+  const b = e.target.closest('[data-turn]'); if (b) turnAction(+b.dataset.turn, b.dataset.ship);
+});
 window.addEventListener('keydown', e => { if (e.target.tagName === 'INPUT') return; if (e.key === '[') turnAction(-1); else if (e.key === ']') turnAction(1); });
 document.getElementById('stepBtn').onclick = () => stepImpulse();
 document.getElementById('testMode').onchange = e => { testMode = e.target.checked; render(); };
@@ -796,7 +805,10 @@ function onEaInput(e) {
   else if (t.dataset.ea === 'spec') { col.specReinf[t.dataset.shield] = Math.min(specReinfMax(p, +t.dataset.shield), Math.max(0, +t.value || 0)); renderEnergy(); }
 }
 epanel.addEventListener('input', onEaInput);
-epanel.addEventListener('change', e => { if (myLockedEnergy) return; if (e.target.dataset.ea === 'toggle') onEaInput(e); else if (e.target.dataset.ea === 'num' && e.target.type === 'range') renderEnergy(); });
+epanel.addEventListener('change', e => {
+  if (e.target.id === 'epAuto') { const s = byId(eaSelected); if (s) { s.autopilot = e.target.checked; saveSoon(s.id); render(); } return; }
+  if (myLockedEnergy) return; if (e.target.dataset.ea === 'toggle') onEaInput(e); else if (e.target.dataset.ea === 'num' && e.target.type === 'range') renderEnergy();
+});
 document.getElementById('epLock').onclick = () => lockEnergy();
 
 async function lockEnergy() {
@@ -822,7 +834,7 @@ async function resolveEnergy(allEaf) {                        // fold each locke
     s.ecmLevel = ts.ecmLevel; s.eccmLevel = ts.eccmLevel; s.queuedTurn = 0;
     // movement: the plotted speed schedule (base + mid-turn changes) drives execution; no plot → constant speed
     s.speedPlot = s.speedPlot ? { base: s.speedPlot.base, changes: s.speedPlot.changes } : { base: ts.speed, changes: [] };
-    s.speed = speedAt(s.speedPlot, 1); s.hexesSinceTurn = turnMode(s.speed);
+    s.speed = speedAt(s.speedPlot, 1); s.hexesSinceTurn = turnMode(s.speed); s._autoIdx = 0;   // autopilot restarts each turn
   }
   phase = 'impulse'; myLockedEnergy = false; committed = {}; eafDraft = {};
   render(); requestAnimationFrame(fitToShips);
