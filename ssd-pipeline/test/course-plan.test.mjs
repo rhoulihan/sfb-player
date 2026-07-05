@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { speedAt, speedSchedule, hexesInPlot, impulseTimeline, legalNextHexes, tryStep, setSpeedChange } from '../viewer/course-plan.js';
+import { speedAt, speedSchedule, hexesInPlot, impulseTimeline, legalNextHexes, tryStep, setSpeedChange, legalSideslips, trySideslip } from '../viewer/course-plan.js';
 
 test('speedAt applies the 1-impulse announce delay (C12.36)', () => {
   const plot = { base: 8, changes: [{ announceImpulse: 9, speed: 18 }] };
@@ -34,11 +34,23 @@ test('legalNextHexes: straight always legal, turns only at/after turn mode', () 
   assert.equal(ready.every(c => c.legal), true, 'all three legal once turn mode is met');
 });
 
-test('tryStep snaps to legal moves and tracks hexesSinceTurn', () => {
-  const straight = tryStep({ q: 4, r: 4 }, 0, 8, 2, { q: 5, r: 4 });   // SE from even col = straight (facing 0)
-  assert.ok(straight && straight.facing === 0 && straight.hexesSinceTurn === 3);
-  const illegalTurn = tryStep({ q: 4, r: 4 }, 0, 8, 0, { q: 4, r: 3 }); // a turn before turn mode
+test('tryStep snaps to legal moves, tracks hexesSinceTurn and slip', () => {
+  const straight = tryStep({ q: 4, r: 4 }, 0, 8, 2, 0, { q: 5, r: 4 });   // SE from even col = straight (facing 0)
+  assert.ok(straight && straight.facing === 0 && straight.hexesSinceTurn === 3 && straight.slipSince === 1);
+  const illegalTurn = tryStep({ q: 4, r: 4 }, 0, 8, 0, 0, { q: 4, r: 3 }); // a turn before turn mode
   assert.equal(illegalTurn, null, 'illegal turn rejected (snap)');
+});
+
+test('sideslip: blocked until one straight move, then moves oblique keeping facing (C4.1, C3.24)', () => {
+  const pos = { q: 4, r: 4 };
+  assert.equal(legalSideslips(pos, 0, 0).every(c => !c.legal), true, 'no sideslip before a straight move');
+  assert.equal(legalSideslips(pos, 0, 1).every(c => c.legal), true, 'sideslip allowed after one straight move');
+  const target = legalSideslips(pos, 0, 1)[0].hex;
+  const slip = trySideslip(pos, 0, 3, 1, target);
+  assert.equal(slip.facing, 0, 'facing unchanged on sideslip');
+  assert.equal(slip.slipSince, 0, 'slip resets after a sideslip');
+  assert.equal(slip.hexesSinceTurn, 4, 'sideslip counts as straight for turn mode (C3.24)');
+  assert.equal(trySideslip(pos, 0, 3, 0, target), null, 'cannot sideslip with slip 0');
 });
 
 test('setSpeedChange places the announce impulse from the hex it is set at', () => {

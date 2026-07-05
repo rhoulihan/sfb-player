@@ -230,7 +230,7 @@ import { newPlan, newGroup, assignMount, unassignMount, planEligibility, mountEl
 import { resolveAttackPlan } from './direct-fire.js';
 import { movesOnImpulse, neighbor, turnMode } from './movement.js';
 import { shipPower, newEafColumn, validateEaf, foldEaf, sinkMax, specReinfMax } from './energy-model.js';
-import { legalNextHexes, tryStep, impulseTimeline, hexesInPlot, setSpeedChange, speedAt } from './course-plan.js';
+import { legalNextHexes, tryStep, impulseTimeline, hexesInPlot, setSpeedChange, speedAt, legalSideslips, trySideslip } from './course-plan.js';
 import { SCENARIO } from './scenario.js';
 
 const COLS = 42, ROWS = 30, COLORS = ['#2563eb', '#16a34a', '#d97706', '#7c3aed', '#0891b2'];   // standard SFB 42x30 map
@@ -251,10 +251,14 @@ const courseOf = s => s.course || (s.course = { start: { q: s.q, r: s.r, facing:
 // current cursor at the end of a ship's course (position, facing, hexes-since-turn, and the impulse reached)
 function plotCursor(s) {
   const c = courseOf(s), sp = speedPlotOf(s), tl = impulseTimeline(sp);
-  let pos = { q: c.start.q, r: c.start.r }, facing = c.start.facing, hst = turnMode(sp.base);
-  for (const st of c.steps) { const turned = st.facing !== facing; facing = st.facing; hst = turned ? 1 : hst + 1; pos = { q: st.q, r: st.r }; }
+  let pos = { q: c.start.q, r: c.start.r }, facing = c.start.facing, hst = turnMode(sp.base), slip = 0;
+  for (const st of c.steps) {
+    if (st.slip) { hst = hst + 1; slip = 0; }                                        // sideslip: straight for turn mode (C3.24), resets slip
+    else { const turned = st.facing !== facing; hst = turned ? 1 : hst + 1; slip = slip + 1; }
+    facing = st.facing; pos = { q: st.q, r: st.r };
+  }
   const impulse = tl[c.steps.length]?.impulse ?? null;   // impulse the NEXT hex would be reached on
-  return { pos, facing, hst, speed: speedAt(sp, impulse || 32), tl };
+  return { pos, facing, hst, slip, speed: speedAt(sp, impulse || 32), tl };
 }
 function pixelToHex(x, y) {
   let best = null, bd = Infinity, q0 = Math.round((x - GEOM.OX) / GEOM.HW);
@@ -284,6 +288,10 @@ function plotOverlaySvg() {
       const cc = hexCenter(cand.hex.q, cand.hex.r);
       s += `<path d="${hexPath(cc.x, cc.y)}" fill="${cand.legal ? '#16a34a' : '#C74634'}" opacity="0.5" style="pointer-events:none"/>`;
     }
+    for (const ss of legalSideslips(cur.pos, cur.facing, cur.slip)) {   // drag-to-sideslip target (purple dashed)
+      if (!ss.legal) continue; const cc = hexCenter(ss.hex.q, ss.hex.r);
+      s += `<path d="${hexPath(cc.x, cc.y)}" fill="none" stroke="#a855f7" stroke-width="3" stroke-dasharray="5 3" opacity="0.95" style="pointer-events:none"/>`;
+    }
   }
   if (rangeAnchor) {   // range measurement
     const a = hexCenter(rangeAnchor.start.q, rangeAnchor.start.r);
@@ -296,8 +304,20 @@ function plotOverlaySvg() {
   }
   return s;
 }
+// drag on the map during the energy phase = sideslip (move oblique keeping facing, C4.0); a plain click turns
+let plotDrag = null, suppressClick = false;
+map.addEventListener('mousedown', e => { if (phase === 'energy' && plotShipId && byId(plotShipId)) plotDrag = { x: e.clientX, y: e.clientY, moved: false }; });
+map.addEventListener('mousemove', e => { if (plotDrag && (Math.abs(e.clientX - plotDrag.x) > 6 || Math.abs(e.clientY - plotDrag.y) > 6)) plotDrag.moved = true; });
+map.addEventListener('mouseup', e => {
+  const dragged = plotDrag && plotDrag.moved; plotDrag = null;
+  if (!dragged || phase !== 'energy' || !plotShipId || !byId(plotShipId)) return;
+  const hex = clickToHex(e); if (!hex) return;
+  const s = byId(plotShipId), cur = plotCursor(s), slip = trySideslip(cur.pos, cur.facing, cur.hst, cur.slip, hex);
+  if (slip) { courseOf(s).steps.push({ q: slip.pos.q, r: slip.pos.r, facing: slip.facing, slip: true }); saveSoon(plotShipId); suppressClick = true; render(); }
+});
 // map clicks during the energy phase: plot courses (snap) + shift-click to measure range
 map.addEventListener('click', e => {
+  if (suppressClick) { suppressClick = false; return; }   // a drag-sideslip just happened; don't also turn
   if (phase !== 'energy') return;
   const hex = clickToHex(e); if (!hex) return;
   if (e.shiftKey) { rangeAnchor = (!rangeAnchor || rangeAnchor.end) ? { start: hex, end: null } : { ...rangeAnchor, end: hex }; render(); return; }
@@ -313,7 +333,7 @@ map.addEventListener('click', e => {
       return;
     }
     const cur = plotCursor(s);
-    const step = tryStep(cur.pos, cur.facing, cur.speed, cur.hst, hex);
+    const step = tryStep(cur.pos, cur.facing, cur.speed, cur.hst, cur.slip, hex);
     if (step) { c.steps.push({ q: step.pos.q, r: step.pos.r, facing: step.facing }); saveSoon(plotShipId); render(); }
   }
 });

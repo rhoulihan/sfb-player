@@ -40,12 +40,28 @@ export function legalNextHexes(pos, facing, speed, hexesSinceTurn) {
     { ...at((facing + 1) % 6), legal: canTurn },
   ];
 }
-// snap: return the new cursor state if `hex` is a legal next hex, else null
-export function tryStep(pos, facing, speed, hexesSinceTurn, hex) {
+// snap: return the new cursor state if `hex` is a legal next hex, else null. A forward/turn move also
+// advances the slip counter (a straight-line hex toward the sideslip requirement, C4.1).
+export function tryStep(pos, facing, speed, hexesSinceTurn, slipSince, hex) {
   const c = legalNextHexes(pos, facing, speed, hexesSinceTurn).find(x => x.legal && x.hex.q === hex.q && x.hex.r === hex.r);
   if (!c) return null;
   const turned = c.facing !== facing;
-  return { pos: c.hex, facing: c.facing, hexesSinceTurn: turned ? 1 : hexesSinceTurn + 1 };
+  return { pos: c.hex, facing: c.facing, hexesSinceTurn: turned ? 1 : hexesSinceTurn + 1, slipSince: slipSince + 1 };
+}
+
+// the two forward-oblique sideslip hexes (facing±1 direction, facing UNCHANGED). Legal only after the
+// slip mode of "1" is satisfied — at least one straight-line move since the last sideslip (C4.1).
+export function legalSideslips(pos, facing, slipSince) {
+  const canSlip = slipSince >= 1;
+  const at = f => ({ facing, hex: neighbor(pos.q, pos.r, f) });
+  return [{ ...at((facing + 5) % 6), legal: canSlip }, { ...at((facing + 1) % 6), legal: canSlip }];
+}
+// snap a sideslip: enter an oblique hex keeping facing; counts as straight for turn mode (C3.24) and
+// resets the slip counter. Returns the new cursor state, or null if not a legal sideslip.
+export function trySideslip(pos, facing, hexesSinceTurn, slipSince, hex) {
+  const c = legalSideslips(pos, facing, slipSince).find(x => x.legal && x.hex.q === hex.q && x.hex.r === hex.r);
+  if (!c) return null;
+  return { pos: c.hex, facing, hexesSinceTurn: hexesSinceTurn + 1, slipSince: 0 };
 }
 
 // place a mid-turn speed change at the impulse the ship reaches hex `atHexIndex` (announce impulse)
