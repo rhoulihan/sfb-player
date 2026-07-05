@@ -567,7 +567,7 @@ const CONSOLE = {
   fed: { art: 'Fed_EAF', cls: 'con-fed',
     shields: { 1: [50, 14], 2: [63.6, 28], 3: [63.6, 60], 4: [50, 77], 5: [36.4, 60], 6: [36.4, 28] },
     bays: [[17, 16], [17, 25.6], [17, 35.2], [17, 44.8], [17, 54.2], [17, 63.6], [17, 72.2]],
-    move: [91.1, 26.9], reserve: [91.1, 64.9], activate: [50, 44],
+    move: [90.6, 25.9], reserve: [90.6, 63.9], activate: [50, 44],
     systems: { labs: [19.5, 90], tractor: [35.5, 90], transporter: [53, 90], damageControl: [70, 90], ew: [86.5, 89] } },
   kli: { art: 'Klingon_EAF', cls: 'con-kli',
     shields: { 1: [50, 20], 2: [61, 33], 3: [61, 58], 4: [50, 72], 5: [39, 58], 6: [39, 33] },
@@ -613,9 +613,11 @@ const FED_RING = { cx: 1408, cy: 720, ri: 417, ro: 571, spanDeg: 28, angle: { 1:
 function fedShieldSvg(s, p) {
   const sn = shieldsNow(s), col = eaColOf(s), R = FED_RING, rad = d => d * Math.PI / 180;
   const pt = (r, a) => [(R.cx + r * Math.cos(rad(a))).toFixed(1), (R.cy + r * Math.sin(rad(a))).toFixed(1)];
+  // widen the edge facing shield 1 (shields 2,6) and shield 4 (shields 3,5) by ~5px to narrow those gaps
+  const EDGE = { 2: { a0: 1.7 }, 6: { a1: 1.7 }, 3: { a1: 1.7 }, 5: { a0: 1.7 } };
   let fills = '', glows = '';
   for (const n of [1, 2, 3, 4, 5, 6]) {
-    const c = R.angle[n], a0 = c - R.spanDeg, a1 = c + R.spanDeg;
+    const e = EDGE[n] || {}, c = R.angle[n], a0 = c - R.spanDeg - (e.a0 || 0), a1 = c + R.spanDeg + (e.a1 || 0);
     const [xo0, yo0] = pt(R.ro, a0), [xo1, yo1] = pt(R.ro, a1), [xi1, yi1] = pt(R.ri, a1), [xi0, yi0] = pt(R.ri, a0);
     const sector = `M${xo0} ${yo0} A${R.ro} ${R.ro} 0 0 1 ${xo1} ${yo1} L${xi1} ${yi1} A${R.ri} ${R.ri} 0 0 0 ${xi0} ${yi0} Z`;
     const max = p.shields[n - 1] || 1, t = Math.max(0, Math.min(1, (sn[n - 1] || 0) / max));   // 1=full→green, 0=down→red
