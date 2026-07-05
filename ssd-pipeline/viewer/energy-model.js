@@ -37,11 +37,28 @@ export function shipPower(code, verified, detection) {
     shields: (shields || []).slice(),
     weapons,
     systems: {
-      shuttles: n('shuttle-bay'), tractor: n('tractor') > 0, transporter: n('transporter') > 0,
-      ecm: true, labs: n('lab'), fireControl: true, cloak: false,
+      shuttles: n('shuttle-bay'), tractor: n('tractor'), transporter: n('transporter'),
+      damageControl: n('damage-control'), ecm: true, labs: n('lab'), fireControl: true, cloak: false,
     },
   };
 }
+
+// rule-based ceiling on the power a slider may allocate to each system (calibration-flagged).
+export function sinkMax(p, key) {
+  switch (key) {
+    case 'movement': return 30 * p.moveCost;                  // 30-hex/turn cap (C2.112)
+    case 'phaserCap': return p.capacitorCap;                  // capacitor room (H6.21)
+    case 'ecm': case 'eccm': return 6;                        // ECM/ECCM shift cap (D6.3)
+    case 'recharge': return p.batteries;                      // recharge no more than battery capacity (H5)
+    case 'tractor': return p.systems.tractor || 0;            // one point per tractor emitter (G7)
+    case 'transporter': return p.systems.transporter || 0;    // per transporter (G8)
+    case 'labs': return p.systems.labs || 0;                  // per lab
+    case 'damageControl': return p.systems.damageControl || 0;// damage-control rating (D9)
+    case 'genReinf': return p.total + p.batteries;            // limited only by available power (D3.341)
+    default: return p.total + p.batteries;
+  }
+}
+export const specReinfMax = (p, shieldN) => p.shields[shieldN - 1] || 0;   // reinforce a shield up to its box value (D3.342)
 
 export function lifeSupportCost(power) { return LIFE_SUPPORT[power.sizeClass] ?? 0; }
 
@@ -50,7 +67,7 @@ export function lifeSupportCost(power) { return LIFE_SUPPORT[power.sizeClass] ??
 // topping up to full, so default fill = capacitorCap - carried.
 export function newEafColumn(power, prevSpeed = 0, carried = 0) {
   const weapons = {};
-  for (const w of power.weapons) weapons[w.id] = { armed: true, overload: false };
+  for (const w of power.weapons) weapons[w.id] = { armed: true, overload: false, prox: false };
   return {
     lifeSupport: lifeSupportCost(power),
     fireControl: power.systems.fireControl ? 1 : 0,
@@ -103,7 +120,7 @@ export function foldEaf(power, column, carried = 0) {
   const armed = {};
   for (const w of power.weapons) {
     const st = column.weapons[w.id];
-    if (st && st.armed) armed[w.id] = { overload: !!st.overload };
+    if (st && st.armed) armed[w.id] = { overload: !!st.overload, prox: !!st.prox };
   }
   return {
     speed: Math.min(30, Math.floor(column.movement / power.moveCost)),

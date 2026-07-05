@@ -214,14 +214,16 @@ export function bandIndex(def, trueRange) {
   return def.bands.findIndex(b => trueRange >= b.minTrue && trueRange <= b.maxTrue);
 }
 
-export function damageFor(def, trueRange, die, overload = false) {
-  const ov = overload && def.overload;
-  const maxRange = ov ? def.overload.maxRange : def.maxRange;
-  if (def.minRange && trueRange < def.minRange) return 0;
+export function damageFor(def, trueRange, die, mode = false) {
+  const ov = (mode === true || mode === 'overload') && def.overload;
+  const prox = mode === 'prox' && def.proximity;
+  const maxRange = ov ? def.overload.maxRange : prox ? def.proximity.maxRange : def.maxRange;
+  if (!prox && def.minRange && trueRange < def.minRange) return 0;
   if (trueRange > maxRange) return 0;
   const bi = bandIndex(def, trueRange);
   if (bi < 0) return 0;
   if (def.resolution === 'range-of-effect') return def.effectGrid[die - 1]?.[bi] ?? 0;
+  if (prox) { const [lo, hi] = def.proximity.hitBand; return (die >= lo && die <= hi) ? def.proximity.fixedDamage : 0; }
   const hb = def.hitBand1d[bi];
   if (!hb) return 0;
   const [lo, hi] = hb;

@@ -108,6 +108,7 @@
   .etog{font:inherit;font-size:11px;background:#e2e8f0;border:1px solid #cbd5e1;border-radius:6px;padding:2px 8px;cursor:pointer;font-weight:600}
   .etog.on{background:#2563eb;color:#fff;border-color:#2563eb}
   .etog.ov.on{background:#d97706;border-color:#d97706}
+  .etog.px.on{background:#0891b2;border-color:#0891b2}
   .eseg button{font:inherit;font-size:11px;background:#e2e8f0;border:1px solid #cbd5e1;padding:2px 8px;cursor:pointer}
   .eseg button.on{background:#2563eb;color:#fff;border-color:#2563eb}
   .eseg button:first-child{border-radius:6px 0 0 6px}.eseg button:last-child{border-radius:0 6px 6px 0}
@@ -219,7 +220,7 @@ import { buildShipModel } from './ship-model.js';
 import { newPlan, newGroup, assignMount, unassignMount, planEligibility, mountEligibility, combinedPreview } from './fire-plan.js';
 import { resolveAttackPlan } from './direct-fire.js';
 import { movesOnImpulse, neighbor, turnMode } from './movement.js';
-import { shipPower, newEafColumn, validateEaf, foldEaf } from './energy-model.js';
+import { shipPower, newEafColumn, validateEaf, foldEaf, sinkMax, specReinfMax } from './energy-model.js';
 import { SCENARIO } from './scenario.js';
 
 const COLS = 42, ROWS = 30, COLORS = ['#2563eb', '#16a34a', '#d97706', '#7c3aed', '#0891b2'];   // standard SFB 42x30 map
@@ -495,32 +496,32 @@ function meterHtml(p, v) {
     <div class="epnums"><b>${v.used}</b> used · <b>${v.free}</b> free · of ${v.produced} <span style="color:${c};font-weight:700">${v.status.toUpperCase()}</span></div>`;
 }
 function eaRowsHtml(p, col) {
-  const cap = p.total + p.batteries;
-  const slider = (label, key, max, note = '') => { const val = col[key] || 0; return `<div class="earow"><span class="elab">${label}</span>
+  const slider = (label, key, note = '') => { const max = sinkMax(p, key), val = Math.min(col[key] || 0, max); return `<div class="earow"><span class="elab">${label}</span>
     <input type="range" class="eslider" data-ea="num" data-key="${key}" min="0" max="${max}" value="${val}">
-    <input type="number" class="enum" data-ea="num" data-key="${key}" min="0" max="${max}" value="${val}"><span class="eunits">${val}${note}</span></div>`; };
+    <input type="number" class="enum" data-ea="num" data-key="${key}" min="0" max="${max}" value="${val}"><span class="eunits">${val}/${max}${note}</span></div>`; };
   const toggle = (label, key, num) => `<div class="earow"><span class="elab">${label}</span>
     <label class="eswitch"><input type="checkbox" data-ea="toggle" data-key="${key}"${num ? ' data-num="1"' : ''} ${col[key] ? 'checked' : ''}></label></div>`;
   const ro = (label, val) => `<div class="earow ro"><span class="elab">${label}</span><span class="eunits">${val}</span></div>`;
   let h = '<div class="egroup">Mandatory</div>' + ro('Life support', col.lifeSupport);
   h += '<div class="egroup">Weapons</div>';
   if (p.systems.fireControl) h += segRow('Fire control', 'fireControl', col.fireControl);
-  h += slider('Charge phaser capacitor', 'phaserCap', p.capacitorCap);
+  h += slider('Charge phaser capacitor', 'phaserCap');
   for (const w of p.weapons) { const st = col.weapons[w.id]; h += `<div class="earow"><span class="elab">${w.cls} <span style="color:#94a3b8">${w.id.slice(0, 7)}</span></span>
     <button class="etog ${st.armed ? 'on' : ''}" data-ea="weap" data-wid="${w.id}" data-what="armed">${st.armed ? 'ARM' : 'hold'}</button>
-    <button class="etog ov ${st.overload ? 'on' : ''}" data-ea="weap" data-wid="${w.id}" data-what="overload">OL</button>
+    <button class="etog ov ${st.overload ? 'on' : ''}" data-ea="weap" data-wid="${w.id}" data-what="overload">OL</button>${w.cls === 'PHOTON' ? `
+    <button class="etog px ${st.prox ? 'on' : ''}" data-ea="weap" data-wid="${w.id}" data-what="prox">PROX</button>` : ''}
     <span class="eunits">${st.armed ? (st.overload ? w.overload : w.arm) : 0}</span></div>`; }
-  h += '<div class="egroup">Defense</div>' + toggle('Activate shields', 'shieldsActive') + slider('General reinforcement', 'genReinf', cap);
-  for (const n of [1, 2, 3, 4, 5, 6]) h += `<div class="earow"><span class="elab" style="padding-left:12px">Specific reinf. shield ${n}</span>
-    <input type="number" class="enum" data-ea="spec" data-shield="${n}" min="0" value="${col.specReinf[n] || 0}"><span class="eunits">${col.specReinf[n] || 0}</span></div>`;
+  h += '<div class="egroup">Defense</div>' + toggle('Activate shields', 'shieldsActive') + slider('General reinforcement', 'genReinf');
+  for (const n of [1, 2, 3, 4, 5, 6]) { const max = specReinfMax(p, n); h += `<div class="earow"><span class="elab" style="padding-left:12px">Specific reinf. shield ${n}</span>
+    <input type="number" class="enum" data-ea="spec" data-shield="${n}" min="0" max="${max}" value="${Math.min(col.specReinf[n] || 0, max)}"><span class="eunits">${Math.min(col.specReinf[n] || 0, max)}/${max}</span></div>`; }
   h += '<div class="egroup">Movement & systems</div>';
-  h += slider('Energy for movement', 'movement', cap, ` = ${Math.floor((col.movement || 0) / p.moveCost)} hex`);
+  h += slider('Energy for movement', 'movement', ` = ${Math.floor((col.movement || 0) / p.moveCost)} hex`);
   h += toggle('Impulse point to move', 'impulseMove', true) + toggle('HET', 'het');
-  h += slider('Damage control', 'damageControl', cap) + slider('Recharge / reserve', 'recharge', cap);
-  if (p.systems.tractor) h += slider('Tractor', 'tractor', cap);
-  if (p.systems.transporter) h += slider('Transporters', 'transporter', cap);
-  if (p.systems.ecm) h += slider('ECM', 'ecm', 6) + slider('ECCM', 'eccm', 6);
-  if (p.systems.labs) h += slider('Labs', 'labs', p.systems.labs);
+  h += slider('Damage control', 'damageControl') + slider('Recharge / reserve', 'recharge');
+  if (p.systems.tractor) h += slider('Tractor', 'tractor');
+  if (p.systems.transporter) h += slider('Transporters', 'transporter');
+  if (p.systems.ecm) h += slider('ECM', 'ecm') + slider('ECCM', 'eccm');
+  if (p.systems.labs) h += slider('Labs', 'labs');
   if (p.systems.shuttles) h += toggle('Wild weasel', 'wildWeasel') + toggle('Suicide shuttle', 'suicide');
   if (p.systems.cloak) h += toggle('Cloak', 'cloak');
   return h;
@@ -697,14 +698,18 @@ epanel.addEventListener('click', e => {
   const tab = e.target.closest('[data-eatab]'); if (tab) { eaSelected = tab.dataset.eatab; renderEnergy(); return; }
   if (myLockedEnergy) return;
   const w = e.target.closest('[data-ea="weap"]');
-  if (w) { const st = eaColOf(byId(eaSelected)).weapons[w.dataset.wid]; st[w.dataset.what] = !st[w.dataset.what]; if (w.dataset.what === 'overload' && st.overload) st.armed = true; renderEnergy(); return; }
+  if (w) { const st = eaColOf(byId(eaSelected)).weapons[w.dataset.wid], what = w.dataset.what;
+    st[what] = !st[what];
+    if (what === 'overload' && st.overload) { st.prox = false; st.armed = true; }   // overload & proximity are exclusive modes
+    if (what === 'prox' && st.prox) { st.overload = false; st.armed = true; }
+    renderEnergy(); return; }
   const seg = e.target.closest('[data-ea="seg"]'); if (seg) { eaColOf(byId(eaSelected))[seg.dataset.key] = +seg.dataset.val; renderEnergy(); }
 });
 function onEaInput(e) {
-  if (myLockedEnergy) return; const t = e.target, s = eaSelected ? byId(eaSelected) : null; if (!s || !t.dataset.ea) return; const col = eaColOf(s);
-  if (t.dataset.ea === 'num') { col[t.dataset.key] = Math.max(0, +t.value || 0); if (t.type === 'range') document.getElementById('epMeter').innerHTML = meterHtml(powerOf(s), validateEaf(powerOf(s), col)); else renderEnergy(); }
+  if (myLockedEnergy) return; const t = e.target, s = eaSelected ? byId(eaSelected) : null; if (!s || !t.dataset.ea) return; const p = powerOf(s), col = eaColOf(s);
+  if (t.dataset.ea === 'num') { col[t.dataset.key] = Math.min(sinkMax(p, t.dataset.key), Math.max(0, +t.value || 0)); if (t.type === 'range') document.getElementById('epMeter').innerHTML = meterHtml(p, validateEaf(p, col)); else renderEnergy(); }
   else if (t.dataset.ea === 'toggle') { col[t.dataset.key] = t.dataset.num ? (t.checked ? 1 : 0) : t.checked; renderEnergy(); }
-  else if (t.dataset.ea === 'spec') { col.specReinf[t.dataset.shield] = Math.max(0, +t.value || 0); renderEnergy(); }
+  else if (t.dataset.ea === 'spec') { col.specReinf[t.dataset.shield] = Math.min(specReinfMax(p, +t.dataset.shield), Math.max(0, +t.value || 0)); renderEnergy(); }
 }
 epanel.addEventListener('input', onEaInput);
 epanel.addEventListener('change', e => { if (myLockedEnergy) return; if (e.target.dataset.ea === 'toggle') onEaInput(e); else if (e.target.dataset.ea === 'num' && e.target.type === 'range') renderEnergy(); });
@@ -812,7 +817,7 @@ function resolvePlanInto(p, models, log, affected) {
       return isCharged(s, id, mt.cls) && armedOk(s, id, mt.cls);   // heavy weapons: armed + not yet fired this turn
     }) };
   }) })) };
-  const overloadFn = (sid, mid) => !!(byId(sid)?.armed?.[mid]?.overload);   // overloaded heavy weapons hit harder, shorter range
+  const modeFn = (sid, mid) => { const a = byId(sid)?.armed?.[mid]; return a?.overload ? 'overload' : a?.prox ? 'prox' : ''; };   // overload / proximity mode
   const reinforceOf = (tid, sh, pts) => {                                   // shield reinforcement absorbs first (per-turn, consumed)
     const t = byId(tid); if (!t) return 0;
     if (!t.reinfLeft) t.reinfLeft = t.reinforce ? { gen: t.reinforce.gen || 0, spec: { ...t.reinforce.spec } } : { gen: 0, spec: {} };
@@ -820,7 +825,7 @@ function resolvePlanInto(p, models, log, affected) {
     let u = used; const fromSpec = Math.min(u, rl.spec[sh] || 0); rl.spec[sh] = (rl.spec[sh] || 0) - fromSpec; u -= fromSpec; rl.gen = Math.max(0, (rl.gen || 0) - u);
     return used;
   };
-  const res = resolveAttackPlan(clean, ships, shipMountsMap(), models, undefined, overloadFn, reinforceOf);
+  const res = resolveAttackPlan(clean, ships, shipMountsMap(), models, undefined, modeFn, reinforceOf);
   res.log.filter(l => l.kind === 'shot').forEach(l => { const s = byId(l.firer); if (s) { s.firedAt[l.mount] = { turn: clock.turn, impulse: clock.impulse }; if (isPhaser(l.cls)) s.capacitor = Math.max(0, (s.capacitor || 0) - PHASER_FIRE_COST); } affected.add(l.firer); affected.add(l.target); });
   res.volleys.forEach(v => { const s = byId(v.targetShipId); v.effects.forEach(ef => { if (ef.boxId) s.status[ef.boxId] = 'destroyed'; }); affected.add(v.targetShipId); });
   log.push(...res.log);

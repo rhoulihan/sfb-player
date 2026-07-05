@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { shipPower, lifeSupportCost, newEafColumn, validateEaf, foldEaf } from '../viewer/energy-model.js';
+import { shipPower, lifeSupportCost, newEafColumn, validateEaf, foldEaf, sinkMax, specReinfMax } from '../viewer/energy-model.js';
 
 const load = c => shipPower(
   c,
@@ -87,4 +87,15 @@ test('foldEaf applies a locked column to turn state', () => {
   // an un-armed weapon is absent from armed{}
   const noFire = foldEaf(fed, { ...base, weapons: Object.fromEntries(fed.weapons.map(w => [w.id, { armed: false, overload: false }])) }, 0);
   assert.equal(Object.keys(noFire.armed).length, 0);
+});
+
+test('sinkMax enforces rule-based slider ceilings', () => {
+  const fed = load('FED-CA');   // moveCost 1, capacitor 9, 4 batteries
+  assert.equal(sinkMax(fed, 'movement'), 30, '30-hex cap');
+  assert.equal(sinkMax(fed, 'ecm'), 6); assert.equal(sinkMax(fed, 'eccm'), 6);
+  assert.equal(sinkMax(fed, 'phaserCap'), 9, 'capacitor room');
+  assert.equal(sinkMax(fed, 'recharge'), 4, 'no more than battery capacity');
+  assert.equal(sinkMax(fed, 'tractor'), fed.systems.tractor);
+  assert.equal(sinkMax(fed, 'transporter'), fed.systems.transporter);
+  assert.equal(specReinfMax(fed, 1), fed.shields[0], 'reinforce a shield up to its box value');
 });
