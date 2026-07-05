@@ -99,7 +99,8 @@
   .eptab.on{background:#2563eb;border-color:#2563eb;font-weight:700}
   .epoverlay{position:relative;width:100%;padding-top:54.55%;font-size:10px;background:#000 no-repeat center/100% 100%}
   .epoverlay > *{position:absolute}
-  .ctl{transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:1px;text-align:center;text-shadow:0 1px 3px #000,0 0 5px #000;white-space:nowrap}
+  .shsvg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0}
+  .ctl{transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:1px;text-align:center;text-shadow:0 1px 3px #000,0 0 5px #000;white-space:nowrap;z-index:1}
   .ctl .lab{font-size:8.5px;letter-spacing:.3px;opacity:.92}
   .ctl .val{font-weight:800;font-size:13px;line-height:1}
   .ctl .row{display:flex;align-items:center;gap:3px}
@@ -595,6 +596,25 @@ function weaponCtl(x, y, w, st) {
 const segCtl = (x, y, label, key, val) =>
   ctl(x, y, `<div class="lab">${label}</div><div class="row">${[['OFF', 0], ['LO', 0.5], ['FUL', 1]].map(([t, v]) => `<button class="${val === v ? 'on' : ''}" data-ea="seg" data-key="${key}" data-val="${v}">${t}</button>`).join('')}</div>`);
 
+// Federation shield-status overlay: an arc per shield, green→red by current strength, with a glowing
+// yellow outer band that intensifies with reinforcement. Drawn in the art's native px (2816×1536).
+const FED_RING = { cx: 1408, cy: 690, ri: 402, ro: 556, spanDeg: 28, angle: { 1: -90, 2: -30, 3: 30, 4: 90, 5: 150, 6: 210 } };
+function fedShieldSvg(s, p) {
+  const sn = shieldsNow(s), col = eaColOf(s), R = FED_RING, rad = d => d * Math.PI / 180;
+  const pt = (r, a) => [(R.cx + r * Math.cos(rad(a))).toFixed(1), (R.cy + r * Math.sin(rad(a))).toFixed(1)];
+  let fills = '', glows = '';
+  for (const n of [1, 2, 3, 4, 5, 6]) {
+    const c = R.angle[n], a0 = c - R.spanDeg, a1 = c + R.spanDeg;
+    const [xo0, yo0] = pt(R.ro, a0), [xo1, yo1] = pt(R.ro, a1), [xi1, yi1] = pt(R.ri, a1), [xi0, yi0] = pt(R.ri, a0);
+    const sector = `M${xo0} ${yo0} A${R.ro} ${R.ro} 0 0 1 ${xo1} ${yo1} L${xi1} ${yi1} A${R.ri} ${R.ri} 0 0 0 ${xi0} ${yi0} Z`;
+    const max = p.shields[n - 1] || 1, t = Math.max(0, Math.min(1, (sn[n - 1] || 0) / max));   // 1=full→green, 0=down→red
+    fills += `<path d="${sector}" fill="hsl(${Math.round(120 * t)},85%,48%)" fill-opacity="0.4"/>`;
+    const reinf = col.specReinf[n] || 0;
+    if (reinf > 0) { const rr = R.ro + 16, [gx0, gy0] = pt(rr, a0), [gx1, gy1] = pt(rr, a1);
+      glows += `<path d="M${gx0} ${gy0} A${rr} ${rr} 0 0 1 ${gx1} ${gy1}" fill="none" stroke="#fde047" stroke-linecap="round" filter="url(#shGlow)" stroke-width="${8 + reinf * 5}" stroke-opacity="${Math.min(0.95, 0.3 + reinf * 0.22)}"/>`; }
+  }
+  return `<svg class="shsvg" viewBox="0 0 2816 1536" preserveAspectRatio="none"><defs><filter id="shGlow" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="7"/></filter></defs>${fills}${glows}</svg>`;
+}
 function renderEnergy() {
   const mine = ships.filter(isMine);
   const theme = (mine[0]?.code?.split('-')[0] === 'KLI') ? 'kli' : 'fed';
@@ -635,7 +655,7 @@ function renderEnergy() {
   h += sysCtl(S.damageControl[0], S.damageControl[1], 'damageControl', col.damageControl, sinkMax(p, 'damageControl'));
   if (p.systems.ecm) h += ewCtl(S.ew[0], S.ew[1], col.ecm, col.eccm, 6);            // EW box needs its own ECM/ECCM label
   if (s.course && s.course.steps.length) h += ctl(5, 5, `<button class="${s.autopilot ? 'on' : ''}" id="epAuto">🅰 AUTO</button>`);
-  ov.innerHTML = h;
+  ov.innerHTML = (theme === 'fed' ? fedShieldSvg(s, p) : '') + h;   // status SVG first → behind the shield controls
 }
 
 const healthColor = h => h > 0.6 ? '#16a34a' : h > 0.3 ? '#d97706' : '#C74634';
