@@ -46,7 +46,7 @@ export function shipPower(code, verified, detection) {
 // rule-based ceiling on the power a slider may allocate to each system (calibration-flagged).
 export function sinkMax(p, key) {
   switch (key) {
-    case 'movement': return 30 * p.moveCost;                  // 30-hex/turn cap (C2.112)
+    case 'movement': return (30 + (p.impulse > 0 ? 1 : 0)) * p.moveCost;   // 30-hex cap; +1 (31st) if impulse engines (C2.112)
     case 'phaserCap': return p.capacitorCap;                  // capacitor room (H6.21)
     case 'ecm': case 'eccm': return 6;                        // ECM/ECCM shift cap (D6.3)
     case 'recharge': return p.batteries;                      // recharge no more than battery capacity (H5)

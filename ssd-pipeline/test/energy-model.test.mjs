@@ -91,7 +91,7 @@ test('foldEaf applies a locked column to turn state', () => {
 
 test('sinkMax enforces rule-based slider ceilings', () => {
   const fed = load('FED-CA');   // moveCost 1, capacitor 9, 4 batteries
-  assert.equal(sinkMax(fed, 'movement'), 30, '30-hex cap');
+  assert.equal(sinkMax(fed, 'movement'), 31, '30-hex cap + 1 impulse point (Fed CA has impulse engines)');
   assert.equal(sinkMax(fed, 'ecm'), 6); assert.equal(sinkMax(fed, 'eccm'), 6);
   assert.equal(sinkMax(fed, 'phaserCap'), 9, 'capacitor room');
   assert.equal(sinkMax(fed, 'recharge'), 4, 'no more than battery capacity');
