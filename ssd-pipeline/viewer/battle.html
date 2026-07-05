@@ -609,7 +609,7 @@ const segCtl = (x, y, label, key, val) =>
 
 // Federation shield-status overlay: an arc per shield, green→red by current strength, with a glowing
 // yellow outer band that intensifies with reinforcement. Drawn in the art's native px (2816×1536).
-const FED_RING = { cx: 1408, cy: 735, ri: 402, ro: 556, spanDeg: 28, angle: { 1: -90, 2: -30, 3: 30, 4: 90, 5: 150, 6: 210 } };
+const FED_RING = { cx: 1408, cy: 720, ri: 417, ro: 571, spanDeg: 28, angle: { 1: -90, 2: -30, 3: 30, 4: 90, 5: 150, 6: 210 } };
 function fedShieldSvg(s, p) {
   const sn = shieldsNow(s), col = eaColOf(s), R = FED_RING, rad = d => d * Math.PI / 180;
   const pt = (r, a) => [(R.cx + r * Math.cos(rad(a))).toFixed(1), (R.cy + r * Math.sin(rad(a))).toFixed(1)];
