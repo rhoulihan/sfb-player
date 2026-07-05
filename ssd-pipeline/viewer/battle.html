@@ -111,11 +111,11 @@
   .ctl .gap{height:6px}
   .ctl .statbar{display:flex;gap:2px}
   .ctl .statbar i{width:8px;height:11px;border-radius:1px;background:rgba(255,255,255,.18)}
+  .ctl.bigbar .statbar{gap:3px}
+  .ctl.bigbar .statbar i{width:10px;height:13px}
   .con-fed .ctl .statbar i.on{background:#22c55e}
   .con-kli .ctl .statbar i.on{background:#4ade80}
-  .ctl.syscell{width:118px;flex-direction:row;justify-content:center}
-  .ctl.syscell .vstep{position:absolute;right:2px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:1px}
-  .ctl.syscell .vstep .stepbtn{height:11px;line-height:.9;font-size:11px}
+  .ctl.sys .val{font-size:16px}
   .ctl.over .val{color:#fca5a5}
   .con-fed{--ac:#f8b74d;--bg:rgba(20,12,4,.82);--tx:#fde3a7}
   .con-kli{--ac:#4ade80;--bg:rgba(6,20,8,.82);--tx:#bbf7d0}
@@ -568,7 +568,7 @@ const CONSOLE = {
     shields: { 1: [50, 14], 2: [63.6, 28], 3: [63.6, 60], 4: [50, 77], 5: [36.4, 60], 6: [36.4, 28] },
     bays: [[17, 16], [17, 25.6], [17, 35.2], [17, 44.8], [17, 54.2], [17, 63.6], [17, 72.2]],
     move: [90.6, 25.9], reserve: [90.6, 63.9], activate: [50, 44],
-    systems: { labs: [19.5, 90], tractor: [35.5, 90], transporter: [53, 90], damageControl: [70, 90], ew: [86.5, 89] } },
+    systems: { labs: [16.3, 91], tractor: [33.4, 92], transporter: [49.8, 92], damageControl: [66.8, 92], ew: [86.5, 92.9] } },
   kli: { art: 'Klingon_EAF', cls: 'con-kli',
     shields: { 1: [50, 20], 2: [61, 33], 3: [61, 58], 4: [50, 72], 5: [39, 58], 6: [39, 33] },
     bays: [[14, 24], [14, 40], [14, 56], [14, 71]],
@@ -581,12 +581,10 @@ const stepPair = (key, val, max) =>   // a −/+ button pair bound to a column k
   `<button class="stepbtn" data-ea="step" data-key="${key}" data-d="-1"${val <= 0 ? ' disabled' : ''}>−</button><button class="stepbtn" data-ea="step" data-key="${key}" data-d="1"${val >= max ? ' disabled' : ''}>+</button>`;
 const stackCtl = (x, y, label, key, val, max) =>   // left-stack: label line, then [−] value [+] on the second line
   ctl(x, y, `<div class="lab">${label}</div><div class="row"><button class="stepbtn" data-ea="step" data-key="${key}" data-d="-1"${val <= 0 ? ' disabled' : ''}>−</button><span class="val">${val}</span><button class="stepbtn" data-ea="step" data-key="${key}" data-d="1"${val >= max ? ' disabled' : ''}>+</button></div>`);
-const barCtl = (x, y, lit, total) =>   // non-adjustable status bar (SENSORS)
-  ctl(x, y, `<div class="statbar">${Array.from({ length: total }, (_, i) => `<i class="${i < lit ? 'on' : ''}"></i>`).join('')}</div>`);
-const sysCtl = (x, y, key, val, max) =>   // bottom-strip: centered counter with a +/- stack on the right, above the art's own label
-  `<div class="ctl syscell" style="left:${x}%;top:${y}%"><span class="val">${val}</span><span class="vstep">` +
-  `<button class="stepbtn" data-ea="step" data-key="${key}" data-d="1"${val >= max ? ' disabled' : ''}>+</button>` +
-  `<button class="stepbtn" data-ea="step" data-key="${key}" data-d="-1"${val <= 0 ? ' disabled' : ''}>−</button></span></div>`;
+const barCtl = (x, y, lit, total) =>   // non-adjustable status bar (SENSORS), enlarged
+  ctl(x, y, `<div class="statbar">${Array.from({ length: total }, (_, i) => `<i class="${i < lit ? 'on' : ''}"></i>`).join('')}</div>`, 'bigbar');
+const sysCtl = (x, y, key, val, max) =>   // bottom-strip: bigger counter with the +/- buttons side by side
+  ctl(x, y, `<div class="row"><button class="stepbtn" data-ea="step" data-key="${key}" data-d="-1"${val <= 0 ? ' disabled' : ''}>−</button><span class="val">${val}</span><button class="stepbtn" data-ea="step" data-key="${key}" data-d="1"${val >= max ? ' disabled' : ''}>+</button></div>`, 'sys');
 const ewCtl = (x, y, ecm, eccm, max) =>   // EW box: ECM/ECCM label, value/value counter, a −/+ pair on either side
   ctl(x, y, `<div class="lab">ECM/ECCM</div><div class="row">${stepPair('ecm', ecm, max)}<span class="val">${ecm}/${eccm}</span>${stepPair('eccm', eccm, max)}</div>`);
 const toggleCtl = (x, y, label, key, on, num) =>
