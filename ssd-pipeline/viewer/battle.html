@@ -562,7 +562,7 @@ function eaColOf(s) {
 // zone maps (% of the art) — both consoles share the region layout, styled per theme
 const CONSOLE = {
   fed: { art: 'Fed_EAF', cls: 'con-fed',
-    shields: { 1: [50, 14], 2: [63.6, 28], 3: [63.6, 60], 4: [50, 77], 5: [36.4, 60], 6: [36.4, 28] },
+    shields: { 1: [50, 16.9], 2: [63.6, 30.9], 3: [63.6, 62.9], 4: [50, 79.9], 5: [36.4, 62.9], 6: [36.4, 30.9] },
     bays: [[17, 16], [17, 25.6], [17, 35.2], [17, 44.8], [17, 54.2], [17, 63.6], [17, 72.2]],
     move: [89.5, 22], reserve: [89.5, 62], activate: [50, 44],
     systems: { labs: [19.5, 90], tractor: [35.5, 90], transporter: [53, 90], damageControl: [70, 90], ew: [86.5, 89] } },
@@ -601,7 +601,7 @@ const segCtl = (x, y, label, key, val) =>
 
 // Federation shield-status overlay: an arc per shield, green→red by current strength, with a glowing
 // yellow outer band that intensifies with reinforcement. Drawn in the art's native px (2816×1536).
-const FED_RING = { cx: 1408, cy: 690, ri: 402, ro: 556, spanDeg: 28, angle: { 1: -90, 2: -30, 3: 30, 4: 90, 5: 150, 6: 210 } };
+const FED_RING = { cx: 1408, cy: 735, ri: 402, ro: 556, spanDeg: 28, angle: { 1: -90, 2: -30, 3: 30, 4: 90, 5: 150, 6: 210 } };
 function fedShieldSvg(s, p) {
   const sn = shieldsNow(s), col = eaColOf(s), R = FED_RING, rad = d => d * Math.PI / 180;
   const pt = (r, a) => [(R.cx + r * Math.cos(rad(a))).toFixed(1), (R.cy + r * Math.sin(rad(a))).toFixed(1)];
