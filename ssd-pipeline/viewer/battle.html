@@ -555,16 +555,19 @@ function applyPhaseUI() {
   document.getElementById('stepBtn').style.display = energy ? 'none' : '';
 }
 // ---------- energy allocation panel ----------
+const carriedOf = s => Math.floor(s.capacitor || 0);   // phaser charge carried over from last turn (H6.21)
 function eaColOf(s) {
-  if (!eafDraft[s.id]) eafDraft[s.id] = s.eaf ? { ...newEafColumn(powerOf(s), s.speed), ...s.eaf } : newEafColumn(powerOf(s), s.speed);
+  const c = carriedOf(s);
+  if (!eafDraft[s.id]) eafDraft[s.id] = s.eaf ? { ...newEafColumn(powerOf(s), s.speed, c), ...s.eaf } : newEafColumn(powerOf(s), s.speed, c);
   return eafDraft[s.id];
 }
+const validateShip = s => validateEaf(powerOf(s), eaColOf(s), carriedOf(s));
 // zone maps (% of the art) — both consoles share the region layout, styled per theme
 const CONSOLE = {
   fed: { art: 'Fed_EAF', cls: 'con-fed',
-    shields: { 1: [50, 16.9], 2: [63.6, 30.9], 3: [63.6, 62.9], 4: [50, 79.9], 5: [36.4, 62.9], 6: [36.4, 30.9] },
+    shields: { 1: [50, 14], 2: [63.6, 28], 3: [63.6, 60], 4: [50, 77], 5: [36.4, 60], 6: [36.4, 28] },
     bays: [[17, 16], [17, 25.6], [17, 35.2], [17, 44.8], [17, 54.2], [17, 63.6], [17, 72.2]],
-    move: [89.5, 22], reserve: [89.5, 62], activate: [50, 44],
+    move: [91.1, 26.9], reserve: [91.1, 64.9], activate: [50, 44],
     systems: { labs: [19.5, 90], tractor: [35.5, 90], transporter: [53, 90], damageControl: [70, 90], ew: [86.5, 89] } },
   kli: { art: 'Klingon_EAF', cls: 'con-kli',
     shields: { 1: [50, 20], 2: [61, 33], 3: [61, 58], 4: [50, 72], 5: [39, 58], 6: [39, 33] },
@@ -593,8 +596,13 @@ function shieldCtl(n, x, y, strength, reinf, max) {
     <div class="row"><button class="stepbtn" data-ea="specstep" data-shield="${n}" data-d="-1">−</button><button class="stepbtn" data-ea="specstep" data-shield="${n}" data-d="1"${reinf >= max ? ' disabled' : ''}>+</button></div>`);
 }
 function weaponCtl(x, y, w, st) {
-  const short = w.cls === 'PHOTON' ? 'PHO' : w.cls === 'DISR' ? 'DIS' : w.cls;   // SSD box label (A–D) + weapon tag
-  return ctl(x, y, `<div class="lab">${short} ${w.label || ''}</div><div class="row"><button class="${st.armed ? 'on' : ''}" data-ea="weap" data-wid="${w.id}" data-what="armed">ARM</button><button class="${st.overload ? 'on' : ''}" data-ea="weap" data-wid="${w.id}" data-what="overload">OL</button>${w.cls === 'PHOTON' ? `<button class="${st.prox ? 'on' : ''}" data-ea="weap" data-wid="${w.id}" data-what="prox">PX</button>` : ''}</div>`);
+  const name = w.cls === 'DISR' ? 'DISRUPTOR' : w.cls;   // full weapon name + SSD box label (A–D)
+  return ctl(x, y, `<div class="lab">${name} ${w.label || ''}</div><div class="row"><button class="${st.armed ? 'on' : ''}" data-ea="weap" data-wid="${w.id}" data-what="armed">ARM</button><button class="${st.overload ? 'on' : ''}" data-ea="weap" data-wid="${w.id}" data-what="overload">OL</button>${w.cls === 'PHOTON' ? `<button class="${st.prox ? 'on' : ''}" data-ea="weap" data-wid="${w.id}" data-what="prox">PX</button>` : ''}</div>`);
+}
+// phaser capacitor: spell it out, show existing (carried) charge, and never allow overcharging past capacity
+function capCtl(x, y, carried, charging, cap) {
+  const total = carried + charging, room = cap - carried;
+  return ctl(x, y, `<div class="lab">PHASER CAPACITOR</div><div class="row"><button class="stepbtn" data-ea="step" data-key="phaserCap" data-d="-1"${charging <= 0 ? ' disabled' : ''}>−</button><span class="val">${total}/${cap}</span><button class="stepbtn" data-ea="step" data-key="phaserCap" data-d="1"${charging >= room ? ' disabled' : ''}>+</button></div><div class="lab">held ${carried}</div>`);
 }
 const segCtl = (x, y, label, key, val) =>
   ctl(x, y, `<div class="lab">${label}</div><div class="row">${[['OFF', 0], ['LO', 0.5], ['FUL', 1]].map(([t, v]) => `<button class="${val === v ? 'on' : ''}" data-ea="seg" data-key="${key}" data-val="${v}">${t}</button>`).join('')}</div>`);
@@ -626,20 +634,20 @@ function renderEnergy() {
   document.getElementById('epOverlay').style.backgroundImage = `url('assets/${L.art}.png')`;   // art fills only the control region, below the header frame
   if (!eaSelected || !mine.some(s => s.id === eaSelected)) eaSelected = mine[0]?.id || null;
   document.getElementById('epTurn').textContent = `T${clock.turn}`;
-  document.getElementById('epTabs').innerHTML = mine.map(s => { const v = validateEaf(powerOf(s), eaColOf(s));
+  document.getElementById('epTabs').innerHTML = mine.map(s => { const v = validateShip(s);
     return `<button class="eptab ${s.id === eaSelected ? 'on' : ''}" data-eatab="${s.id}"><span class="dot" style="background:${stColor(v.status)}"></span>${s.id}</button>`; }).join('');
   const s = eaSelected ? byId(eaSelected) : null, ov = document.getElementById('epOverlay');
   if (!s) { ov.innerHTML = ''; document.getElementById('epMeter').textContent = ''; return; }
-  const p = powerOf(s), col = eaColOf(s), v = validateEaf(p, col), sn = shieldsNow(s);
+  const p = powerOf(s), col = eaColOf(s), v = validateShip(s), sn = shieldsNow(s);
   document.getElementById('epMeter').innerHTML = `<b style="color:${stColor(v.status)}">${v.used}</b>/${v.produced} · ${v.free} free`;
-  const anyOver = mine.some(x => validateEaf(powerOf(x), eaColOf(x)).status === 'over');
+  const anyOver = mine.some(x => validateShip(x).status === 'over');
   const lock = document.getElementById('epLock'); lock.disabled = myLockedEnergy || anyOver;
   lock.textContent = myLockedEnergy ? '🔒 LOCKED' : '🔒 LOCK';
   let h = '';
   for (const n of [1, 2, 3, 4, 5, 6]) { const [x, y] = L.shields[n]; h += shieldCtl(n, x, y, sn[n - 1], col.specReinf[n] || 0, specReinfMax(p, n)); }
   h += toggleCtl(L.activate[0], L.activate[1], 'SHIELDS', 'shieldsActive', col.shieldsActive);
   const bays = L.bays; let bi = 0;
-  if (bi < bays.length) { h += stackCtl(bays[bi][0], bays[bi][1], 'PH CAP', 'phaserCap', col.phaserCap, p.capacitorCap); bi++; }
+  if (bi < bays.length) { h += capCtl(bays[bi][0], bays[bi][1], carriedOf(s), col.phaserCap, p.capacitorCap); bi++; }
   for (const w of p.weapons) { if (bi >= bays.length) break; h += weaponCtl(bays[bi][0], bays[bi][1], w, col.weapons[w.id]); bi++; }
   if (p.systems.fireControl && bi < bays.length) { h += segCtl(bays[bi][0], bays[bi][1], 'FIRE CTL', 'fireControl', col.fireControl); bi++; }
   if (bi < bays.length) { h += stackCtl(bays[bi][0], bays[bi][1], 'GEN REINF', 'genReinf', col.genReinf, sinkMax(p, 'genReinf')); bi++; }
@@ -829,9 +837,9 @@ document.getElementById('fireBtn').onclick = () => commitFiring();
 // ---------- energy allocation interactions + lock ----------
 const epanel = document.getElementById('energyPanel');
 function updateMeter() {   // light header-meter refresh during slider drag (no overlay rebuild)
-  const s = eaSelected ? byId(eaSelected) : null; if (!s) return; const v = validateEaf(powerOf(s), eaColOf(s));
+  const s = eaSelected ? byId(eaSelected) : null; if (!s) return; const v = validateShip(s);
   document.getElementById('epMeter').innerHTML = `<b style="color:${stColor(v.status)}">${v.used}</b>/${v.produced} · ${v.free} free`;
-  document.getElementById('epLock').disabled = myLockedEnergy || ships.filter(isMine).some(x => validateEaf(powerOf(x), eaColOf(x)).status === 'over');
+  document.getElementById('epLock').disabled = myLockedEnergy || ships.filter(isMine).some(x => validateShip(x).status === 'over');
 }
 epanel.addEventListener('click', e => {
   const tab = e.target.closest('[data-eatab]'); if (tab) { eaSelected = plotShipId = tab.dataset.eatab; render(); return; }
@@ -844,7 +852,7 @@ epanel.addEventListener('click', e => {
     renderEnergy(); return; }
   const seg = e.target.closest('[data-ea="seg"]'); if (seg) { col[seg.dataset.key] = +seg.dataset.val; renderEnergy(); return; }
   const tg = e.target.closest('[data-ea="toggle"]'); if (tg) { col[tg.dataset.key] = tg.dataset.num ? (col[tg.dataset.key] ? 0 : 1) : !col[tg.dataset.key]; renderEnergy(); return; }
-  const stp = e.target.closest('[data-ea="step"]'); if (stp) { const k = stp.dataset.key, max = sinkMax(p, k); col[k] = Math.max(0, Math.min(max, (col[k] || 0) + (+stp.dataset.d))); renderEnergy(); return; }
+  const stp = e.target.closest('[data-ea="step"]'); if (stp) { const k = stp.dataset.key, max = k === 'phaserCap' ? p.capacitorCap - carriedOf(s) : sinkMax(p, k); col[k] = Math.max(0, Math.min(max, (col[k] || 0) + (+stp.dataset.d))); renderEnergy(); return; }
   const sp = e.target.closest('[data-ea="specstep"]'); if (sp) { const n = +sp.dataset.shield, max = specReinfMax(p, n); col.specReinf[n] = Math.max(0, Math.min(max, (col.specReinf[n] || 0) + (+sp.dataset.d))); renderEnergy(); return; }
 });
 function onEaInput(e) {   // range sliders: live-update value + header meter without rebuilding (would kill the drag)
@@ -865,7 +873,7 @@ window.addEventListener('mouseup', () => { epDrag = null; });
 async function lockEnergy() {
   if (myLockedEnergy) return;
   const mine = ships.filter(isMine);
-  if (mine.some(s => validateEaf(powerOf(s), eaColOf(s)).status === 'over')) return;
+  if (mine.some(s => validateShip(s).status === 'over')) return;
   if (!confirm('Lock your energy allocation for this turn?\n\nThis is FINAL — you cannot change it once locked.')) return;
   myLockedEnergy = true; render();
   const eaf = {}; for (const s of mine) eaf[s.id] = eaColOf(s);
