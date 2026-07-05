@@ -87,8 +87,9 @@
   .hint{color:#94a3b8;font-size:12px;padding:10px 12px}
   .log .hit{color:#166534}.log .miss{color:#94a3b8}.log .vol{color:#991b1b;font-weight:600}.log .kill{color:#b45309}
   /* draggable console modal — the race art IS the panel; controls overlay its zones */
-  .epanel{position:fixed;top:58px;left:16px;width:940px;max-width:97vw;z-index:250;border-radius:10px;overflow:hidden;box-shadow:0 18px 55px rgba(0,0,0,.6);background:#0b1220 no-repeat center bottom/100% auto}
-  .ephdr{display:flex;align-items:center;gap:10px;padding:6px 12px;font-size:12px;letter-spacing:.6px;background:rgba(11,18,32,.96);color:#e2e8f0;cursor:move;user-select:none}
+  .epanel{position:fixed;top:58px;left:16px;width:940px;max-width:97vw;z-index:250;display:flex;flex-direction:column;border-radius:10px;overflow:hidden;box-shadow:0 18px 55px rgba(0,0,0,.6);background:#0b1220}
+  .epoverlay{flex:none}
+  .ephdr{display:flex;align-items:center;gap:10px;padding:8px 13px;font-size:12px;letter-spacing:.6px;background:#0b1220;color:#e2e8f0;cursor:move;user-select:none;border-bottom:2px solid #1e293b}
   .ephdr #epTurn{color:#94a3b8;font-size:11px;font-weight:400}
   .ephdr #epTabs{display:flex;gap:4px}
   .ephdr #epMeter{margin-left:auto;font-size:12px;color:#cbd5e1;font-variant-numeric:tabular-nums}
@@ -96,7 +97,7 @@
   .eplockbtn:disabled{opacity:.45;cursor:not-allowed}
   .eptab{font:inherit;font-size:11px;background:rgba(51,65,85,.85);border:1px solid rgba(148,163,184,.4);border-radius:5px;padding:2px 8px;cursor:pointer;color:#e2e8f0}
   .eptab.on{background:#2563eb;border-color:#2563eb;font-weight:700}
-  .epoverlay{position:relative;width:100%;padding-top:54.55%;font-size:10px}
+  .epoverlay{position:relative;width:100%;padding-top:54.55%;font-size:10px;background:#000 no-repeat center/100% 100%}
   .epoverlay > *{position:absolute}
   .ctl{transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:1px;text-align:center;text-shadow:0 1px 3px #000,0 0 5px #000;white-space:nowrap}
   .ctl .lab{font-size:8.5px;letter-spacing:.3px;opacity:.92}
@@ -581,7 +582,8 @@ function renderEnergy() {
   const mine = ships.filter(isMine);
   const theme = (mine[0]?.code?.split('-')[0] === 'KLI') ? 'kli' : 'fed';
   const L = CONSOLE[theme], ep = document.getElementById('energyPanel');
-  ep.className = 'epanel ' + L.cls; ep.style.backgroundImage = `url('assets/${L.art}.png')`;
+  ep.className = 'epanel ' + L.cls; ep.style.backgroundImage = '';
+  document.getElementById('epOverlay').style.backgroundImage = `url('assets/${L.art}.png')`;   // art fills only the control region, below the header frame
   if (!eaSelected || !mine.some(s => s.id === eaSelected)) eaSelected = mine[0]?.id || null;
   document.getElementById('epTurn').textContent = `T${clock.turn}`;
   document.getElementById('epTabs').innerHTML = mine.map(s => { const v = validateEaf(powerOf(s), eaColOf(s));
