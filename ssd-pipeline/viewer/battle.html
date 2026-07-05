@@ -602,7 +602,7 @@ function weaponCtl(x, y, w, st) {
 // phaser capacitor: spell it out, show existing (carried) charge, and never allow overcharging past capacity
 function capCtl(x, y, carried, charging, cap) {
   const total = carried + charging, room = cap - carried;
-  return ctl(x, y, `<div class="lab">PHASER CAPACITOR</div><div class="row"><button class="stepbtn" data-ea="step" data-key="phaserCap" data-d="-1"${charging <= 0 ? ' disabled' : ''}>−</button><span class="val">${total}/${cap}</span><button class="stepbtn" data-ea="step" data-key="phaserCap" data-d="1"${charging >= room ? ' disabled' : ''}>+</button></div><div class="lab">held ${carried}</div>`);
+  return ctl(x, y, `<div class="lab">PHASERS (Held: ${carried})</div><div class="row"><button class="stepbtn" data-ea="step" data-key="phaserCap" data-d="-1"${charging <= 0 ? ' disabled' : ''}>−</button><span class="val">${total}/${cap}</span><button class="stepbtn" data-ea="step" data-key="phaserCap" data-d="1"${charging >= room ? ' disabled' : ''}>+</button></div>`);
 }
 const segCtl = (x, y, label, key, val) =>
   ctl(x, y, `<div class="lab">${label}</div><div class="row">${[['OFF', 0], ['LO', 0.5], ['FUL', 1]].map(([t, v]) => `<button class="${val === v ? 'on' : ''}" data-ea="seg" data-key="${key}" data-val="${v}">${t}</button>`).join('')}</div>`);
