@@ -33,3 +33,6 @@ ssd-pipeline/viewer/weapons.html
 
 # battle-state save file (local)
 ssd-pipeline/data/_battle.json
+
+# race console art (large, provided locally like SSD images)
+assets/*.png
