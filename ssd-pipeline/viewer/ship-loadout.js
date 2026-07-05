@@ -33,7 +33,7 @@ export function shipLoadout(verified, detection) {
     }
     const cls = weaponClassOf(g);
     if (!cls) continue;
-    (g.boxIds || []).forEach((_, i) => mounts.push({ id: `${g.id}.${i}`, cls, arc: g.arcDef || { arcs: [g.arc] } }));
+    (g.boxIds || []).forEach((boxId, i) => mounts.push({ id: `${g.id}.${i}`, cls, arc: g.arcDef || { arcs: [g.arc] }, boxId }));
   }
   return { mounts, shields };
 }

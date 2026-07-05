@@ -26,8 +26,12 @@ export function shipPower(code, verified, detection) {
   const apr = n('apr') * PER_BOX_OUTPUT['apr'];
   const { mounts, shields } = shipLoadout(verified, detection);
   const capacitorCap = Math.round(mounts.reduce((a, m) => a + (CAP_PER_PHASER[m.cls] || 0), 0));
-  const weapons = mounts.filter(m => WEAPON_ARM[m.cls])
-    .map(m => ({ id: m.id, cls: m.cls, arm: WEAPON_ARM[m.cls].arm, overload: WEAPON_ARM[m.cls].overload }));
+  const labels = verified.labels || {}, wSeq = {};   // box labels the user set at SSD verification (A, B, C, …)
+  const weapons = mounts.filter(m => WEAPON_ARM[m.cls]).map(m => {
+    const grp = m.id.split('.')[0], seq = (wSeq[grp] = (wSeq[grp] || 0) + 1) - 1;
+    const label = (labels[m.boxId] || '').trim() || String.fromCharCode(65 + seq);   // saved label, else A/B/C… by position
+    return { id: m.id, cls: m.cls, arc: (m.arc && m.arc.arcs && m.arc.arcs[0]) || '', label, arm: WEAPON_ARM[m.cls].arm, overload: WEAPON_ARM[m.cls].overload };
+  });
   const prof = SHIP_PROFILES[code] || DEFAULT_PROFILE;
   return {
     warp, impulse, apr, total: warp + impulse + apr,

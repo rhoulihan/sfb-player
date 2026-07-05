@@ -103,6 +103,8 @@
   .ctl{transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:1px;text-align:center;text-shadow:0 1px 3px #000,0 0 5px #000;white-space:nowrap;z-index:1}
   .ctl .lab{font-size:8.5px;letter-spacing:.3px;opacity:.92}
   .ctl .val{font-weight:800;font-size:13px;line-height:1}
+  .ctl.pwr{gap:6px}
+  .ctl.pwr .val{font-size:18px}
   .ctl .row{display:flex;align-items:center;gap:3px}
   .ctl button{font:inherit;font-size:9px;font-weight:700;cursor:pointer;border:1px solid;border-radius:4px;padding:1px 5px;line-height:1.5}
   .ctl button.stepbtn{width:16px;padding:0;font-size:12px}
@@ -561,8 +563,8 @@ function eaColOf(s) {
 const CONSOLE = {
   fed: { art: 'Fed_EAF', cls: 'con-fed',
     shields: { 1: [50, 14], 2: [63.6, 28], 3: [63.6, 60], 4: [50, 77], 5: [36.4, 60], 6: [36.4, 28] },
-    bays: [[17, 16], [17, 25], [17, 34], [17, 43], [17, 53], [17, 62], [17, 71]],
-    move: [88, 22], reserve: [88, 60], activate: [50, 44],
+    bays: [[17, 16], [17, 25.6], [17, 35.2], [17, 44.8], [17, 54.2], [17, 63.6], [17, 72.2]],
+    move: [89.5, 22], reserve: [89.5, 62], activate: [50, 44],
     systems: { labs: [19.5, 90], tractor: [35.5, 90], transporter: [53, 90], damageControl: [70, 90], ew: [86.5, 89] } },
   kli: { art: 'Klingon_EAF', cls: 'con-kli',
     shields: { 1: [50, 20], 2: [61, 33], 3: [61, 58], 4: [50, 72], 5: [39, 58], 6: [39, 33] },
@@ -591,7 +593,8 @@ function shieldCtl(n, x, y, strength, reinf, max) {
     <div class="row"><button class="stepbtn" data-ea="specstep" data-shield="${n}" data-d="-1">−</button><button class="stepbtn" data-ea="specstep" data-shield="${n}" data-d="1"${reinf >= max ? ' disabled' : ''}>+</button></div>`);
 }
 function weaponCtl(x, y, w, st) {
-  return ctl(x, y, `<div class="lab">${w.cls}</div><div class="row"><button class="${st.armed ? 'on' : ''}" data-ea="weap" data-wid="${w.id}" data-what="armed">ARM</button><button class="${st.overload ? 'on' : ''}" data-ea="weap" data-wid="${w.id}" data-what="overload">OL</button>${w.cls === 'PHOTON' ? `<button class="${st.prox ? 'on' : ''}" data-ea="weap" data-wid="${w.id}" data-what="prox">PX</button>` : ''}</div>`);
+  const short = w.cls === 'PHOTON' ? 'PHO' : w.cls === 'DISR' ? 'DIS' : w.cls;   // SSD box label (A–D) + weapon tag
+  return ctl(x, y, `<div class="lab">${short} ${w.label || ''}</div><div class="row"><button class="${st.armed ? 'on' : ''}" data-ea="weap" data-wid="${w.id}" data-what="armed">ARM</button><button class="${st.overload ? 'on' : ''}" data-ea="weap" data-wid="${w.id}" data-what="overload">OL</button>${w.cls === 'PHOTON' ? `<button class="${st.prox ? 'on' : ''}" data-ea="weap" data-wid="${w.id}" data-what="prox">PX</button>` : ''}</div>`);
 }
 const segCtl = (x, y, label, key, val) =>
   ctl(x, y, `<div class="lab">${label}</div><div class="row">${[['OFF', 0], ['LO', 0.5], ['FUL', 1]].map(([t, v]) => `<button class="${val === v ? 'on' : ''}" data-ea="seg" data-key="${key}" data-val="${v}">${t}</button>`).join('')}</div>`);
@@ -643,10 +646,10 @@ function renderEnergy() {
   // SPEED (movement) — centered in the top-right rectangle: label, power total, ± controls, blank, hex total
   const [mx, my] = L.move, hexes = Math.floor((col.movement || 0) / p.moveCost);
   if (s.speedPlot && s.speedPlot.changes.length)
-    h += ctl(mx, my, `<div class="lab">SPEED</div><div class="val">${col.movement}</div><div class="lab">plotted</div><div class="val">${hexesInPlot(s.speedPlot)}h</div>`);
-  else h += ctl(mx, my, `<div class="lab">SPEED</div><div class="val">${col.movement}</div><div class="row">${stepPair('movement', col.movement, sinkMax(p, 'movement'))}</div><div class="gap"></div><div class="val">${hexes}h</div>`);
+    h += ctl(mx, my, `<div class="lab">SPEED</div><div class="val">${col.movement}</div><div class="lab">plotted</div><div class="val">${hexesInPlot(s.speedPlot)}h</div>`, 'pwr');
+  else h += ctl(mx, my, `<div class="lab">SPEED</div><div class="val">${col.movement}</div><div class="row">${stepPair('movement', col.movement, sinkMax(p, 'movement'))}</div><div class="gap"></div><div class="val">${hexes}h</div>`, 'pwr');
   // RESERVE — lower-right rectangle: label, counter, ± controls
-  h += ctl(L.reserve[0], L.reserve[1], `<div class="lab">RESERVE</div><div class="val">${col.recharge}</div><div class="row">${stepPair('recharge', col.recharge, sinkMax(p, 'recharge'))}</div>`);
+  h += ctl(L.reserve[0], L.reserve[1], `<div class="lab">RESERVE</div><div class="val">${col.recharge}</div><div class="row">${stepPair('recharge', col.recharge, sinkMax(p, 'recharge'))}</div>`, 'pwr');
   // bottom control strip (art supplies SENSORS/TRACTOR/TRANSPORTERS/DAMAGE CONTROL labels)
   const S = L.systems;
   h += barCtl(S.labs[0], S.labs[1], 6, 6);                                          // SENSORS: fixed status bar, not adjustable
