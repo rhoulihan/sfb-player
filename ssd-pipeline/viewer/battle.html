@@ -86,33 +86,33 @@
   .prev b{color:#0f172a}
   .hint{color:#94a3b8;font-size:12px;padding:10px 12px}
   .log .hit{color:#166534}.log .miss{color:#94a3b8}.log .vol{color:#991b1b;font-weight:600}.log .kill{color:#b45309}
-  .epanel{position:fixed;top:66px;left:18px;width:540px;max-width:94vw;height:82vh;z-index:250;display:flex;flex-direction:column;border-radius:12px;overflow:hidden;box-shadow:0 18px 55px rgba(0,0,0,.6);border:2px solid #0b1220;background-size:cover;background-position:center;color:#e2e8f0}
-  .ephdr{padding:8px 14px;font-size:15px;background:rgba(11,18,32,.94);cursor:move;user-select:none;border-bottom:1px solid rgba(148,163,184,.25)}
-  .eptabs{display:flex;gap:4px;padding:8px 10px 0;flex-wrap:wrap;background:rgba(11,18,32,.72)}
-  .eptab{font:inherit;font-size:12px;background:rgba(51,65,85,.85);border:1px solid rgba(148,163,184,.35);border-radius:7px 7px 0 0;padding:4px 9px;cursor:pointer;color:#e2e8f0;display:flex;align-items:center;gap:5px}
-  .eptab.on{background:rgba(30,41,59,.95);font-weight:700}
-  .eptab .dot{width:9px;height:9px;border-radius:50%}
-  .epmeter{padding:8px 14px;background:rgba(11,18,32,.86)}
-  .epsrc{font-size:11px;color:#94a3b8;margin-bottom:6px}
-  .epbar{height:12px;background:rgba(51,65,85,.9);border-radius:6px;overflow:hidden;margin-bottom:4px}
-  .epbar i{display:block;height:100%;transition:width .12s}
-  .epnums{font-size:13px;color:#e2e8f0}
-  .eprows{flex:1;overflow:auto;padding:6px 12px;background:rgba(11,18,32,.82)}
-  .egroup{font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:#93c5fd;margin:12px 0 3px;font-weight:700}
-  .earow{display:flex;align-items:center;gap:8px;padding:3px 0;font-size:12.5px;color:#e2e8f0}
-  .earow.ro{color:#94a3b8}
-  .elab{flex:1;min-width:0}
-  .eslider{flex:none;width:120px}
-  .enum{width:44px;font:inherit;font-size:12px;border:1px solid #cbd5e1;border-radius:4px;padding:1px 3px;text-align:right}
-  .eunits{width:74px;text-align:right;color:#0f172a;font-variant-numeric:tabular-nums;font-size:12px}
-  .etog{font:inherit;font-size:11px;background:#e2e8f0;border:1px solid #cbd5e1;border-radius:6px;padding:2px 8px;cursor:pointer;font-weight:600}
-  .etog.on{background:#2563eb;color:#fff;border-color:#2563eb}
-  .etog.ov.on{background:#d97706;border-color:#d97706}
-  .etog.px.on{background:#0891b2;border-color:#0891b2}
-  .eseg button{font:inherit;font-size:11px;background:#e2e8f0;border:1px solid #cbd5e1;padding:2px 8px;cursor:pointer}
-  .eseg button.on{background:#2563eb;color:#fff;border-color:#2563eb}
-  .eseg button:first-child{border-radius:6px 0 0 6px}.eseg button:last-child{border-radius:0 6px 6px 0}
-  .epfoot{padding:9px 14px;border-top:1px solid #e2e8f0;display:flex;align-items:center;gap:10px}
+  /* draggable console modal — the race art IS the panel; controls overlay its zones */
+  .epanel{position:fixed;top:58px;left:16px;width:940px;max-width:97vw;z-index:250;border-radius:10px;overflow:hidden;box-shadow:0 18px 55px rgba(0,0,0,.6);background:#0b1220 no-repeat center bottom/100% auto}
+  .ephdr{display:flex;align-items:center;gap:10px;padding:6px 12px;font-size:12px;letter-spacing:.6px;background:rgba(11,18,32,.96);color:#e2e8f0;cursor:move;user-select:none}
+  .ephdr #epTurn{color:#94a3b8;font-size:11px;font-weight:400}
+  .ephdr #epTabs{display:flex;gap:4px}
+  .ephdr #epMeter{margin-left:auto;font-size:12px;color:#cbd5e1;font-variant-numeric:tabular-nums}
+  .eplockbtn{font:inherit;font-size:11px;font-weight:800;letter-spacing:.5px;background:#C74634;color:#fff;border:none;border-radius:6px;padding:4px 14px;cursor:pointer}
+  .eplockbtn:disabled{opacity:.45;cursor:not-allowed}
+  .eptab{font:inherit;font-size:11px;background:rgba(51,65,85,.85);border:1px solid rgba(148,163,184,.4);border-radius:5px;padding:2px 8px;cursor:pointer;color:#e2e8f0}
+  .eptab.on{background:#2563eb;border-color:#2563eb;font-weight:700}
+  .epoverlay{position:relative;width:100%;padding-top:54.55%;font-size:10px}
+  .epoverlay > *{position:absolute}
+  .ctl{transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:1px;text-align:center;text-shadow:0 1px 3px #000,0 0 5px #000;white-space:nowrap}
+  .ctl .lab{font-size:8.5px;letter-spacing:.3px;opacity:.92}
+  .ctl .val{font-weight:800;font-size:13px;line-height:1}
+  .ctl .row{display:flex;align-items:center;gap:3px}
+  .ctl button{font:inherit;font-size:9px;font-weight:700;cursor:pointer;border:1px solid;border-radius:4px;padding:1px 5px;line-height:1.5}
+  .ctl button.stepbtn{width:16px;padding:0;font-size:12px}
+  .ctl input[type=range]{width:82px;accent-color:currentColor}
+  .ctl.over .val{color:#fca5a5}
+  .con-fed{--ac:#f8b74d;--bg:rgba(20,12,4,.82);--tx:#fde3a7}
+  .con-kli{--ac:#4ade80;--bg:rgba(6,20,8,.82);--tx:#bbf7d0}
+  .con-fed .ctl,.con-kli .ctl{color:var(--tx)}
+  .con-fed .ctl button,.con-kli .ctl button{background:var(--bg);border-color:var(--ac);color:var(--ac)}
+  .con-fed .ctl button.on,.con-kli .ctl button.on,.con-fed .ctl button:hover,.con-kli .ctl button:hover{background:var(--ac);color:#0a0a0a}
+  .eplock{transform:translateX(-50%);font-size:12px;font-weight:800;padding:5px 20px;border-radius:7px;letter-spacing:.6px;border:1px solid}
+  .eplock:disabled{opacity:.45;cursor:not-allowed}
 </style></head>
 <body>
 <div id="toast" style="display:none;position:fixed;top:52px;left:50%;transform:translateX(-50%);z-index:700;background:#7c2d12;color:#fff;padding:8px 16px;border-radius:8px;font-size:13px;box-shadow:0 6px 20px rgba(0,0,0,.3)"></div>
@@ -131,13 +131,8 @@
   </header>
   <div class="body">
     <div id="energyPanel" class="epanel" style="display:none">
-      <div class="ephdr"><b>⚡ Energy Allocation</b> <span id="epTurn" style="color:#94a3b8;font-weight:400;font-size:12px"></span>
-        <span id="epLockState" style="float:right;font-size:11px;color:#64748b"></span></div>
-      <div id="epTabs" class="eptabs"></div>
-      <div id="epMeter" class="epmeter"></div>
-      <div id="epRows" class="eprows"></div>
-      <div class="epfoot"><button class="btn fire" id="epLock">🔒 Lock allocation (final)</button>
-        <span id="epLockNote" style="font-size:11px;color:#94a3b8"></span></div>
+      <div class="ephdr"><b>⚡ EAF</b><span id="epTurn"></span><span id="epTabs"></span><span id="epMeter"></span><button class="eplockbtn" id="epLock">🔒 LOCK</button></div>
+      <div id="epOverlay" class="epoverlay"></div>
     </div>
     <aside class="rail" id="rail">
       <h3>Fleets <span id="cmdBadge" style="font-weight:600;font-size:11px;color:#2563eb;float:right"></span></h3>
@@ -553,73 +548,71 @@ function eaColOf(s) {
   if (!eafDraft[s.id]) eafDraft[s.id] = s.eaf ? { ...newEafColumn(powerOf(s), s.speed), ...s.eaf } : newEafColumn(powerOf(s), s.speed);
   return eafDraft[s.id];
 }
+// zone maps (% of the art) — both consoles share the region layout, styled per theme
+const CONSOLE = {
+  fed: { art: 'Fed_EAF', cls: 'con-fed',
+    shields: { 1: [50, 14], 2: [62, 28], 3: [62, 60], 4: [50, 74], 5: [38, 60], 6: [38, 28] },
+    bays: [[13, 16], [13, 25], [13, 34], [13, 43], [13, 53], [13, 62], [13, 71]],
+    move: [86, 20], reserve: [95, 20], activate: [50, 44],
+    systems: { labs: [19.5, 92], tractor: [35.5, 92], transporter: [53, 92], damageControl: [70, 92], ecm: [80, 92], eccm: [93, 92] } },
+  kli: { art: 'Klingon_EAF', cls: 'con-kli',
+    shields: { 1: [50, 20], 2: [61, 33], 3: [61, 58], 4: [50, 72], 5: [39, 58], 6: [39, 33] },
+    bays: [[14, 24], [14, 40], [14, 56], [14, 71]],
+    move: [88, 25], reserve: [88, 47], activate: [50, 46],
+    systems: { labs: [19.5, 92], tractor: [35.5, 92], transporter: [53, 92], damageControl: [70, 92], ecm: [80, 92], eccm: [93, 92] } },
+};
+const stColor = st => st === 'over' ? '#ef4444' : st === 'under' ? '#f59e0b' : '#22c55e';
+const ctl = (x, y, inner, extra = '') => `<div class="ctl ${extra}" style="left:${x}%;top:${y}%">${inner}</div>`;
+const sliderCtl = (x, y, label, key, val, max, note = '') =>
+  ctl(x, y, `<div class="lab">${label}</div><div class="val">${val}${note}</div><input type="range" data-ea="num" data-key="${key}" min="0" max="${max}" value="${Math.min(val, max)}">`);
+const toggleCtl = (x, y, label, key, on, num) =>
+  ctl(x, y, `<div class="lab">${label}</div><button class="${on ? 'on' : ''}" data-ea="toggle" data-key="${key}"${num ? ' data-num="1"' : ''}>${on ? 'ON' : 'OFF'}</button>`);
+function shieldCtl(n, x, y, strength, reinf, max) {
+  return ctl(x, y, `<div class="lab">SHLD ${n}</div><div class="val">${strength}${reinf ? '+' + reinf : ''}</div>
+    <div class="row"><button class="stepbtn" data-ea="specstep" data-shield="${n}" data-d="-1">−</button><button class="stepbtn" data-ea="specstep" data-shield="${n}" data-d="1"${reinf >= max ? ' disabled' : ''}>+</button></div>`);
+}
+function weaponCtl(x, y, w, st) {
+  return ctl(x, y, `<div class="lab">${w.cls}</div><div class="row"><button class="${st.armed ? 'on' : ''}" data-ea="weap" data-wid="${w.id}" data-what="armed">ARM</button><button class="${st.overload ? 'on' : ''}" data-ea="weap" data-wid="${w.id}" data-what="overload">OL</button>${w.cls === 'PHOTON' ? `<button class="${st.prox ? 'on' : ''}" data-ea="weap" data-wid="${w.id}" data-what="prox">PX</button>` : ''}</div>`);
+}
+const segCtl = (x, y, label, key, val) =>
+  ctl(x, y, `<div class="lab">${label}</div><div class="row">${[['OFF', 0], ['LO', 0.5], ['FUL', 1]].map(([t, v]) => `<button class="${val === v ? 'on' : ''}" data-ea="seg" data-key="${key}" data-val="${v}">${t}</button>`).join('')}</div>`);
+
 function renderEnergy() {
   const mine = ships.filter(isMine);
-  const race = mine[0]?.code?.split('-')[0];   // race console art (Klingon vs Federation default)
-  document.getElementById('energyPanel').style.backgroundImage = `url('assets/${race === 'KLI' ? 'Klingon_EAF' : 'Fed_EAF'}.png')`;
-  if (!eaSelected || !mine.some(s => s.id === eaSelected)) eaSelected = mine[0] ? mine[0].id : null;
-  document.getElementById('epTurn').textContent = `Turn ${clock.turn}`;
-  document.getElementById('epLockState').textContent = ['friendly', 'enemy'].map(f => `${fleets[f]?.name || f} ${committed[f] ? '🔒' : '…'}`).join('  ·  ');
-  document.getElementById('epTabs').innerHTML = mine.map(s => {
-    const v = validateEaf(powerOf(s), eaColOf(s));
-    const dot = v.status === 'over' ? '#C74634' : v.status === 'under' ? '#d97706' : '#16a34a';
-    return `<button class="eptab ${s.id === eaSelected ? 'on' : ''}" data-eatab="${s.id}"><span class="dot" style="background:${dot}"></span>${s.id}</button>`;
-  }).join('') || '<span class="hint">no ships</span>';
-  const s = eaSelected ? byId(eaSelected) : null;
-  if (!s) { document.getElementById('epMeter').innerHTML = ''; document.getElementById('epRows').innerHTML = '<div class="hint">no ship selected</div>'; }
-  else { const p = powerOf(s), col = eaColOf(s);
-    document.getElementById('epMeter').innerHTML = meterHtml(p, validateEaf(p, col)) +
-      (s.course && s.course.steps.length ? `<label style="display:block;margin-top:6px;font-size:12px;cursor:pointer"><input type="checkbox" id="epAuto" ${s.autopilot ? 'checked' : ''}> 🅰 Autopilot — follow the plotted course</label>` : '');
-    document.getElementById('epRows').innerHTML = eaRowsHtml(p, col); }
+  const theme = (mine[0]?.code?.split('-')[0] === 'KLI') ? 'kli' : 'fed';
+  const L = CONSOLE[theme], ep = document.getElementById('energyPanel');
+  ep.className = 'epanel ' + L.cls; ep.style.backgroundImage = `url('assets/${L.art}.png')`;
+  if (!eaSelected || !mine.some(s => s.id === eaSelected)) eaSelected = mine[0]?.id || null;
+  document.getElementById('epTurn').textContent = `T${clock.turn}`;
+  document.getElementById('epTabs').innerHTML = mine.map(s => { const v = validateEaf(powerOf(s), eaColOf(s));
+    return `<button class="eptab ${s.id === eaSelected ? 'on' : ''}" data-eatab="${s.id}"><span class="dot" style="background:${stColor(v.status)}"></span>${s.id}</button>`; }).join('');
+  const s = eaSelected ? byId(eaSelected) : null, ov = document.getElementById('epOverlay');
+  if (!s) { ov.innerHTML = ''; document.getElementById('epMeter').textContent = ''; return; }
+  const p = powerOf(s), col = eaColOf(s), v = validateEaf(p, col), sn = shieldsNow(s);
+  document.getElementById('epMeter').innerHTML = `<b style="color:${stColor(v.status)}">${v.used}</b>/${v.produced} · ${v.free} free`;
   const anyOver = mine.some(x => validateEaf(powerOf(x), eaColOf(x)).status === 'over');
-  const lock = document.getElementById('epLock');
-  lock.disabled = myLockedEnergy || anyOver;
-  lock.textContent = myLockedEnergy ? '🔒 Locked — waiting for other fleets' : '🔒 Lock allocation (final)';
-  document.getElementById('epLockNote').textContent = anyOver ? 'a ship is over-allocated (red)' : '';
-}
-function meterHtml(p, v) {
-  const pct = v.produced ? Math.min(100, Math.round((v.used / v.produced) * 100)) : 0;
-  const c = v.status === 'over' ? '#C74634' : v.status === 'under' ? '#d97706' : '#16a34a';
-  return `<div class="epsrc">Warp ${p.warp} · Impulse ${p.impulse} · Reactor ${p.apr} · Batteries ${p.batteries} · Capacitor ${p.capacitorCap}</div>
-    <div class="epbar"><i style="width:${pct}%;background:${c}"></i></div>
-    <div class="epnums"><b>${v.used}</b> used · <b>${v.free}</b> free · of ${v.produced} <span style="color:${c};font-weight:700">${v.status.toUpperCase()}</span></div>`;
-}
-function eaRowsHtml(p, col) {
-  const slider = (label, key, note = '') => { const max = sinkMax(p, key), val = Math.min(col[key] || 0, max); return `<div class="earow"><span class="elab">${label}</span>
-    <input type="range" class="eslider" data-ea="num" data-key="${key}" min="0" max="${max}" value="${val}">
-    <input type="number" class="enum" data-ea="num" data-key="${key}" min="0" max="${max}" value="${val}"><span class="eunits">${val}/${max}${note}</span></div>`; };
-  const toggle = (label, key, num) => `<div class="earow"><span class="elab">${label}</span>
-    <label class="eswitch"><input type="checkbox" data-ea="toggle" data-key="${key}"${num ? ' data-num="1"' : ''} ${col[key] ? 'checked' : ''}></label></div>`;
-  const ro = (label, val) => `<div class="earow ro"><span class="elab">${label}</span><span class="eunits">${val}</span></div>`;
-  let h = '<div class="egroup">Mandatory</div>' + ro('Life support', col.lifeSupport);
-  h += '<div class="egroup">Weapons</div>';
-  if (p.systems.fireControl) h += segRow('Fire control', 'fireControl', col.fireControl);
-  h += slider('Charge phaser capacitor', 'phaserCap');
-  for (const w of p.weapons) { const st = col.weapons[w.id]; h += `<div class="earow"><span class="elab">${w.cls} <span style="color:#94a3b8">${w.id.slice(0, 7)}</span></span>
-    <button class="etog ${st.armed ? 'on' : ''}" data-ea="weap" data-wid="${w.id}" data-what="armed">${st.armed ? 'ARM' : 'hold'}</button>
-    <button class="etog ov ${st.overload ? 'on' : ''}" data-ea="weap" data-wid="${w.id}" data-what="overload">OL</button>${w.cls === 'PHOTON' ? `
-    <button class="etog px ${st.prox ? 'on' : ''}" data-ea="weap" data-wid="${w.id}" data-what="prox">PROX</button>` : ''}
-    <span class="eunits">${st.armed ? (st.overload ? w.overload : w.arm) : 0}</span></div>`; }
-  h += '<div class="egroup">Defense</div>' + toggle('Activate shields', 'shieldsActive') + slider('General reinforcement', 'genReinf');
-  for (const n of [1, 2, 3, 4, 5, 6]) { const max = specReinfMax(p, n); h += `<div class="earow"><span class="elab" style="padding-left:12px">Specific reinf. shield ${n}</span>
-    <input type="number" class="enum" data-ea="spec" data-shield="${n}" min="0" max="${max}" value="${Math.min(col.specReinf[n] || 0, max)}"><span class="eunits">${Math.min(col.specReinf[n] || 0, max)}/${max}</span></div>`; }
-  h += '<div class="egroup">Movement & systems</div>';
-  const sh = eaSelected ? byId(eaSelected) : null;
-  if (sh && sh.speedPlot && sh.speedPlot.changes.length)   // a plotted speed change drives movement energy
-    h += `<div class="earow"><span class="elab">Energy for movement</span><span class="eunits">${col.movement} · plotted ${hexesInPlot(sh.speedPlot)} hex</span></div>`;
-  else h += slider('Energy for movement', 'movement', ` = ${Math.floor((col.movement || 0) / p.moveCost)} hex`);
-  h += toggle('Impulse point to move', 'impulseMove', true) + toggle('HET', 'het');
-  h += slider('Damage control', 'damageControl') + slider('Recharge / reserve', 'recharge');
-  if (p.systems.tractor) h += slider('Tractor', 'tractor');
-  if (p.systems.transporter) h += slider('Transporters', 'transporter');
-  if (p.systems.ecm) h += slider('ECM', 'ecm') + slider('ECCM', 'eccm');
-  if (p.systems.labs) h += slider('Labs', 'labs');
-  if (p.systems.shuttles) h += toggle('Wild weasel', 'wildWeasel') + toggle('Suicide shuttle', 'suicide');
-  if (p.systems.cloak) h += toggle('Cloak', 'cloak');
-  return h;
-}
-function segRow(label, key, val) {
-  return `<div class="earow"><span class="elab">${label}</span><div class="eseg">${[['Off', 0], ['Low', 0.5], ['Full', 1]].map(([t, x]) => `<button data-ea="seg" data-key="${key}" data-val="${x}" class="${val === x ? 'on' : ''}">${t}</button>`).join('')}</div><span class="eunits">${val}</span></div>`;
+  const lock = document.getElementById('epLock'); lock.disabled = myLockedEnergy || anyOver;
+  lock.textContent = myLockedEnergy ? '🔒 LOCKED' : '🔒 LOCK';
+  let h = '';
+  for (const n of [1, 2, 3, 4, 5, 6]) { const [x, y] = L.shields[n]; h += shieldCtl(n, x, y, sn[n - 1], col.specReinf[n] || 0, specReinfMax(p, n)); }
+  h += toggleCtl(L.activate[0], L.activate[1], 'SHIELDS', 'shieldsActive', col.shieldsActive);
+  const bays = L.bays; let bi = 0;
+  if (bi < bays.length) { h += sliderCtl(bays[bi][0], bays[bi][1], 'PH CAP', 'phaserCap', col.phaserCap, p.capacitorCap); bi++; }
+  for (const w of p.weapons) { if (bi >= bays.length) break; h += weaponCtl(bays[bi][0], bays[bi][1], w, col.weapons[w.id]); bi++; }
+  if (p.systems.fireControl && bi < bays.length) { h += segCtl(bays[bi][0], bays[bi][1], 'FIRE CTL', 'fireControl', col.fireControl); bi++; }
+  if (bi < bays.length) { h += sliderCtl(bays[bi][0], bays[bi][1], 'GEN REINF', 'genReinf', col.genReinf, sinkMax(p, 'genReinf')); bi++; }
+  if (s.speedPlot && s.speedPlot.changes.length)
+    h += ctl(L.move[0], L.move[1], `<div class="lab">MOVEMENT</div><div class="val">${col.movement}</div><div class="lab">plotted ${hexesInPlot(s.speedPlot)} hex</div>`);
+  else h += sliderCtl(L.move[0], L.move[1], 'MOVEMENT', 'movement', col.movement, sinkMax(p, 'movement'), ` · ${Math.floor((col.movement || 0) / p.moveCost)}h`);
+  h += sliderCtl(L.reserve[0], L.reserve[1], 'RESERVE', 'recharge', col.recharge, sinkMax(p, 'recharge'));
+  const S = L.systems;
+  if (p.systems.labs) h += sliderCtl(S.labs[0], S.labs[1], 'SENSORS', 'labs', col.labs, sinkMax(p, 'labs'));
+  if (p.systems.tractor) h += sliderCtl(S.tractor[0], S.tractor[1], 'TRACTOR', 'tractor', col.tractor, sinkMax(p, 'tractor'));
+  if (p.systems.transporter) h += sliderCtl(S.transporter[0], S.transporter[1], 'TRANSPORT', 'transporter', col.transporter, sinkMax(p, 'transporter'));
+  h += sliderCtl(S.damageControl[0], S.damageControl[1], 'DMG CTL', 'damageControl', col.damageControl, sinkMax(p, 'damageControl'));
+  if (p.systems.ecm) { h += sliderCtl(S.ecm[0], S.ecm[1], 'ECM', 'ecm', col.ecm, 6); h += sliderCtl(S.eccm[0], S.eccm[1], 'ECCM', 'eccm', col.eccm, 6); }
+  if (s.course && s.course.steps.length) h += ctl(5, 4, `<button class="${s.autopilot ? 'on' : ''}" id="epAuto">🅰 AUTO</button>`);
+  ov.innerHTML = h;
 }
 
 const healthColor = h => h > 0.6 ? '#16a34a' : h > 0.3 ? '#d97706' : '#C74634';
@@ -789,32 +782,36 @@ document.getElementById('fireBtn').onclick = () => commitFiring();
 
 // ---------- energy allocation interactions + lock ----------
 const epanel = document.getElementById('energyPanel');
+function updateMeter() {   // light header-meter refresh during slider drag (no overlay rebuild)
+  const s = eaSelected ? byId(eaSelected) : null; if (!s) return; const v = validateEaf(powerOf(s), eaColOf(s));
+  document.getElementById('epMeter').innerHTML = `<b style="color:${stColor(v.status)}">${v.used}</b>/${v.produced} · ${v.free} free`;
+  document.getElementById('epLock').disabled = myLockedEnergy || ships.filter(isMine).some(x => validateEaf(powerOf(x), eaColOf(x)).status === 'over');
+}
 epanel.addEventListener('click', e => {
-  const tab = e.target.closest('[data-eatab]'); if (tab) { eaSelected = tab.dataset.eatab; renderEnergy(); return; }
-  if (myLockedEnergy) return;
+  const tab = e.target.closest('[data-eatab]'); if (tab) { eaSelected = plotShipId = tab.dataset.eatab; render(); return; }
+  if (e.target.id === 'epAuto') { const s = byId(eaSelected); if (s) { s.autopilot = !s.autopilot; s._autoIdx = 0; saveSoon(s.id); render(); } return; }
+  if (myLockedEnergy) return; const s = byId(eaSelected); if (!s) return; const p = powerOf(s), col = eaColOf(s);
   const w = e.target.closest('[data-ea="weap"]');
-  if (w) { const st = eaColOf(byId(eaSelected)).weapons[w.dataset.wid], what = w.dataset.what;
-    st[what] = !st[what];
+  if (w) { const st = col.weapons[w.dataset.wid], what = w.dataset.what; st[what] = !st[what];
     if (what === 'overload' && st.overload) { st.prox = false; st.armed = true; }   // overload & proximity are exclusive modes
     if (what === 'prox' && st.prox) { st.overload = false; st.armed = true; }
     renderEnergy(); return; }
-  const seg = e.target.closest('[data-ea="seg"]'); if (seg) { eaColOf(byId(eaSelected))[seg.dataset.key] = +seg.dataset.val; renderEnergy(); }
+  const seg = e.target.closest('[data-ea="seg"]'); if (seg) { col[seg.dataset.key] = +seg.dataset.val; renderEnergy(); return; }
+  const tg = e.target.closest('[data-ea="toggle"]'); if (tg) { col[tg.dataset.key] = tg.dataset.num ? (col[tg.dataset.key] ? 0 : 1) : !col[tg.dataset.key]; renderEnergy(); return; }
+  const sp = e.target.closest('[data-ea="specstep"]'); if (sp) { const n = +sp.dataset.shield, max = specReinfMax(p, n); col.specReinf[n] = Math.max(0, Math.min(max, (col.specReinf[n] || 0) + (+sp.dataset.d))); renderEnergy(); return; }
 });
-function onEaInput(e) {
-  if (myLockedEnergy) return; const t = e.target, s = eaSelected ? byId(eaSelected) : null; if (!s || !t.dataset.ea) return; const p = powerOf(s), col = eaColOf(s);
-  if (t.dataset.ea === 'num') { col[t.dataset.key] = Math.min(sinkMax(p, t.dataset.key), Math.max(0, +t.value || 0)); if (t.type === 'range') document.getElementById('epMeter').innerHTML = meterHtml(p, validateEaf(p, col)); else renderEnergy(); }
-  else if (t.dataset.ea === 'toggle') { col[t.dataset.key] = t.dataset.num ? (t.checked ? 1 : 0) : t.checked; renderEnergy(); }
-  else if (t.dataset.ea === 'spec') { col.specReinf[t.dataset.shield] = Math.min(specReinfMax(p, +t.dataset.shield), Math.max(0, +t.value || 0)); renderEnergy(); }
+function onEaInput(e) {   // range sliders: live-update value + header meter without rebuilding (would kill the drag)
+  if (myLockedEnergy) return; const t = e.target, s = eaSelected ? byId(eaSelected) : null; if (!s || t.dataset.ea !== 'num') return;
+  eaColOf(s)[t.dataset.key] = Math.min(sinkMax(powerOf(s), t.dataset.key), Math.max(0, +t.value || 0));
+  const val = t.closest('.ctl')?.querySelector('.val'); if (val) val.firstChild && (val.firstChild.textContent = t.value);
+  updateMeter();
 }
 epanel.addEventListener('input', onEaInput);
-epanel.addEventListener('change', e => {
-  if (e.target.id === 'epAuto') { const s = byId(eaSelected); if (s) { s.autopilot = e.target.checked; saveSoon(s.id); render(); } return; }
-  if (myLockedEnergy) return; if (e.target.dataset.ea === 'toggle') onEaInput(e); else if (e.target.dataset.ea === 'num' && e.target.type === 'range') renderEnergy();
-});
+epanel.addEventListener('change', e => { if (!myLockedEnergy && e.target.dataset.ea === 'num') renderEnergy(); });   // reposition/clamp after the drag ends
 document.getElementById('epLock').onclick = () => lockEnergy();
-// draggable console modal (drag by its title bar)
+// draggable console modal (drag by its title bar; ignore clicks on the tabs/lock buttons)
 let epDrag = null;
-document.querySelector('.ephdr').addEventListener('mousedown', e => { const r = epanel.getBoundingClientRect(); epDrag = { dx: e.clientX - r.left, dy: e.clientY - r.top }; e.preventDefault(); });
+document.querySelector('.ephdr').addEventListener('mousedown', e => { if (e.target.closest('button')) return; const r = epanel.getBoundingClientRect(); epDrag = { dx: e.clientX - r.left, dy: e.clientY - r.top }; e.preventDefault(); });
 window.addEventListener('mousemove', e => { if (!epDrag) return; epanel.style.left = Math.max(0, Math.min(innerWidth - 120, e.clientX - epDrag.dx)) + 'px'; epanel.style.top = Math.max(48, Math.min(innerHeight - 60, e.clientY - epDrag.dy)) + 'px'; });
 window.addEventListener('mouseup', () => { epDrag = null; });
 
