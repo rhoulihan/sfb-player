@@ -236,11 +236,12 @@ import { SCENARIO } from './scenario.js';
 
 const COLS = 42, ROWS = 30, COLORS = ['#2563eb', '#16a34a', '#d97706', '#7c3aed', '#0891b2'];   // standard SFB 42x30 map
 const map = document.getElementById('map');
-let ships = [], plan = newPlan(), workingId = null, activeId = null, selectedId = null, dragging = null, zoom = 0.5, gridBuilt = false;
+let ships = [], plan = newPlan(), workingId = null, zoom = 0.5, gridBuilt = false;
 let rev = 0, myCode = '', shipRev = {};   // rev: poll change-detection; shipRev: per-ship version for optimistic locking
 let committed = {}, myCommitted = false, lastFireShown = 0;   // 6D fire commits: fire resolves once all fleets commit
-let eafDraft = {}, eaSelected = null, myLockedEnergy = false;   // start-of-turn energy allocation (phase is clock.phase, a segment id)
-let plotShipId = null, rangeAnchor = null;   // tactical planning: course plotting + range measurement
+let eafDraft = {}, myLockedEnergy = false;   // start-of-turn energy allocation (phase is clock.phase, a segment id)
+// tactical planning + fire planning + ghosts: shared UI/selection state (also read by battle-map.js)
+const ui = { plotShipId: null, rangeAnchor: null, selectedId: null, activeId: null, dragging: null, eaSelected: null, targetId: null, fireGroup: [], ghosts: {}, ghostMode: false };
 const powerOf = s => s._power || (s._power = shipPower(s.code, s._ver, s._det));
 const plotBase = s => Math.floor(((eafDraft[s.id]?.movement) || 0) / powerOf(s).moveCost);   // planned base speed from the EAF
 const speedPlotOf = s => s.speedPlot || { base: plotBase(s), changes: [] };
@@ -286,8 +287,8 @@ function plotOverlaySvg() {
       prev = cur;
     });
   }
-  if (plotShipId && byId(plotShipId)) {   // green/red next-hex candidates for the selected ship
-    const cur = plotCursor(byId(plotShipId));
+  if (ui.plotShipId && byId(ui.plotShipId)) {   // green/red next-hex candidates for the selected ship
+    const cur = plotCursor(byId(ui.plotShipId));
     for (const cand of legalNextHexes(cur.pos, cur.facing, cur.speed, cur.hst)) {
       const cc = hexCenter(cand.hex.q, cand.hex.r);
       s += `<path d="${hexPath(cc.x, cc.y)}" fill="${cand.legal ? '#16a34a' : '#C74634'}" opacity="0.5" style="pointer-events:none"/>`;
@@ -297,11 +298,11 @@ function plotOverlaySvg() {
       s += `<path d="${hexPath(cc.x, cc.y)}" fill="none" stroke="#a855f7" stroke-width="3" stroke-dasharray="5 3" opacity="0.95" style="pointer-events:none"/>`;
     }
   }
-  if (rangeAnchor) {   // range measurement
-    const a = hexCenter(rangeAnchor.start.q, rangeAnchor.start.r);
+  if (ui.rangeAnchor) {   // range measurement
+    const a = hexCenter(ui.rangeAnchor.start.q, ui.rangeAnchor.start.r);
     s += `<circle cx="${a.x}" cy="${a.y}" r="9" fill="none" stroke="#7c3aed" stroke-width="2.5"/>`;
-    if (rangeAnchor.end) {
-      const b = hexCenter(rangeAnchor.end.q, rangeAnchor.end.r), d = hexDistance(rangeAnchor.start, rangeAnchor.end);
+    if (ui.rangeAnchor.end) {
+      const b = hexCenter(ui.rangeAnchor.end.q, ui.rangeAnchor.end.r), d = hexDistance(ui.rangeAnchor.start, ui.rangeAnchor.end);
       s += `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="#7c3aed" stroke-width="2.5" stroke-dasharray="6 4"/>` +
         `<text x="${(a.x + b.x) / 2}" y="${(a.y + b.y) / 2 - 8}" text-anchor="middle" font-size="13" fill="#6d28d9" font-weight="800" style="pointer-events:none">R${d}</text>`;
     }
@@ -310,35 +311,35 @@ function plotOverlaySvg() {
 }
 // drag on the map during the energy phase = sideslip (move oblique keeping facing, C4.0); a plain click turns
 let plotDrag = null, suppressClick = false;
-map.addEventListener('mousedown', e => { if (getPhase() === 'energy' && plotShipId && byId(plotShipId)) plotDrag = { x: e.clientX, y: e.clientY, moved: false }; });
+map.addEventListener('mousedown', e => { if (getPhase() === 'energy' && ui.plotShipId && byId(ui.plotShipId)) plotDrag = { x: e.clientX, y: e.clientY, moved: false }; });
 map.addEventListener('mousemove', e => { if (plotDrag && (Math.abs(e.clientX - plotDrag.x) > 6 || Math.abs(e.clientY - plotDrag.y) > 6)) plotDrag.moved = true; });
 map.addEventListener('mouseup', e => {
   const dragged = plotDrag && plotDrag.moved; plotDrag = null;
-  if (!dragged || getPhase() !== 'energy' || !plotShipId || !byId(plotShipId)) return;
+  if (!dragged || getPhase() !== 'energy' || !ui.plotShipId || !byId(ui.plotShipId)) return;
   const hex = clickToHex(e); if (!hex) return;
-  const s = byId(plotShipId), cur = plotCursor(s), slip = trySideslip(cur.pos, cur.facing, cur.hst, cur.slip, hex);
-  if (slip) { courseOf(s).steps.push({ q: slip.pos.q, r: slip.pos.r, facing: slip.facing, slip: true }); saveSoon(plotShipId); suppressClick = true; render(); }
+  const s = byId(ui.plotShipId), cur = plotCursor(s), slip = trySideslip(cur.pos, cur.facing, cur.hst, cur.slip, hex);
+  if (slip) { courseOf(s).steps.push({ q: slip.pos.q, r: slip.pos.r, facing: slip.facing, slip: true }); saveSoon(ui.plotShipId); suppressClick = true; render(); }
 });
 // map clicks during the energy phase: plot courses (snap) + shift-click to measure range
 map.addEventListener('click', e => {
   if (suppressClick) { suppressClick = false; return; }   // a drag-sideslip just happened; don't also turn
   if (getPhase() !== 'energy') return;
   const hex = clickToHex(e); if (!hex) return;
-  if (e.shiftKey) { rangeAnchor = (!rangeAnchor || rangeAnchor.end) ? { start: hex, end: null } : { ...rangeAnchor, end: hex }; render(); return; }
+  if (e.shiftKey) { ui.rangeAnchor = (!ui.rangeAnchor || ui.rangeAnchor.end) ? { start: hex, end: null } : { ...rangeAnchor, end: hex }; render(); return; }
   const shipHere = ships.find(s => s.q === hex.q && s.r === hex.r);
-  if (shipHere && isMine(shipHere)) { plotShipId = shipHere.id; eaSelected = shipHere.id; render(); return; }
-  if (plotShipId && byId(plotShipId)) {
-    const s = byId(plotShipId), c = courseOf(s);
+  if (shipHere && isMine(shipHere)) { ui.plotShipId = shipHere.id; ui.eaSelected = shipHere.id; render(); return; }
+  if (ui.plotShipId && byId(ui.plotShipId)) {
+    const s = byId(ui.plotShipId), c = courseOf(s);
     const idx = c.steps.findIndex(st => st.q === hex.q && st.r === hex.r);
     if (idx >= 0) {   // clicked a plotted hex → set a mid-turn speed change from here
       const sp = ensureSpeedPlot(s), tl = impulseTimeline(sp), imp = tl[idx]?.impulse, cur = speedAt(sp, imp || 1);
       const v = prompt(`New speed effective after impulse ${imp} (hex ${idx + 1})? Currently ${cur}.`, cur);
-      if (v != null && v !== '') { s.speedPlot = setSpeedChange(sp, tl, idx + 1, Math.max(0, Math.min(31, Math.round(+v) || 0))); syncMovementEnergy(s); saveSoon(plotShipId); render(); }
+      if (v != null && v !== '') { s.speedPlot = setSpeedChange(sp, tl, idx + 1, Math.max(0, Math.min(31, Math.round(+v) || 0))); syncMovementEnergy(s); saveSoon(ui.plotShipId); render(); }
       return;
     }
     const cur = plotCursor(s);
     const step = tryStep(cur.pos, cur.facing, cur.speed, cur.hst, cur.slip, hex);
-    if (step) { c.steps.push({ q: step.pos.q, r: step.pos.r, facing: step.facing }); saveSoon(plotShipId); render(); }
+    if (step) { c.steps.push({ q: step.pos.q, r: step.pos.r, facing: step.facing }); saveSoon(ui.plotShipId); render(); }
   }
 });
 let clock = { turn: 1, impulse: 0, phase: 'energy' };   // impulse 0 = pre-start setup; phase = SFB segment id
@@ -382,8 +383,8 @@ async function hydrate(d) {
 }
 async function startBattle(defs, clk, restore, ph) {
   battleDefs = defs.map(d => ({ ...d }));
-  ships = []; plan = newPlan(); shipRev = {}; workingId = null; activeId = null; clock = clk || { turn: 1, impulse: 0 };
-  setCoarse(ph || 'energy'); eafDraft = {}; myLockedEnergy = false; eaSelected = null;   // turns open in energy allocation
+  ships = []; plan = newPlan(); shipRev = {}; workingId = null; ui.activeId = null; clock = clk || { turn: 1, impulse: 0 };
+  setCoarse(ph || 'energy'); eafDraft = {}; myLockedEnergy = false; ui.eaSelected = null;   // turns open in energy allocation
   for (const d of defs) {
     const s = await hydrate(d), r = restore && restore[d.id];
     if (r) { (r.destroyed || []).forEach(id => (s.status[id] = 'destroyed')); s.firedAt = r.firedAt || {}; if (r.hexesSinceTurn != null) s.hexesSinceTurn = r.hexesSinceTurn; s.queuedTurn = r.queuedTurn || 0; }
@@ -455,7 +456,7 @@ function applyRemote(data) {
   for (const sd of data.ships || []) {
     const s = byId(sd.id); if (!s) continue; const m = sd.map || {};
     shipRev[sd.id] = sd.rev ?? shipRev[sd.id] ?? 0;
-    if (!(dragging && dragging.s === s)) { s.q = m.q ?? s.q; s.r = m.r ?? s.r; s.facing = m.facing ?? s.facing; }
+    if (!(ui.dragging && ui.dragging.s === s)) { s.q = m.q ?? s.q; s.r = m.r ?? s.r; s.facing = m.facing ?? s.facing; }
     s.speed = m.speed ?? s.speed; s.hexesSinceTurn = m.hexesSinceTurn ?? s.hexesSinceTurn; s.queuedTurn = m.queuedTurn || 0;
     s.status = {}; (sd.status?.destroyed || []).forEach(id => (s.status[id] = 'destroyed'));
     s.firedAt = {}; for (const [mid, w] of Object.entries(sd.weapons || {})) if (w && w.firedAt) s.firedAt[mid] = w.firedAt;
@@ -503,7 +504,7 @@ function stepImpulse() {
   pruneUnavailable(); render(); save(null, wrapped ? { step: true, phase: 'energy' } : { step: true });   // movement syncs to all commanders
 }
 // a queued turn executes when the ship next moves; applies to the given ship (defaults to the last-clicked one)
-function turnAction(dir, shipId = selectedId) {
+function turnAction(dir, shipId = ui.selectedId) {
   if (!shipId) return; const s = byId(shipId);
   if (!s || (!isMine(s) && !testMode)) return;           // only your own fleet's ships turn in game mode
   s.queuedTurn = s.queuedTurn === dir ? 0 : dir;         // always QUEUE — a ship only turns when it moves
@@ -560,7 +561,7 @@ function render() {
     const c = hexCenter(s.q, s.r), fill = sideFill(s);
     const nx = c.x + 27 * Math.cos(rad(s.facing)), ny = c.y + 27 * Math.sin(rad(s.facing));
     const g = groupOfShip(s.id);
-    const ring = s.id === activeId ? `<circle cx="${c.x}" cy="${c.y}" r="27" fill="none" stroke="#d97706" stroke-width="3"/>`
+    const ring = s.id === ui.activeId ? `<circle cx="${c.x}" cy="${c.y}" r="27" fill="none" stroke="#d97706" stroke-width="3"/>`
               : g ? `<circle cx="${c.x}" cy="${c.y}" r="26" fill="none" stroke="${g.color}" stroke-width="2.5"/>` : '';
     const dead = Object.keys(s.status).length ? 0.4 : 1;
     svg += `<g class="ship" data-id="${s.id}" style="cursor:grab" opacity="${dead}">${ring}` +
@@ -670,11 +671,11 @@ function renderEnergy() {
   const L = CONSOLE[theme], ep = document.getElementById('energyPanel');
   ep.className = 'epanel ' + L.cls; ep.style.backgroundImage = '';
   document.getElementById('epOverlay').style.backgroundImage = `url('assets/${L.art}.png')`;   // art fills only the control region, below the header frame
-  if (!eaSelected || !mine.some(s => s.id === eaSelected)) eaSelected = mine[0]?.id || null;
+  if (!ui.eaSelected || !mine.some(s => s.id === ui.eaSelected)) ui.eaSelected = mine[0]?.id || null;
   document.getElementById('epTurn').textContent = `T${clock.turn}`;
   document.getElementById('epTabs').innerHTML = mine.map(s => { const v = validateShip(s);
-    return `<button class="eptab ${s.id === eaSelected ? 'on' : ''}" data-eatab="${s.id}"><span class="dot" style="background:${stColor(v.status)}"></span>${s.id}</button>`; }).join('');
-  const s = eaSelected ? byId(eaSelected) : null, ov = document.getElementById('epOverlay');
+    return `<button class="eptab ${s.id === ui.eaSelected ? 'on' : ''}" data-eatab="${s.id}"><span class="dot" style="background:${stColor(v.status)}"></span>${s.id}</button>`; }).join('');
+  const s = ui.eaSelected ? byId(ui.eaSelected) : null, ov = document.getElementById('epOverlay');
   if (!s) { ov.innerHTML = ''; document.getElementById('epMeter').textContent = ''; return; }
   const p = powerOf(s), col = eaColOf(s), v = validateShip(s), sn = shieldsNow(s);
   document.getElementById('epMeter').innerHTML = `<b style="color:${stColor(v.status)}">${v.used}</b>/${v.produced} · ${v.free} free`;
@@ -724,7 +725,7 @@ function renderFleet() {
   document.getElementById('cmdBadge').textContent = ships.length ? '⚑ ' + (fleets[myFleet]?.name || myFleet) : '';
   document.getElementById('fleet').innerHTML = ships.map(s => {
     const h = shipHealth(s);
-    const row = `<div class="shiprow ${s.id === selectedId ? 'active' : ''}" data-id="${s.id}">
+    const row = `<div class="shiprow ${s.id === ui.selectedId ? 'active' : ''}" data-id="${s.id}">
        <span class="dot" style="background:${sideFill(s)}"></span>
        <div class="sinfo">
          <div class="stop"><b>${s.id}</b> <span style="color:#64748b">${s.name}</span>
@@ -732,7 +733,7 @@ function renderFleet() {
          <div class="sbot"><label class="spd" title="speed is set by Energy for Movement in the allocation phase">spd <input class="spin" data-spd="${s.id}" value="${s.speed}" readonly style="background:#f1f5f9;color:#475569"></label>
            <div class="hbar" title="${Math.round(h * 100)}% intact"><i style="width:${Math.round(h * 100)}%;background:${healthColor(h)}"></i></div></div>
        </div></div>`;
-    return row + (s.id === selectedId ? turnCtl(s) : '');   // turn controls follow the last-clicked ship
+    return row + (s.id === ui.selectedId ? turnCtl(s) : '');   // turn controls follow the last-clicked ship
   }).join('');
   document.getElementById('rotc').style.display = 'none';
   renderClock();
@@ -762,12 +763,12 @@ function renderGroups() {
 function renderPanel() {
   const box = document.getElementById('mounts'), g = working();
   // only ships in the working fire group appear here
-  const inWorking = g && activeId && g.members.some(m => m.shipId === activeId);
+  const inWorking = g && ui.activeId && g.members.some(m => m.shipId === ui.activeId);
   if (!inWorking) { box.className = 'hint'; box.innerHTML = g ? 'Select a ship in the fire group (or click a friendly ship to add it).' : 'Click your ships to build a fire group, then an enemy to target.'; return; }
   box.className = '';
-  const s = byId(activeId), assigned = planEligibility(plan), el = eligForTarget(s, byId(g.targetShipId));
+  const s = byId(ui.activeId), assigned = planEligibility(plan), el = eligForTarget(s, byId(g.targetShipId));
   const wm = g.members.map(m => m.shipId);
-  const pager = wm.length > 1 ? `<div class="pager"><button data-page="-1">◀</button>ship ${wm.indexOf(activeId) + 1}/${wm.length}<button data-page="1">▶</button></div>` : '';
+  const pager = wm.length > 1 ? `<div class="pager"><button data-page="-1">◀</button>ship ${wm.indexOf(ui.activeId) + 1}/${wm.length}<button data-page="1">▶</button></div>` : '';
   const head = `<div style="padding:6px 12px 2px;font-weight:600">${s.id} — ${s.name} <span style="color:#94a3b8;font-weight:400;font-size:11px">facing ${s.facing}${g.targetShipId ? ' → ' + g.targetShipId : ''}</span></div>`;
   const alpha = g.targetShipId ? `<div style="padding:5px 12px"><button class="btn fire" id="alphaBtn" style="width:100%">⚡ Alpha Strike — all in-arc</button></div>` : '';
   const rows = s.mounts.map(mt => {
@@ -815,7 +816,7 @@ function onShipClick(s) {
     const g = working();
     if (g && g.members.length) {
       g.targetShipId = s.id; g.members.forEach(m => autoSelectShip(g, m.shipId));
-      if (!g.members.some(m => m.shipId === activeId)) activeId = g.members[0].shipId;   // keep panel on a firer
+      if (!g.members.some(m => m.shipId === ui.activeId)) ui.activeId = g.members[0].shipId;   // keep panel on a firer
       touched = g.members.map(m => m.shipId);              // target change affects every firer in the group
     }
   } else {
@@ -824,7 +825,7 @@ function onShipClick(s) {
     const inG = g.members.find(m => m.shipId === s.id);
     if (inG) { inG.mountIds.slice().forEach(id => unassignMount(plan, g.id, s.id, id)); }
     else { g.members.push({ shipId: s.id, mountIds: [] }); if (g.targetShipId) autoSelectShip(g, s.id); }
-    activeId = s.id; touched = [s.id];
+    ui.activeId = s.id; touched = [s.id];
   }
   render(); if (touched.length) saveSoon(...touched);
 }
@@ -832,12 +833,12 @@ function onShipClick(s) {
 // pointer: drag to move, click (no drag) = select/group
 function svgPoint(evt) { const pt = map.createSVGPoint(); pt.x = evt.clientX; pt.y = evt.clientY; return pt.matrixTransform(map.getScreenCTM().inverse()); }
 function nearestHex(px, py) { let b = { q: 0, r: 0 }, bd = Infinity; for (let q = 0; q < COLS; q++) for (let r = 0; r < ROWS; r++) { const c = hexCenter(q, r), d = Math.hypot(c.x - px, c.y - py); if (d < bd) { bd = d; b = { q, r }; } } return b; }
-map.addEventListener('mousedown', e => { if (getPhase() !== 'impulse') return; const gg = e.target.closest('.ship'); if (!gg) return; dragging = { s: byId(gg.dataset.id), moved: false }; selectedId = dragging.s.id; renderFleet(); e.preventDefault(); });
+map.addEventListener('mousedown', e => { if (getPhase() !== 'impulse') return; const gg = e.target.closest('.ship'); if (!gg) return; ui.dragging = { s: byId(gg.dataset.id), moved: false }; ui.selectedId = ui.dragging.s.id; renderFleet(); e.preventDefault(); });
 window.addEventListener('mousemove', e => {
-  if (!dragging) return; const p = svgPoint(e), h = nearestHex(p.x, p.y);
-  if (h.q !== dragging.s.q || h.r !== dragging.s.r) { dragging.s.q = h.q; dragging.s.r = h.r; dragging.moved = true; pruneUnavailable(); render(); }
+  if (!ui.dragging) return; const p = svgPoint(e), h = nearestHex(p.x, p.y);
+  if (h.q !== ui.dragging.s.q || h.r !== ui.dragging.s.r) { ui.dragging.s.q = h.q; ui.dragging.s.r = h.r; ui.dragging.moved = true; pruneUnavailable(); render(); }
 });
-window.addEventListener('mouseup', () => { if (dragging) { const s = dragging.s, moved = dragging.moved; dragging = null; if (!moved) onShipClick(s); else saveSoon(s.id); } });
+window.addEventListener('mouseup', () => { if (ui.dragging) { const s = ui.dragging.s, moved = ui.dragging.moved; ui.dragging = null; if (!moved) onShipClick(s); else saveSoon(s.id); } });
 
 document.getElementById('fleet').addEventListener('click', e => {
   const a = e.target.closest('[data-auto]'); if (a) { const s = byId(a.dataset.auto); if (s) { s.autopilot = !s.autopilot; s._autoIdx = 0; saveSoon(s.id); render(); } return; }
@@ -846,7 +847,7 @@ document.getElementById('fleet').addEventListener('click', e => {
 window.addEventListener('keydown', e => { if (e.target.tagName === 'INPUT') return; if (e.key === '[') turnAction(-1); else if (e.key === ']') turnAction(1); });
 document.getElementById('stepBtn').onclick = () => stepImpulse();
 document.getElementById('testMode').onchange = e => { testMode = e.target.checked; render(); };
-document.getElementById('fleet').addEventListener('click', e => { if (e.target.closest('.spin') || e.target.closest('[data-turn]')) return; const row = e.target.closest('.shiprow'); if (row) { selectedId = row.dataset.id; activeId = row.dataset.id; render(); } });
+document.getElementById('fleet').addEventListener('click', e => { if (e.target.closest('.spin') || e.target.closest('[data-turn]')) return; const row = e.target.closest('.shiprow'); if (row) { ui.selectedId = row.dataset.id; ui.activeId = row.dataset.id; render(); } });
 document.getElementById('fleet').addEventListener('change', e => { const sp = e.target.closest('.spin'); if (!sp) return; const s = byId(sp.dataset.spd); if (s) { s.speed = Math.max(0, Math.min(32, parseInt(sp.value) || 0)); render(); saveSoon(s.id); } });
 
 document.getElementById('groups').addEventListener('click', e => {
@@ -859,15 +860,15 @@ document.getElementById('newGrp').onclick = () => { if (myCommitted) return; con
 document.getElementById('mounts').addEventListener('change', e => {
   const cb = e.target.closest('[data-mount]'); if (!cb) return; if (myCommitted) { render(); return; } const g = working(); if (!g) return; const id = cb.dataset.mount;
   if (cb.checked) {
-    const res = assignMount(plan, g.id, activeId, id);
-    if (res.conflict) { if (confirm(`That mount is committed to ${res.conflict.fromGroupId}. Move it to ${g.id}?`)) assignMount(plan, g.id, activeId, id, { force: true }); else cb.checked = false; }
-  } else unassignMount(plan, g.id, activeId, id);
-  render(); saveSoon(activeId);
+    const res = assignMount(plan, g.id, ui.activeId, id);
+    if (res.conflict) { if (confirm(`That mount is committed to ${res.conflict.fromGroupId}. Move it to ${g.id}?`)) assignMount(plan, g.id, ui.activeId, id, { force: true }); else cb.checked = false; }
+  } else unassignMount(plan, g.id, ui.activeId, id);
+  render(); saveSoon(ui.activeId);
 });
 document.getElementById('mounts').addEventListener('click', e => {
   if (e.target.closest('#alphaBtn')) { alphaStrike(); return; }
   const b = e.target.closest('[data-page]'); if (!b) return;
-  const wm = working().members.map(m => m.shipId); activeId = wm[(wm.indexOf(activeId) + (+b.dataset.page) + wm.length) % wm.length]; render();
+  const wm = working().members.map(m => m.shipId); ui.activeId = wm[(wm.indexOf(ui.activeId) + (+b.dataset.page) + wm.length) % wm.length]; render();
 });
 
 document.getElementById('fireBtn').onclick = () => commitFiring();
@@ -875,14 +876,14 @@ document.getElementById('fireBtn').onclick = () => commitFiring();
 // ---------- energy allocation interactions + lock ----------
 const epanel = document.getElementById('energyPanel');
 function updateMeter() {   // light header-meter refresh during slider drag (no overlay rebuild)
-  const s = eaSelected ? byId(eaSelected) : null; if (!s) return; const v = validateShip(s);
+  const s = ui.eaSelected ? byId(ui.eaSelected) : null; if (!s) return; const v = validateShip(s);
   document.getElementById('epMeter').innerHTML = `<b style="color:${stColor(v.status)}">${v.used}</b>/${v.produced} · ${v.free} free`;
   document.getElementById('epLock').disabled = myLockedEnergy || ships.filter(isMine).some(x => validateShip(x).status === 'over');
 }
 epanel.addEventListener('click', e => {
-  const tab = e.target.closest('[data-eatab]'); if (tab) { eaSelected = plotShipId = tab.dataset.eatab; render(); return; }
-  if (e.target.id === 'epAuto') { const s = byId(eaSelected); if (s) { s.autopilot = !s.autopilot; s._autoIdx = 0; saveSoon(s.id); render(); } return; }
-  if (myLockedEnergy) return; const s = byId(eaSelected); if (!s) return; const p = powerOf(s), col = eaColOf(s);
+  const tab = e.target.closest('[data-eatab]'); if (tab) { ui.eaSelected = ui.plotShipId = tab.dataset.eatab; render(); return; }
+  if (e.target.id === 'epAuto') { const s = byId(ui.eaSelected); if (s) { s.autopilot = !s.autopilot; s._autoIdx = 0; saveSoon(s.id); render(); } return; }
+  if (myLockedEnergy) return; const s = byId(ui.eaSelected); if (!s) return; const p = powerOf(s), col = eaColOf(s);
   const w = e.target.closest('[data-ea="weap"]');
   if (w) { const st = col.weapons[w.dataset.wid], what = w.dataset.what; st[what] = !st[what];
     if (what === 'overload' && st.overload) { st.prox = false; st.armed = true; }   // overload & proximity are exclusive modes
@@ -894,7 +895,7 @@ epanel.addEventListener('click', e => {
   const sp = e.target.closest('[data-ea="specstep"]'); if (sp) { const n = +sp.dataset.shield, max = specReinfMax(p, n); col.specReinf[n] = Math.max(0, Math.min(max, (col.specReinf[n] || 0) + (+sp.dataset.d))); renderEnergy(); return; }
 });
 function onEaInput(e) {   // range sliders: live-update value + header meter without rebuilding (would kill the drag)
-  if (myLockedEnergy) return; const t = e.target, s = eaSelected ? byId(eaSelected) : null; if (!s || t.dataset.ea !== 'num') return;
+  if (myLockedEnergy) return; const t = e.target, s = ui.eaSelected ? byId(ui.eaSelected) : null; if (!s || t.dataset.ea !== 'num') return;
   eaColOf(s)[t.dataset.key] = Math.min(sinkMax(powerOf(s), t.dataset.key), Math.max(0, +t.value || 0));
   const val = t.closest('.ctl')?.querySelector('.val'); if (val) val.firstChild && (val.firstChild.textContent = t.value);
   updateMeter();
@@ -994,7 +995,7 @@ window.addEventListener('mouseup', () => { resizing = null; });
 // ship context menu → View SSD (modal)
 let ctxShip = null;
 map.addEventListener('contextmenu', e => {
-  if (getPhase() === 'energy' && plotShipId && byId(plotShipId)) { e.preventDefault(); const s = byId(plotShipId); s.course = null; s.speedPlot = null; s.autopilot = false; saveSoon(plotShipId); render(); return; }   // right-click clears the plot
+  if (getPhase() === 'energy' && ui.plotShipId && byId(ui.plotShipId)) { e.preventDefault(); const s = byId(ui.plotShipId); s.course = null; s.speedPlot = null; s.autopilot = false; saveSoon(ui.plotShipId); render(); return; }   // right-click clears the plot
   const g = e.target.closest('.ship'); if (!g) return; e.preventDefault(); ctxShip = g.dataset.id; const m = document.getElementById('ctxMenu'); m.style.display = 'block'; m.style.left = Math.min(e.clientX, innerWidth - 160) + 'px'; m.style.top = e.clientY + 'px';
 });
 document.addEventListener('click', () => { document.getElementById('ctxMenu').style.display = 'none'; });
