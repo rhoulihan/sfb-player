@@ -19,7 +19,14 @@ positions.
 
 ## 1. The unified model (phase-gated)
 
-One map, one interaction layer, features switched by `phase`:
+**Model the real SFB Sequence of Play (B2.2) as the phase state** — a `battle-phase.js` module owning the
+8-phase order: (1) Energy Allocation, (2) Speed Determination, (3) Self-Destruction, (4) Sensor Lock-On,
+(5) Initial Activity, (6) Impulse Procedure [A Movement · B Activity · C Dogfight · **D Direct-Fire** · E
+Post-Combat], (7) Final Activity, (8) Record Keeping. Phases 2–5,7,8 are administrative/auto for now
+(instantaneous transitions, no UI); the interactive states are **Energy Allocation (1)** and **Impulse
+Procedure (6)** with its **Direct-Fire segment (6D)**. The existing `energy`/`impulse` coarse state maps
+onto phases 1 and 6; **direct-fire is segment 6D of the impulse, gated by the `committed` handshake, not a
+separate phase** (per review). One map, one interaction layer, features switched by phase:
 
 | Capability | Energy Allocation | Battle (impulse) | Direct-Fire resolve |
 |---|---|---|---|
