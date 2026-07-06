@@ -119,9 +119,13 @@ export function createBattleMap(ctx) {
     if (suppressClick) { suppressClick = false; return; }   // a drag-sideslip just happened; don't also turn
     if (getPhase() !== 'energy') return;
     const hex = clickToHex(e); if (!hex) return;
-    if (e.shiftKey) { ui.rangeAnchor = (!ui.rangeAnchor || ui.rangeAnchor.end) ? { start: hex, end: null } : { ...ui.rangeAnchor, end: hex }; render(); return; }
+    if (e.shiftKey) {   // shift-click an enemy → set the fire-group target; shift-click empty → measure range
+      const enemyHere = getShips().find(s => s.q === hex.q && s.r === hex.r && !isMine(s));
+      if (enemyHere) { onShipClick(enemyHere); return; }
+      ui.rangeAnchor = (!ui.rangeAnchor || ui.rangeAnchor.end) ? { start: hex, end: null } : { ...ui.rangeAnchor, end: hex }; render(); return;
+    }
     const shipHere = getShips().find(s => s.q === hex.q && s.r === hex.r);
-    if (shipHere && isMine(shipHere)) { ui.plotShipId = shipHere.id; ui.eaSelected = shipHere.id; ui.selectedPathHex = null; render(); return; }
+    if (shipHere && isMine(shipHere)) { ui.plotShipId = shipHere.id; ui.eaSelected = shipHere.id; ui.selectedPathHex = null; onShipClick(shipHere); return; }   // route subject + toggle into the fire group
     if (ui.plotShipId && byId(ui.plotShipId)) {
       const s = byId(ui.plotShipId), c = courseOf(s);
       const idx = c.steps.findIndex(st => st.q === hex.q && st.r === hex.r);
