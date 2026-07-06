@@ -54,6 +54,7 @@ export function sinkMax(p, key) {
     case 'phaserCap': return p.capacitorCap;                  // capacitor room (H6.21)
     case 'ecm': case 'eccm': return 6;                        // ECM/ECCM shift cap (D6.3)
     case 'recharge': return p.batteries;                      // recharge no more than battery capacity (H5)
+    case 'reserveWarp': return p.warp;                        // reserve warp power (H7)
     case 'tractor': return p.systems.tractor || 0;            // one point per tractor emitter (G7)
     case 'transporter': return p.systems.transporter || 0;    // per transporter (G8)
     case 'labs': return p.systems.labs || 0;                  // per lab
@@ -81,7 +82,7 @@ export function newEafColumn(power, prevSpeed = 0, carried = 0) {
     genReinf: 0,
     specReinf: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 },
     movement: prevSpeed * power.moveCost, impulseMove: 0, het: false,
-    damageControl: 0, recharge: 0, tractor: 0, transporter: 0,
+    damageControl: 0, recharge: 0, reserveWarp: 0, tractor: 0, transporter: 0,
     ecm: 0, eccm: 0, labs: 0,
     wildWeasel: false, suicide: false, cloak: false,
   };
@@ -92,7 +93,7 @@ export function newEafColumn(power, prevSpeed = 0, carried = 0) {
 export const SHIELD_COST = 0, HET_COST = 2, WW_COST = 1, SUICIDE_COST = 1, CLOAK_COST = 0;
 
 // the balance referee. carried = phaser-capacitor charge left from last turn (H6 carry-over).
-export function validateEaf(power, column, carried = 0) {
+export function validateEaf(power, column, carried = 0, batteryCharge = power.batteries) {
   let weaponCost = 0;                                     // JOIN column state onto power.weapons (which carries cls + costs)
   for (const w of power.weapons) {
     const st = column.weapons[w.id];
@@ -102,10 +103,10 @@ export function validateEaf(power, column, carried = 0) {
   const used = column.lifeSupport + column.fireControl + column.phaserCap + weaponCost
     + (column.shieldsActive ? SHIELD_COST : 0) + column.genReinf + spec
     + column.movement + column.impulseMove + (column.het ? HET_COST : 0)
-    + column.damageControl + column.recharge + column.tractor + column.transporter
+    + column.damageControl + column.recharge + (column.reserveWarp || 0) + column.tractor + column.transporter
     + column.ecm + column.eccm + column.labs
     + (column.wildWeasel ? WW_COST : 0) + (column.suicide ? SUICIDE_COST : 0) + (column.cloak ? CLOAK_COST : 0);
-  const produced = power.total + power.batteries;
+  const produced = power.total + batteryCharge;            // only the current battery charge is available
   const free = produced - used;
   const batteryUsed = Math.max(0, used - power.total);
   const errors = [];
@@ -113,7 +114,8 @@ export function validateEaf(power, column, carried = 0) {
   if (column.lifeSupport !== lifeSupportCost(power)) errors.push('life support must equal the mandatory cost');
   if (column.phaserCap + carried > power.capacitorCap) errors.push('phaser capacitor over capacity');
   if (column.impulseMove > 1) errors.push('at most 1 impulse point may go to movement');
-  if (batteryUsed > power.batteries) errors.push('battery draw exceeds available battery power');
+  if (batteryUsed > batteryCharge) errors.push('battery draw exceeds available battery power');
+  if ((column.recharge || 0) > power.batteries - batteryCharge) errors.push('recharge exceeds empty batteries');
   const status = used > produced ? 'over' : free > 0 ? 'under' : 'balanced';
   return { produced, used, batteryUsed, free, status, errors };
 }

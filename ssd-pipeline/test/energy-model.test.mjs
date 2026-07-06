@@ -73,6 +73,16 @@ test('validateEaf: golden used, balance status, and hard errors', () => {
   assert.ok(validateEaf(fed, { ...col, impulseMove: 2 }).errors.some(e => /impulse/i.test(e)));
 });
 
+test('validateEaf accounts for current battery charge and caps recharge to empty batteries', () => {
+  const fed = load('FED-CA');   // 4 batteries
+  const col = newEafColumn(fed, 0);
+  assert.equal(validateEaf(fed, col, 0, 4).produced, fed.total + 4, 'full batteries add their full charge');
+  assert.ok(validateEaf(fed, { ...col, recharge: 1 }, 0, 4).errors.some(e => /recharge|empt/i.test(e)), 'cannot charge full batteries');
+  assert.equal(validateEaf(fed, col, 0, 1).produced, fed.total + 1, 'only current battery charge is available');
+  assert.equal(validateEaf(fed, { ...col, recharge: 3 }, 0, 1).errors.some(e => /recharge|empt/i.test(e)), false, 'may charge the 3 empty batteries');
+  assert.ok(validateEaf(fed, { ...col, recharge: 4 }, 0, 1).errors.some(e => /recharge|empt/i.test(e)), 'cannot charge beyond the empty batteries');
+});
+
 test('foldEaf applies a locked column to turn state', () => {
   const fed = load('FED-CA'); const wId = fed.weapons[0].id;
   const base = newEafColumn(fed, 0);

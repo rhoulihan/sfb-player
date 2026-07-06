@@ -456,7 +456,7 @@ function applyRemote(data) {
     s.speed = m.speed ?? s.speed; s.hexesSinceTurn = m.hexesSinceTurn ?? s.hexesSinceTurn; s.queuedTurn = m.queuedTurn || 0;
     s.status = {}; (sd.status?.destroyed || []).forEach(id => (s.status[id] = 'destroyed'));
     s.firedAt = {}; for (const [mid, w] of Object.entries(sd.weapons || {})) if (w && w.firedAt) s.firedAt[mid] = w.firedAt;
-    if (sd.armed !== undefined) s.armed = sd.armed; if (sd.capacitor !== undefined) s.capacitor = sd.capacitor; if (sd.reinforce !== undefined) { s.reinforce = sd.reinforce; s.reinfLeft = null; }
+    if (sd.armed !== undefined) s.armed = sd.armed; if (sd.capacitor !== undefined) s.capacitor = sd.capacitor; if (sd.batteryCharge !== undefined) s.batteryCharge = sd.batteryCharge; if (sd.reinforce !== undefined) { s.reinforce = sd.reinforce; s.reinfLeft = null; }
     if (sd.course !== undefined) s.course = sd.course; if (sd.speedPlot !== undefined) s.speedPlot = sd.speedPlot; if (sd.autopilot !== undefined) s.autopilot = sd.autopilot;
     s.model = null;
   }
@@ -582,15 +582,16 @@ function applyPhaseUI() {
 }
 // ---------- energy allocation panel ----------
 const carriedOf = s => Math.floor(s.capacitor || 0);   // phaser charge carried over from last turn (H6.21)
+const batteryOf = s => s.batteryCharge ?? powerOf(s).batteries;   // current battery charge (starts full)
 function eaColOf(s) {
   const c = carriedOf(s);
   if (!eafDraft[s.id]) eafDraft[s.id] = s.eaf ? { ...newEafColumn(powerOf(s), s.speed, c), ...s.eaf } : newEafColumn(powerOf(s), s.speed, c);
   return eafDraft[s.id];
 }
-const validateShip = s => validateEaf(powerOf(s), eaColOf(s), carriedOf(s));
+const validateShip = s => validateEaf(powerOf(s), eaColOf(s), carriedOf(s), batteryOf(s));
 // zone maps (% of the art) — both consoles share the region layout, styled per theme
 const CONSOLE = {
-  fed: { art: 'Fed_EAF', cls: 'con-fed',
+  fed: { art: 'newFed_EAF', cls: 'con-fed',
     shields: { 1: [50, 14], 2: [63.6, 28], 3: [63.6, 60], 4: [50, 77], 5: [36.4, 60], 6: [36.4, 28] },
     bays: [[17, 16], [17, 25.6], [17, 35.2], [17, 44.8], [17, 54.2], [17, 63.6], [17, 72.2]],
     move: [90.6, 25.9], reserve: [90.6, 63.9], activate: [50, 44],
@@ -613,6 +614,12 @@ const sysCtl = (x, y, key, val, max) =>   // bottom-strip: centered counter with
   `<div class="ctl syscell" style="left:${x}%;top:${y}%"><span class="val">${val}</span><span class="vstep">` +
   `<button class="stepbtn" data-ea="step" data-key="${key}" data-d="-1"${val <= 0 ? ' disabled' : ''}>−</button>` +
   `<button class="stepbtn" data-ea="step" data-key="${key}" data-d="1"${val >= max ? ' disabled' : ''}>+</button></span></div>`;
+const batteryCtl = (x, y, charge, recharge, max) => {   // BATTERIES: current+charging / capacity; +/- allocate recharge, capped to empty batteries
+  const total = charge + recharge, room = max - charge;
+  return `<div class="ctl syscell" style="left:${x}%;top:${y}%"><span class="val">${total}/${max}</span><span class="vstep">` +
+    `<button class="stepbtn" data-ea="step" data-key="recharge" data-d="-1"${recharge <= 0 ? ' disabled' : ''}>−</button>` +
+    `<button class="stepbtn" data-ea="step" data-key="recharge" data-d="1"${recharge >= room ? ' disabled' : ''}>+</button></span></div>`;
+};
 const ewCtl = (x, y, ecm, eccm, max) =>   // EW box: ECM/ECCM label, value/value counter, a −/+ pair on either side
   ctl(x, y, `<div class="lab">ECM/ECCM</div><div class="row">${stepPair('ecm', ecm, max)}<span class="val">${ecm}/${eccm}</span>${stepPair('eccm', eccm, max)}</div>`);
 const toggleCtl = (x, y, label, key, on, num) =>
@@ -684,11 +691,11 @@ function renderEnergy() {
   if (s.speedPlot && s.speedPlot.changes.length)
     h += ctl(mx, my, `<div class="lab">SPEED</div><div class="val">${col.movement}</div><div class="lab">plotted</div><div class="val">${hexesInPlot(s.speedPlot)}h</div>`, 'pwr');
   else h += ctl(mx, my, `<div class="lab">SPEED</div><div class="val">${col.movement}</div><div class="row">${stepPair('movement', col.movement, sinkMax(p, 'movement'))}</div><div class="gap"></div><div class="val">${hexes}h</div>`, 'pwr');
-  // RESERVE — lower-right rectangle: label, counter, ± controls
-  h += ctl(L.reserve[0], L.reserve[1], `<div class="lab">RESERVE</div><div class="val">${col.recharge}</div><div class="row">${stepPair('recharge', col.recharge, sinkMax(p, 'recharge'))}</div>`, 'pwr');
-  // bottom control strip (art supplies SENSORS/TRACTOR/TRANSPORTERS/DAMAGE CONTROL labels)
+  // RESERVE — reserve warp power (H7), lower-right rectangle
+  h += ctl(L.reserve[0], L.reserve[1], `<div class="lab">RESERVE</div><div class="val">${col.reserveWarp || 0}</div><div class="row">${stepPair('reserveWarp', col.reserveWarp || 0, sinkMax(p, 'reserveWarp'))}</div>`, 'pwr');
+  // bottom control strip (art supplies BATTERIES/TRACTOR/TRANSPORTERS/DAMAGE CONTROL labels)
   const S = L.systems;
-  h += barCtl(S.labs[0], S.labs[1], 6, 6);                                          // SENSORS: fixed status bar, not adjustable
+  h += batteryCtl(S.labs[0], S.labs[1], batteryOf(s), col.recharge, p.batteries);   // BATTERIES: charge the empty batteries
   if (p.systems.tractor) h += sysCtl(S.tractor[0], S.tractor[1], 'tractor', col.tractor, sinkMax(p, 'tractor'));
   if (p.systems.transporter) h += sysCtl(S.transporter[0], S.transporter[1], 'transporter', col.transporter, sinkMax(p, 'transporter'));
   h += sysCtl(S.damageControl[0], S.damageControl[1], 'damageControl', col.damageControl, sinkMax(p, 'damageControl'));
@@ -880,7 +887,7 @@ epanel.addEventListener('click', e => {
     renderEnergy(); return; }
   const seg = e.target.closest('[data-ea="seg"]'); if (seg) { col[seg.dataset.key] = +seg.dataset.val; renderEnergy(); return; }
   const tg = e.target.closest('[data-ea="toggle"]'); if (tg) { col[tg.dataset.key] = tg.dataset.num ? (col[tg.dataset.key] ? 0 : 1) : !col[tg.dataset.key]; renderEnergy(); return; }
-  const stp = e.target.closest('[data-ea="step"]'); if (stp) { const k = stp.dataset.key, max = k === 'phaserCap' ? p.capacitorCap - carriedOf(s) : sinkMax(p, k); col[k] = Math.max(0, Math.min(max, (col[k] || 0) + (+stp.dataset.d))); renderEnergy(); return; }
+  const stp = e.target.closest('[data-ea="step"]'); if (stp) { const k = stp.dataset.key, max = k === 'phaserCap' ? p.capacitorCap - carriedOf(s) : k === 'recharge' ? p.batteries - batteryOf(s) : sinkMax(p, k); col[k] = Math.max(0, Math.min(max, (col[k] || 0) + (+stp.dataset.d))); renderEnergy(); return; }
   const sp = e.target.closest('[data-ea="specstep"]'); if (sp) { const n = +sp.dataset.shield, max = specReinfMax(p, n); col.specReinf[n] = Math.max(0, Math.min(max, (col.specReinf[n] || 0) + (+sp.dataset.d))); renderEnergy(); return; }
 });
 function onEaInput(e) {   // range sliders: live-update value + header meter without rebuilding (would kill the drag)
@@ -917,6 +924,8 @@ async function resolveEnergy(allEaf) {                        // fold each locke
   for (const s of ships) {
     const col = allEaf[s.id]; if (!col) continue;
     const ts = foldEaf(powerOf(s), col, s.capacitor || 0);   // carried capacitor charge folds in
+    const pw = powerOf(s), bv = validateEaf(pw, col, s.capacitor || 0, batteryOf(s));   // battery charge: refill by recharge, deplete by draw
+    s.batteryCharge = Math.max(0, Math.min(pw.batteries, batteryOf(s) - bv.batteryUsed + (col.recharge || 0)));
     s.armed = ts.armed; s.capacitor = ts.capacitor; s.reinforce = ts.reinforce; s.reinfLeft = null;
     s.ecmLevel = ts.ecmLevel; s.eccmLevel = ts.eccmLevel; s.queuedTurn = 0;
     // movement: the plotted speed schedule (base + mid-turn changes) drives execution; no plot → constant speed
@@ -942,7 +951,7 @@ const serializeShip = s => ({
   id: s.id, code: s.code, name: s.name, side: s.side,
   map: { q: s.q, r: s.r, facing: s.facing, speed: s.speed, hexesSinceTurn: s.hexesSinceTurn, queuedTurn: s.queuedTurn, turnMode: turnMode(s.speed) },
   status: { destroyed: Object.keys(s.status), shields: shieldsNow(s) },
-  armed: s.armed || {}, capacitor: s.capacitor ?? 0, reinforce: s.reinforce || null,   // folded energy-allocation state
+  armed: s.armed || {}, capacitor: s.capacitor ?? 0, batteryCharge: s.batteryCharge, reinforce: s.reinforce || null,   // folded energy-allocation state
   course: s.course || null, speedPlot: s.speedPlot || null, autopilot: !!s.autopilot,   // tactical course plot
   weapons: Object.fromEntries(s.mounts.map(m => [m.id, { cls: m.cls, arc: (m.arc.arcs || []), charged: isCharged(s, m.id, m.cls), firedAt: s.firedAt[m.id] || null }])),
 });
