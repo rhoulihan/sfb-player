@@ -232,6 +232,7 @@ import { movesOnImpulse, neighbor, turnMode } from './movement.js';
 import { shipPower, newEafColumn, validateEaf, foldEaf, sinkMax, specReinfMax } from './energy-model.js';
 import { legalNextHexes, tryStep, impulseTimeline, hexesInPlot, setSpeedChange, speedAt, legalSideslips, trySideslip } from './course-plan.js';
 import { family } from './battle-phase.js';   // SFB Sequence-of-Play segment cursor
+import { pixelToHex, hexPath, rad, courseOf, speedPlotOf, ensureSpeedPlot, plotCursor } from './battle-map.js';
 import { SCENARIO } from './scenario.js';
 
 const COLS = 42, ROWS = 30, COLORS = ['#2563eb', '#16a34a', '#d97706', '#7c3aed', '#0891b2'];   // standard SFB 42x30 map
@@ -244,37 +245,16 @@ let eafDraft = {}, myLockedEnergy = false;   // start-of-turn energy allocation 
 const ui = { plotShipId: null, rangeAnchor: null, selectedId: null, activeId: null, dragging: null, eaSelected: null, targetId: null, fireGroup: [], ghosts: {}, ghostMode: false };
 const powerOf = s => s._power || (s._power = shipPower(s.code, s._ver, s._det));
 const plotBase = s => Math.floor(((eafDraft[s.id]?.movement) || 0) / powerOf(s).moveCost);   // planned base speed from the EAF
-const speedPlotOf = s => s.speedPlot || { base: plotBase(s), changes: [] };
-const ensureSpeedPlot = s => s.speedPlot || (s.speedPlot = { base: plotBase(s), changes: [] });
+const speedPlotFor = s => speedPlotOf(s, plotBase(s)), ensureSpeedPlotOf = s => ensureSpeedPlot(s, plotBase(s)), plotCursorOf = s => plotCursor(s, plotBase(s));   // inject the EAF base into the extracted course helpers
 function syncMovementEnergy(s) {   // a plot with speed changes drives the EAF "Energy for Movement" (C12.21)
   if (s.speedPlot && s.speedPlot.changes.length && eafDraft[s.id]) eafDraft[s.id].movement = hexesInPlot(s.speedPlot) * powerOf(s).moveCost;
-}
-const courseOf = s => s.course || (s.course = { start: { q: s.q, r: s.r, facing: s.facing }, steps: [] });
-// current cursor at the end of a ship's course (position, facing, hexes-since-turn, and the impulse reached)
-function plotCursor(s) {
-  const c = courseOf(s), sp = speedPlotOf(s), tl = impulseTimeline(sp);
-  let pos = { q: c.start.q, r: c.start.r }, facing = c.start.facing, hst = turnMode(sp.base), slip = 0;
-  for (const st of c.steps) {
-    if (st.slip) { hst = hst + 1; slip = 0; }                                        // sideslip: straight for turn mode (C3.24), resets slip
-    else { const turned = st.facing !== facing; hst = turned ? 1 : hst + 1; slip = slip + 1; }
-    facing = st.facing; pos = { q: st.q, r: st.r };
-  }
-  const impulse = tl[c.steps.length]?.impulse ?? null;   // impulse the NEXT hex would be reached on
-  return { pos, facing, hst, slip, speed: speedAt(sp, impulse || 32), tl };
-}
-function pixelToHex(x, y) {
-  let best = null, bd = Infinity, q0 = Math.round((x - GEOM.OX) / GEOM.HW);
-  for (let q = q0 - 1; q <= q0 + 1; q++) for (let r = Math.round((y - GEOM.OY - (q % 2 ? GEOM.HH / 2 : 0)) / GEOM.HH) - 1, e = r + 2; r <= e; r++) {
-    const c = hexCenter(q, r), d = (c.x - x) ** 2 + (c.y - y) ** 2; if (d < bd) { bd = d; best = { q, r }; }
-  }
-  return best;
 }
 function clickToHex(e) { const pt = map.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY; const p = pt.matrixTransform(map.getScreenCTM().inverse()); return pixelToHex(p.x, p.y); }
 function plotOverlaySvg() {
   let s = '';
   for (const sh of ships.filter(isMine)) {   // plotted courses + impulse labels + speed-change markers
     const c = sh.course; if (!c || !c.steps.length) continue;
-    const sp = speedPlotOf(sh), tl = impulseTimeline(sp); let prev = hexCenter(c.start.q, c.start.r);
+    const sp = speedPlotFor(sh), tl = impulseTimeline(sp); let prev = hexCenter(c.start.q, c.start.r);
     c.steps.forEach((st, i) => {
       const cur = hexCenter(st.q, st.r), imp = tl[i]?.impulse;
       s += `<line x1="${prev.x}" y1="${prev.y}" x2="${cur.x}" y2="${cur.y}" stroke="#2563eb" stroke-width="2" opacity="0.85"/>`;
@@ -288,7 +268,7 @@ function plotOverlaySvg() {
     });
   }
   if (ui.plotShipId && byId(ui.plotShipId)) {   // green/red next-hex candidates for the selected ship
-    const cur = plotCursor(byId(ui.plotShipId));
+    const cur = plotCursorOf(byId(ui.plotShipId));
     for (const cand of legalNextHexes(cur.pos, cur.facing, cur.speed, cur.hst)) {
       const cc = hexCenter(cand.hex.q, cand.hex.r);
       s += `<path d="${hexPath(cc.x, cc.y)}" fill="${cand.legal ? '#16a34a' : '#C74634'}" opacity="0.5" style="pointer-events:none"/>`;
@@ -317,7 +297,7 @@ map.addEventListener('mouseup', e => {
   const dragged = plotDrag && plotDrag.moved; plotDrag = null;
   if (!dragged || getPhase() !== 'energy' || !ui.plotShipId || !byId(ui.plotShipId)) return;
   const hex = clickToHex(e); if (!hex) return;
-  const s = byId(ui.plotShipId), cur = plotCursor(s), slip = trySideslip(cur.pos, cur.facing, cur.hst, cur.slip, hex);
+  const s = byId(ui.plotShipId), cur = plotCursorOf(s), slip = trySideslip(cur.pos, cur.facing, cur.hst, cur.slip, hex);
   if (slip) { courseOf(s).steps.push({ q: slip.pos.q, r: slip.pos.r, facing: slip.facing, slip: true }); saveSoon(ui.plotShipId); suppressClick = true; render(); }
 });
 // map clicks during the energy phase: plot courses (snap) + shift-click to measure range
@@ -332,12 +312,12 @@ map.addEventListener('click', e => {
     const s = byId(ui.plotShipId), c = courseOf(s);
     const idx = c.steps.findIndex(st => st.q === hex.q && st.r === hex.r);
     if (idx >= 0) {   // clicked a plotted hex → set a mid-turn speed change from here
-      const sp = ensureSpeedPlot(s), tl = impulseTimeline(sp), imp = tl[idx]?.impulse, cur = speedAt(sp, imp || 1);
+      const sp = ensureSpeedPlotOf(s), tl = impulseTimeline(sp), imp = tl[idx]?.impulse, cur = speedAt(sp, imp || 1);
       const v = prompt(`New speed effective after impulse ${imp} (hex ${idx + 1})? Currently ${cur}.`, cur);
       if (v != null && v !== '') { s.speedPlot = setSpeedChange(sp, tl, idx + 1, Math.max(0, Math.min(31, Math.round(+v) || 0))); syncMovementEnergy(s); saveSoon(ui.plotShipId); render(); }
       return;
     }
-    const cur = plotCursor(s);
+    const cur = plotCursorOf(s);
     const step = tryStep(cur.pos, cur.facing, cur.speed, cur.hst, cur.slip, hex);
     if (step) { c.steps.push({ q: step.pos.q, r: step.pos.r, facing: step.facing }); saveSoon(ui.plotShipId); render(); }
   }
@@ -512,8 +492,6 @@ function turnAction(dir, shipId = ui.selectedId) {
 }
 
 // ---------- geometry ----------
-const rad = f => headingDeg(f) * Math.PI / 180;
-function hexPath(cx, cy) { let p = ''; for (let i = 0; i < 6; i++) { const a = Math.PI / 180 * (60 * i); p += (i ? 'L' : 'M') + (cx + GEOM.SIZE * Math.cos(a)).toFixed(1) + ' ' + (cy + GEOM.SIZE * Math.sin(a)).toFixed(1) + ' '; } return p + 'Z'; }
 const sideFill = s => isMine(s) ? '#2563eb' : '#C74634';   // my fleet blue, opponents red (relative to the commander)
 function shieldArc(cx, cy, facing, n, color) {
   const mid = headingDeg(facing) + (n - 1) * 60, a0 = (mid - 30) * Math.PI / 180, a1 = (mid + 30) * Math.PI / 180, R = 25;
