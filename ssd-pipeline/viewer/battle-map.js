@@ -181,21 +181,23 @@ export function createBattleMap(ctx) {
     return null;                                                                        // red / empty → not a path drag
   };
   map.addEventListener('mousedown', e => {
-    if (e.altKey || getPhase() !== 'energy') return;
-    const ps = ui.plotShipId && byId(ui.plotShipId), hex = clickToHex(e);
-    if (ps && isMine(ps) && hex) { const start = startStepsFor(ps, hex); if (start) { plotDrag = { id: ps.id, start, shift: e.shiftKey, x: e.clientX, y: e.clientY, moved: false }; return; } }
-    const gg = e.target.closest('.ship'), shipHere = gg && byId(gg.dataset.id);   // else the ship glyph → sideslip / ghost
-    if (shipHere) plotDrag = { id: shipHere.id, ship: true, shift: e.shiftKey, x: e.clientX, y: e.clientY, moved: false };
+    if (e.altKey || e.button !== 0 || hasGhosts() || getPhase() !== 'energy') return;   // left button only; a ghost must be cleared first
+    const gg = e.target.closest('.ship'), shipHere = gg && byId(gg.dataset.id);   // a ship glyph → sideslip / ghost (priority over an underlying nav hex)
+    if (shipHere) { plotDrag = { id: shipHere.id, ship: true, shift: e.shiftKey, x: e.clientX, y: e.clientY, moved: false }; return; }
+    const ps = ui.plotShipId && byId(ui.plotShipId), hex = clickToHex(e);   // else classify the grabbed hex for the plot ship
+    if (ps && isMine(ps) && hex) { const start = startStepsFor(ps, hex); if (start) plotDrag = { id: ps.id, start, shift: e.shiftKey, x: e.clientX, y: e.clientY, moved: false }; }
   });
-  map.addEventListener('mousemove', e => {
+  window.addEventListener('mousemove', e => {   // on window so a drag that strays off the SVG still tracks/finalizes
     if (!plotDrag) return;
     if (Math.abs(e.clientX - plotDrag.x) > 6 || Math.abs(e.clientY - plotDrag.y) > 6) plotDrag.moved = true;
     if (!plotDrag.moved || plotDrag.shift || !plotDrag.start) return;   // only a path drag previews
     const s = byId(plotDrag.id), hex = clickToHex(e); if (!s || !hex) return;
+    if (plotDrag.lastHex && plotDrag.lastHex.q === hex.q && plotDrag.lastHex.r === hex.r) return;   // same snapped hex → skip the pathFrom + re-render
+    plotDrag.lastHex = hex;
     ui.navPreview = { shipId: s.id, steps: pathFrom(s, plotBase(s), plotDrag.start, hex) };   // live path preview
     render();
   });
-  map.addEventListener('mouseup', e => {
+  window.addEventListener('mouseup', e => {
     const d = plotDrag; plotDrag = null; const had = !!ui.navPreview; ui.navPreview = null;
     if (!d || !d.moved || getPhase() !== 'energy') { if (had) render(); return; }
     const s = byId(d.id), hex = clickToHex(e); if (!s || !hex) { render(); return; }
