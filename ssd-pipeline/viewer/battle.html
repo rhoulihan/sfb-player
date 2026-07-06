@@ -178,6 +178,7 @@
 <div id="fireSummary" style="display:none;position:fixed;z-index:290;background:rgba(15,23,42,.94);color:#e2e8f0;padding:8px 11px;border-radius:9px;box-shadow:0 8px 24px rgba(0,0,0,.35);font-size:12px;max-width:280px;pointer-events:none;line-height:1.5"></div>
 <div id="ctxMenu" style="display:none;position:fixed;background:#fff;border:1px solid #cbd5e1;border-radius:8px;box-shadow:0 8px 28px rgba(0,0,0,.25);z-index:300;font-size:13px;overflow:hidden;min-width:150px">
   <div class="ctxitem" data-act="ssd" style="padding:8px 14px;cursor:pointer">🖥 View SSD</div>
+  <div class="ctxitem" data-act="ea" style="padding:8px 14px;cursor:pointer;border-top:1px solid #eef2f6">⚡ View EA</div>
 </div>
 <div id="ssdModal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:400;align-items:center;justify-content:center">
   <div style="background:#fff;border-radius:10px;width:92vw;height:90vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 12px 44px rgba(0,0,0,.4)">
@@ -244,7 +245,7 @@ let rev = 0, myCode = '', shipRev = {};   // rev: poll change-detection; shipRev
 let committed = {}, myCommitted = false, lastFireShown = 0;   // 6D fire commits: fire resolves once all fleets commit
 let eafDraft = {}, myLockedEnergy = false;   // start-of-turn energy allocation (phase is clock.phase, a segment id)
 // tactical planning + fire planning + ghosts: shared UI/selection state (also read by battle-map.js)
-const ui = { plotShipId: null, rangeAnchor: null, selectedId: null, activeId: null, dragging: null, eaSelected: null, targetId: null, fireGroup: [], ghosts: {}, ghostMode: false, ghostDrag: null, selectedPathHex: null };
+const ui = { plotShipId: null, rangeAnchor: null, selectedId: null, activeId: null, dragging: null, eaSelected: null, targetId: null, fireGroup: [], ghosts: {}, ghostMode: false, ghostDrag: null, selectedPathHex: null, viewEA: null };
 const powerOf = s => s._power || (s._power = shipPower(s.code, s._ver, s._det));
 const plotBase = s => Math.floor(((eafDraft[s.id]?.movement) || 0) / powerOf(s).moveCost);   // planned base speed from the EAF
 function syncMovementEnergy(s) {   // a plot with speed changes drives the EAF "Energy for Movement" (C12.21)
@@ -492,7 +493,7 @@ function render() {
   document.getElementById('ghostBanner').style.display = hasGhosts() ? 'flex' : 'none';   // clear-to-continue prompt
   renderFireSummary();
   if (getPhase() === 'energy') renderEnergy();
-  else { renderFleet(); renderGroups(); renderPanel(); renderTray(); }
+  else { renderFleet(); renderGroups(); renderPanel(); renderTray(); if (ui.viewEA) renderEnergy(); }   // read-only EA console in battle
 }
 // floating combined-damage summary anchored beside the target on the map (both phases; ghost-aware)
 function renderFireSummary() {
@@ -516,7 +517,8 @@ const clearGhosts = () => { ui.ghosts = {}; ui.ghostDrag = null; render(); };
 document.getElementById('ghostClear').onclick = clearGhosts;
 function applyPhaseUI() {
   const energy = getPhase() === 'energy';
-  document.getElementById('energyPanel').style.display = energy ? 'flex' : 'none';
+  if (energy) ui.viewEA = null;   // energy phase is the editable EA; battle uses viewEA read-only
+  document.getElementById('energyPanel').style.display = (energy || ui.viewEA) ? 'flex' : 'none';
   document.getElementById('rail').style.display = energy ? 'none' : '';
   document.getElementById('panel').style.display = energy ? 'none' : '';
   document.querySelector('.tray').style.display = energy ? 'none' : 'flex';
@@ -610,6 +612,7 @@ function renderEnergy() {
   const L = CONSOLE[theme], ep = document.getElementById('energyPanel');
   ep.className = 'epanel ' + L.cls; ep.style.backgroundImage = '';
   document.getElementById('epOverlay').style.backgroundImage = `url('assets/${L.art}.png')`;   // art fills only the control region, below the header frame
+  if (ui.viewEA && mine.some(s => s.id === ui.viewEA)) ui.eaSelected = ui.viewEA;
   if (!ui.eaSelected || !mine.some(s => s.id === ui.eaSelected)) ui.eaSelected = mine[0]?.id || null;
   document.getElementById('epTurn').textContent = `T${clock.turn}`;
   document.getElementById('epTabs').innerHTML = mine.map(s => { const v = validateShip(s);
@@ -619,8 +622,9 @@ function renderEnergy() {
   const p = powerOf(s), col = eaColOf(s), v = validateShip(s), sn = shieldsNow(s);
   document.getElementById('epMeter').innerHTML = `<b style="color:${stColor(v.status)}">${v.used}</b>/${v.produced} · ${v.free} free`;
   const anyOver = mine.some(x => validateShip(x).status === 'over');
-  const lock = document.getElementById('epLock'); lock.disabled = myLockedEnergy || anyOver;
-  lock.textContent = myLockedEnergy ? '🔒 LOCKED' : '🔒 LOCK';
+  const lock = document.getElementById('epLock');
+  lock.disabled = ui.viewEA ? false : (myLockedEnergy || anyOver);
+  lock.textContent = ui.viewEA ? '✕ Close (read-only)' : (myLockedEnergy ? '🔒 LOCKED' : '🔒 LOCK');
   let h = '';
   for (const n of [1, 2, 3, 4, 5, 6]) { const [x, y] = L.shields[n]; h += shieldCtl(n, x, y, sn[n - 1], col.specReinf[n] || 0, specReinfMax(p, n)); }
   h += toggleCtl(L.activate[0], L.activate[1], 'SHIELDS', 'shieldsActive', col.shieldsActive);
@@ -813,6 +817,7 @@ function updateMeter() {   // light header-meter refresh during slider drag (no 
 }
 epanel.addEventListener('click', e => {
   const tab = e.target.closest('[data-eatab]'); if (tab) { ui.eaSelected = ui.plotShipId = tab.dataset.eatab; render(); return; }
+  if (ui.viewEA) return;   // read-only EA view (battle) — no allocation changes
   if (e.target.id === 'epAuto') { const s = byId(ui.eaSelected); if (s) { s.autopilot = !s.autopilot; s._autoIdx = 0; saveSoon(s.id); render(); } return; }
   if (myLockedEnergy) return; const s = byId(ui.eaSelected); if (!s) return; const p = powerOf(s), col = eaColOf(s);
   const w = e.target.closest('[data-ea="weap"]');
@@ -826,14 +831,14 @@ epanel.addEventListener('click', e => {
   const sp = e.target.closest('[data-ea="specstep"]'); if (sp) { const n = +sp.dataset.shield, max = specReinfMax(p, n); col.specReinf[n] = Math.max(0, Math.min(max, (col.specReinf[n] || 0) + (+sp.dataset.d))); renderEnergy(); return; }
 });
 function onEaInput(e) {   // range sliders: live-update value + header meter without rebuilding (would kill the drag)
-  if (myLockedEnergy) return; const t = e.target, s = ui.eaSelected ? byId(ui.eaSelected) : null; if (!s || t.dataset.ea !== 'num') return;
+  if (myLockedEnergy || ui.viewEA) return; const t = e.target, s = ui.eaSelected ? byId(ui.eaSelected) : null; if (!s || t.dataset.ea !== 'num') return;
   eaColOf(s)[t.dataset.key] = Math.min(sinkMax(powerOf(s), t.dataset.key), Math.max(0, +t.value || 0));
   const val = t.closest('.ctl')?.querySelector('.val'); if (val) val.firstChild && (val.firstChild.textContent = t.value);
   updateMeter();
 }
 epanel.addEventListener('input', onEaInput);
 epanel.addEventListener('change', e => { if (!myLockedEnergy && e.target.dataset.ea === 'num') renderEnergy(); });   // reposition/clamp after the drag ends
-document.getElementById('epLock').onclick = () => lockEnergy();
+document.getElementById('epLock').onclick = () => { if (ui.viewEA) { ui.viewEA = null; render(); } else lockEnergy(); };
 // draggable console modal (drag by its title bar; ignore clicks on the tabs/lock buttons)
 let epDrag = null;
 document.querySelector('.ephdr').addEventListener('mousedown', e => { if (e.target.closest('button')) return; const r = epanel.getBoundingClientRect(); epDrag = { dx: e.clientX - r.left, dy: e.clientY - r.top }; e.preventDefault(); });
@@ -932,7 +937,7 @@ createBattleMap({
   openCtxMenu: (shipId, e) => { ctxShip = shipId; const m = document.getElementById('ctxMenu'); m.style.display = 'block'; m.style.left = Math.min(e.clientX, innerWidth - 160) + 'px'; m.style.top = e.clientY + 'px'; },
 });
 document.addEventListener('click', () => { document.getElementById('ctxMenu').style.display = 'none'; });
-document.getElementById('ctxMenu').addEventListener('click', e => { const it = e.target.closest('[data-act]'); if (it && it.dataset.act === 'ssd' && ctxShip) openSSD(ctxShip); });
+document.getElementById('ctxMenu').addEventListener('click', e => { const it = e.target.closest('[data-act]'); if (!it || !ctxShip) return; if (it.dataset.act === 'ssd') openSSD(ctxShip); else if (it.dataset.act === 'ea' && isMine(byId(ctxShip))) { ui.viewEA = ctxShip; ui.eaSelected = ctxShip; render(); } });
 function openSSD(id) { const s = byId(id); document.getElementById('ssdTitle').textContent = `${s.id} — ${s.name} (${s.code})`; document.getElementById('ssdFrame').src = `damage.html?ship=${encodeURIComponent(s.code)}`; document.getElementById('ssdModal').style.display = 'flex'; }
 document.getElementById('ssdClose').onclick = () => { document.getElementById('ssdModal').style.display = 'none'; document.getElementById('ssdFrame').src = 'about:blank'; };
 
