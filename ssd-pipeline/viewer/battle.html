@@ -232,7 +232,7 @@ import { movesOnImpulse, neighbor, turnMode } from './movement.js';
 import { shipPower, newEafColumn, validateEaf, foldEaf, sinkMax, specReinfMax } from './energy-model.js';
 import { legalNextHexes, tryStep, impulseTimeline, hexesInPlot, setSpeedChange, speedAt, legalSideslips, trySideslip } from './course-plan.js';
 import { family } from './battle-phase.js';   // SFB Sequence-of-Play segment cursor
-import { pixelToHex, hexPath, rad, courseOf, speedPlotOf, ensureSpeedPlot, plotCursor } from './battle-map.js';
+import { pixelToHex, hexPath, rad, courseOf, speedPlotOf, ensureSpeedPlot, plotCursor, plotOverlaySvg } from './battle-map.js';
 import { SCENARIO } from './scenario.js';
 
 const COLS = 42, ROWS = 30, COLORS = ['#2563eb', '#16a34a', '#d97706', '#7c3aed', '#0891b2'];   // standard SFB 42x30 map
@@ -250,45 +250,6 @@ function syncMovementEnergy(s) {   // a plot with speed changes drives the EAF "
   if (s.speedPlot && s.speedPlot.changes.length && eafDraft[s.id]) eafDraft[s.id].movement = hexesInPlot(s.speedPlot) * powerOf(s).moveCost;
 }
 function clickToHex(e) { const pt = map.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY; const p = pt.matrixTransform(map.getScreenCTM().inverse()); return pixelToHex(p.x, p.y); }
-function plotOverlaySvg() {
-  let s = '';
-  for (const sh of ships.filter(isMine)) {   // plotted courses + impulse labels + speed-change markers
-    const c = sh.course; if (!c || !c.steps.length) continue;
-    const sp = speedPlotFor(sh), tl = impulseTimeline(sp); let prev = hexCenter(c.start.q, c.start.r);
-    c.steps.forEach((st, i) => {
-      const cur = hexCenter(st.q, st.r), imp = tl[i]?.impulse;
-      s += `<line x1="${prev.x}" y1="${prev.y}" x2="${cur.x}" y2="${cur.y}" stroke="#2563eb" stroke-width="2" opacity="0.85"/>`;
-      if (imp) s += `<text x="${cur.x}" y="${cur.y - 7}" text-anchor="middle" font-size="9" fill="#1d4ed8" font-weight="700" style="pointer-events:none">${imp}</text>`;
-      const chg = (sp.changes || []).find(ch => ch.announceImpulse === imp);
-      if (chg) s += `<text x="${cur.x}" y="${cur.y + 15}" text-anchor="middle" font-size="10" fill="#b45309" font-weight="800" style="pointer-events:none">▸${chg.speed}</text>`;
-      const nb = neighbor(st.q, st.r, st.facing), nc = hexCenter(nb.q, nb.r);   // heading arrow: small triangle pointing in the ship's facing
-      const dx = nc.x - cur.x, dy = nc.y - cur.y, L = Math.hypot(dx, dy) || 1, ux = dx / L, uy = dy / L, px = -uy, py = ux;
-      s += `<polygon points="${(cur.x + ux * 11).toFixed(1)},${(cur.y + uy * 11).toFixed(1)} ${(cur.x - ux * 3 + px * 5).toFixed(1)},${(cur.y - uy * 3 + py * 5).toFixed(1)} ${(cur.x - ux * 3 - px * 5).toFixed(1)},${(cur.y - uy * 3 - py * 5).toFixed(1)}" fill="#fbbf24" stroke="#78350f" stroke-width="0.6" opacity="0.95" style="pointer-events:none"/>`;
-      prev = cur;
-    });
-  }
-  if (ui.plotShipId && byId(ui.plotShipId)) {   // green/red next-hex candidates for the selected ship
-    const cur = plotCursorOf(byId(ui.plotShipId));
-    for (const cand of legalNextHexes(cur.pos, cur.facing, cur.speed, cur.hst)) {
-      const cc = hexCenter(cand.hex.q, cand.hex.r);
-      s += `<path d="${hexPath(cc.x, cc.y)}" fill="${cand.legal ? '#16a34a' : '#C74634'}" opacity="0.5" style="pointer-events:none"/>`;
-    }
-    for (const ss of legalSideslips(cur.pos, cur.facing, cur.slip)) {   // drag-to-sideslip target (purple dashed)
-      if (!ss.legal) continue; const cc = hexCenter(ss.hex.q, ss.hex.r);
-      s += `<path d="${hexPath(cc.x, cc.y)}" fill="none" stroke="#a855f7" stroke-width="3" stroke-dasharray="5 3" opacity="0.95" style="pointer-events:none"/>`;
-    }
-  }
-  if (ui.rangeAnchor) {   // range measurement
-    const a = hexCenter(ui.rangeAnchor.start.q, ui.rangeAnchor.start.r);
-    s += `<circle cx="${a.x}" cy="${a.y}" r="9" fill="none" stroke="#7c3aed" stroke-width="2.5"/>`;
-    if (ui.rangeAnchor.end) {
-      const b = hexCenter(ui.rangeAnchor.end.q, ui.rangeAnchor.end.r), d = hexDistance(ui.rangeAnchor.start, ui.rangeAnchor.end);
-      s += `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="#7c3aed" stroke-width="2.5" stroke-dasharray="6 4"/>` +
-        `<text x="${(a.x + b.x) / 2}" y="${(a.y + b.y) / 2 - 8}" text-anchor="middle" font-size="13" fill="#6d28d9" font-weight="800" style="pointer-events:none">R${d}</text>`;
-    }
-  }
-  return s;
-}
 // drag on the map during the energy phase = sideslip (move oblique keeping facing, C4.0); a plain click turns
 let plotDrag = null, suppressClick = false;
 map.addEventListener('mousedown', e => { if (getPhase() === 'energy' && ui.plotShipId && byId(ui.plotShipId)) plotDrag = { x: e.clientX, y: e.clientY, moved: false }; });
@@ -305,7 +266,7 @@ map.addEventListener('click', e => {
   if (suppressClick) { suppressClick = false; return; }   // a drag-sideslip just happened; don't also turn
   if (getPhase() !== 'energy') return;
   const hex = clickToHex(e); if (!hex) return;
-  if (e.shiftKey) { ui.rangeAnchor = (!ui.rangeAnchor || ui.rangeAnchor.end) ? { start: hex, end: null } : { ...rangeAnchor, end: hex }; render(); return; }
+  if (e.shiftKey) { ui.rangeAnchor = (!ui.rangeAnchor || ui.rangeAnchor.end) ? { start: hex, end: null } : { ...ui.rangeAnchor, end: hex }; render(); return; }
   const shipHere = ships.find(s => s.q === hex.q && s.r === hex.r);
   if (shipHere && isMine(shipHere)) { ui.plotShipId = shipHere.id; ui.eaSelected = shipHere.id; render(); return; }
   if (ui.plotShipId && byId(ui.plotShipId)) {
@@ -547,7 +508,7 @@ function render() {
       `<circle cx="${c.x}" cy="${c.y}" r="20" fill="${fill}" stroke="#fff" stroke-width="2"/>` +
       `<text x="${c.x}" y="${c.y + 4}" text-anchor="middle" fill="#fff" font-size="12" font-weight="700" style="pointer-events:none">${s.id}</text></g>`;
   }
-  if (getPhase() === 'energy') svg += plotOverlaySvg();
+  if (getPhase() === 'energy') svg += plotOverlaySvg({ ships, isMine, byId, plotBase, ui });
   map.querySelector('#dyn').innerHTML = svg;
   applyPhaseUI();
   if (getPhase() === 'energy') renderEnergy();
