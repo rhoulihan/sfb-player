@@ -174,6 +174,7 @@
     <div class="log" id="log"></div>
   </div>
 </div>
+<div id="ghostBanner" style="display:none;position:fixed;top:10px;left:50%;transform:translateX(-50%);z-index:320;background:#7c3aed;color:#fff;padding:7px 14px;border-radius:20px;box-shadow:0 6px 20px rgba(124,58,237,.4);font-size:13px;font-weight:600;display:none;align-items:center;gap:12px">👻 Ghost what-if active — preview only <button id="ghostClear" style="background:#fff;color:#7c3aed;border:none;border-radius:12px;padding:3px 12px;font-weight:700;cursor:pointer">Clear to continue</button></div>
 <div id="ctxMenu" style="display:none;position:fixed;background:#fff;border:1px solid #cbd5e1;border-radius:8px;box-shadow:0 8px 28px rgba(0,0,0,.25);z-index:300;font-size:13px;overflow:hidden;min-width:150px">
   <div class="ctxitem" data-act="ssd" style="padding:8px 14px;cursor:pointer">🖥 View SSD</div>
 </div>
@@ -242,7 +243,7 @@ let rev = 0, myCode = '', shipRev = {};   // rev: poll change-detection; shipRev
 let committed = {}, myCommitted = false, lastFireShown = 0;   // 6D fire commits: fire resolves once all fleets commit
 let eafDraft = {}, myLockedEnergy = false;   // start-of-turn energy allocation (phase is clock.phase, a segment id)
 // tactical planning + fire planning + ghosts: shared UI/selection state (also read by battle-map.js)
-const ui = { plotShipId: null, rangeAnchor: null, selectedId: null, activeId: null, dragging: null, eaSelected: null, targetId: null, fireGroup: [], ghosts: {}, ghostMode: false, selectedPathHex: null };
+const ui = { plotShipId: null, rangeAnchor: null, selectedId: null, activeId: null, dragging: null, eaSelected: null, targetId: null, fireGroup: [], ghosts: {}, ghostMode: false, ghostDrag: null, selectedPathHex: null };
 const powerOf = s => s._power || (s._power = shipPower(s.code, s._ver, s._det));
 const plotBase = s => Math.floor(((eafDraft[s.id]?.movement) || 0) / powerOf(s).moveCost);   // planned base speed from the EAF
 function syncMovementEnergy(s) {   // a plot with speed changes drives the EAF "Energy for Movement" (C12.21)
@@ -261,7 +262,10 @@ const hexId = (q, r) => `${String(q + 1).padStart(2, '0')}${String(r + 1).padSta
 const byId = id => ships.find(s => s.id === id);
 const working = () => plan.groups.find(g => g.id === workingId);
 const groupOfShip = id => plan.groups.find(g => g.members.some(m => m.shipId === id));
-const shipMountsMap = () => Object.fromEntries(ships.map(s => [s.id, s.mounts]));
+// ghost = an ephemeral what-if position/facing used ONLY in the fire preview path (never committed).
+const ghostOf = s => (s && ui.ghosts[s.id]) ? { ...s, ...ui.ghosts[s.id] } : s;   // override q/r/facing when a ghost exists
+const hasGhosts = () => Object.keys(ui.ghosts).length > 0;
+const shipMountsMap = () => Object.fromEntries(ships.map(s => [s.id, ghostOf(s).mounts]));
 
 const NEVER_BOX = new Set(['crew', 'boarding-party', 'ammo-track', 'cloaking-device', 'markers', 'shield', 'rating-track', 'excess-damage']);
 function totalBoxes(s) { if (s._tb != null) return s._tb; let n = 0; for (const g of (s._ver.groups || [])) if (!NEVER_BOX.has(g.family)) n += (g.boxIds || []).length; return s._tb = n; }
@@ -453,13 +457,21 @@ function render() {
   let svg = '';
   // overlays: lines of fire + exposed shields, per group
   for (const g of plan.groups) {
-    if (!g.targetShipId) continue; const t = byId(g.targetShipId); if (!t) continue; const tc = hexCenter(t.q, t.r);
+    if (!g.targetShipId) continue; const t0 = byId(g.targetShipId); if (!t0) continue; const t = ghostOf(t0); const tc = hexCenter(t.q, t.r);   // ghost overrides target position for the what-if
     for (const m of g.members) {
-      const s = byId(m.shipId); if (!s || !m.mountIds.length) continue; const c = hexCenter(s.q, s.r);
+      const s0 = byId(m.shipId); if (!s0 || !m.mountIds.length) continue; const s = ghostOf(s0); const c = hexCenter(s.q, s.r);
       svg += `<line x1="${c.x}" y1="${c.y}" x2="${tc.x}" y2="${tc.y}" stroke="${g.color}" stroke-width="1.5" stroke-dasharray="4 3" opacity="0.7"/>`;
       const el = eligForTarget(s, t); const sh = m.mountIds.map(id => el[id]?.struckShield).find(Boolean);
       if (sh) svg += shieldArc(tc.x, tc.y, t.facing, sh, g.color);
     }
+  }
+  for (const [id, gp] of Object.entries(ui.ghosts)) {   // ghost what-if silhouettes (dashed, translucent)
+    const s = byId(id); if (!s) continue; const c = hexCenter(gp.q, gp.r), fill = sideFill(s);
+    const nx = c.x + 27 * Math.cos(rad(gp.facing)), ny = c.y + 27 * Math.sin(rad(gp.facing));
+    svg += `<g class="ghost" data-ghost="${id}" style="cursor:grab" opacity="0.5">` +
+      `<line x1="${c.x}" y1="${c.y}" x2="${nx}" y2="${ny}" stroke="${fill}" stroke-width="4"/>` +
+      `<circle cx="${c.x}" cy="${c.y}" r="20" fill="none" stroke="${fill}" stroke-width="2.5" stroke-dasharray="4 3"/>` +
+      `<text x="${c.x}" y="${c.y + 4}" text-anchor="middle" fill="${fill}" font-size="12" font-weight="700" style="pointer-events:none">${s.id}</text></g>`;
   }
   for (const s of ships) {
     const c = hexCenter(s.q, s.r), fill = sideFill(s);
@@ -476,9 +488,12 @@ function render() {
   if (getPhase() === 'energy') svg += plotOverlaySvg({ ships, isMine, byId, plotBase, ui });
   map.querySelector('#dyn').innerHTML = svg;
   applyPhaseUI();
+  document.getElementById('ghostBanner').style.display = hasGhosts() ? 'flex' : 'none';   // clear-to-continue prompt
   if (getPhase() === 'energy') renderEnergy();
   else { renderFleet(); renderGroups(); renderPanel(); renderTray(); }
 }
+const clearGhosts = () => { ui.ghosts = {}; ui.ghostDrag = null; render(); };
+document.getElementById('ghostClear').onclick = clearGhosts;
 function applyPhaseUI() {
   const energy = getPhase() === 'energy';
   document.getElementById('energyPanel').style.display = energy ? 'flex' : 'none';
@@ -694,7 +709,7 @@ function renderTray() {
   else {
     body.className = '';
     body.innerHTML = withTarget.map(g => {
-      const pv = combinedPreview(g, ships, shipMountsMap()); const t = byId(g.targetShipId);
+      const pv = combinedPreview(g, ships.map(ghostOf), shipMountsMap()); const t = byId(g.targetShipId);   // ghost what-if positions feed the nominal damage
       const rows = pv.perShield.map(r => `shield #${r.shield}: <b>${r.nominal.toFixed(1)}</b> exp <span style="color:#94a3b8">(${r.firers.join('+')} vs ${t.shields[r.shield - 1]} boxes)</span>`).join(' · ');
       return `<div class="prev"><span style="color:${g.color};font-weight:700">${g.id}</span> → ${t.id}: ${rows} <span style="color:#94a3b8">— expected damage (hit-weighted)</span></div>`;
     }).join('');

@@ -103,9 +103,28 @@ export function createBattleMap(ctx) {
   const clickToHex = e => { const p = svgPoint(e); return pixelToHex(p.x, p.y); };
   const nearestHex = (px, py) => { let b = { q: 0, r: 0 }, bd = Infinity; for (let q = 0; q < COLS; q++) for (let r = 0; r < ROWS; r++) { const c = hexCenter(q, r), d = Math.hypot(c.x - px, c.y - py); if (d < bd) { bd = d; b = { q, r }; } } return b; };
 
+  // alt-drag any ship → an ephemeral "ghost" what-if position (both phases); rotate it by clicking it.
+  // The real ship never moves — ghosts feed the fire preview only and must be cleared to continue.
+  map.addEventListener('click', e => {   // capture: rotate a ghost, preempting the plotting/fire click handlers
+    const gh = e.target.closest('.ghost'); if (!gh) return;
+    const g = ui.ghosts[gh.dataset.ghost]; if (g) { g.facing = (g.facing + 1) % 6; render(); }
+    e.stopPropagation(); e.preventDefault();
+  }, true);
+  map.addEventListener('mousedown', e => {
+    if (!e.altKey) return; const gg = e.target.closest('.ship, .ghost'); if (!gg) return;
+    const id = gg.dataset.id || gg.dataset.ghost, s = byId(id); if (!s) return;
+    ui.ghostDrag = id; ui.ghosts[id] = ui.ghosts[id] || { q: s.q, r: s.r, facing: s.facing };
+    e.preventDefault(); e.stopPropagation(); render();
+  });
+  window.addEventListener('mousemove', e => {
+    if (!ui.ghostDrag) return; const p = svgPoint(e), h = nearestHex(p.x, p.y);
+    const g = ui.ghosts[ui.ghostDrag]; if (h.q !== g.q || h.r !== g.r) { g.q = h.q; g.r = h.r; render(); }
+  });
+  window.addEventListener('mouseup', () => { if (ui.ghostDrag) ui.ghostDrag = null; });
+
   // energy phase: drag = sideslip (move oblique keeping facing, C4.0); a plain click turns
   let plotDrag = null, suppressClick = false;
-  map.addEventListener('mousedown', e => { if (getPhase() === 'energy' && ui.plotShipId && byId(ui.plotShipId)) plotDrag = { x: e.clientX, y: e.clientY, moved: false }; });
+  map.addEventListener('mousedown', e => { if (e.altKey) return; if (getPhase() === 'energy' && ui.plotShipId && byId(ui.plotShipId)) plotDrag = { x: e.clientX, y: e.clientY, moved: false }; });
   map.addEventListener('mousemove', e => { if (plotDrag && (Math.abs(e.clientX - plotDrag.x) > 6 || Math.abs(e.clientY - plotDrag.y) > 6)) plotDrag.moved = true; });
   map.addEventListener('mouseup', e => {
     const dragged = plotDrag && plotDrag.moved; plotDrag = null;
@@ -147,7 +166,7 @@ export function createBattleMap(ctx) {
     }
   });
   // impulse phase: drag a ship to move it (snaps to nearest hex); a plain click selects it
-  map.addEventListener('mousedown', e => { if (getPhase() !== 'impulse') return; const gg = e.target.closest('.ship'); if (!gg) return; ui.dragging = { s: byId(gg.dataset.id), moved: false }; ui.selectedId = ui.dragging.s.id; renderFleet(); e.preventDefault(); });
+  map.addEventListener('mousedown', e => { if (e.altKey || getPhase() !== 'impulse') return; const gg = e.target.closest('.ship'); if (!gg) return; ui.dragging = { s: byId(gg.dataset.id), moved: false }; ui.selectedId = ui.dragging.s.id; renderFleet(); e.preventDefault(); });
   window.addEventListener('mousemove', e => {
     if (!ui.dragging) return; const p = svgPoint(e), h = nearestHex(p.x, p.y);
     if (h.q !== ui.dragging.s.q || h.r !== ui.dragging.s.r) { ui.dragging.s.q = h.q; ui.dragging.s.r = h.r; ui.dragging.moved = true; pruneUnavailable(); render(); }
