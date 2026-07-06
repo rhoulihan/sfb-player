@@ -907,7 +907,7 @@ window.addEventListener('mouseup', () => { resizing = null; });
 let ctxShip = null;
 // wire the extracted map interaction layer — all map gestures now live in battle-map.js
 createBattleMap({
-  map, ui, getPhase, getShips: () => ships, byId, isMine, COLS, ROWS,
+  map, ui, getPhase, getShips: () => ships, byId, isMine, COLS, ROWS, hasGhosts,
   plotBase, saveSoon, render, syncMovementEnergy, onShipClick, renderFleet, pruneUnavailable,
   openCtxMenu: (shipId, e) => { ctxShip = shipId; const m = document.getElementById('ctxMenu'); m.style.display = 'block'; m.style.left = Math.min(e.clientX, innerWidth - 160) + 'px'; m.style.top = e.clientY + 'px'; },
 });

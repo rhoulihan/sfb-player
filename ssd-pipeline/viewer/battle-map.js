@@ -97,7 +97,7 @@ export function plotOverlaySvg({ ships, isMine, byId, plotBase, ui }) {
 // once after those are defined. Preserves the suppressClick↔plotDrag ordering and both phase-gated
 // mousedown listeners exactly.
 export function createBattleMap(ctx) {
-  const { map, ui, getPhase, getShips, byId, isMine, COLS, ROWS,
+  const { map, ui, getPhase, getShips, byId, isMine, COLS, ROWS, hasGhosts,
           plotBase, saveSoon, render, syncMovementEnergy, onShipClick, renderFleet, pruneUnavailable, openCtxMenu } = ctx;
   const svgPoint = e => { const pt = map.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY; return pt.matrixTransform(map.getScreenCTM().inverse()); };
   const clickToHex = e => { const p = svgPoint(e); return pixelToHex(p.x, p.y); };
@@ -136,6 +136,7 @@ export function createBattleMap(ctx) {
   // energy phase clicks: plot courses (snap) / speed-change on a path hex / shift-click to measure range
   map.addEventListener('click', e => {
     if (suppressClick) { suppressClick = false; return; }   // a drag-sideslip just happened; don't also turn
+    if (hasGhosts()) return;   // a ghost what-if is open — clear it to continue
     if (getPhase() !== 'energy') return;
     const hex = clickToHex(e); if (!hex) return;
     if (e.shiftKey) {   // shift-click an enemy → set the fire-group target; shift-click empty → measure range
@@ -166,7 +167,7 @@ export function createBattleMap(ctx) {
     }
   });
   // impulse phase: drag a ship to move it (snaps to nearest hex); a plain click selects it
-  map.addEventListener('mousedown', e => { if (e.altKey || getPhase() !== 'impulse') return; const gg = e.target.closest('.ship'); if (!gg) return; ui.dragging = { s: byId(gg.dataset.id), moved: false }; ui.selectedId = ui.dragging.s.id; renderFleet(); e.preventDefault(); });
+  map.addEventListener('mousedown', e => { if (e.altKey || hasGhosts() || getPhase() !== 'impulse') return; const gg = e.target.closest('.ship'); if (!gg) return; ui.dragging = { s: byId(gg.dataset.id), moved: false }; ui.selectedId = ui.dragging.s.id; renderFleet(); e.preventDefault(); });
   window.addEventListener('mousemove', e => {
     if (!ui.dragging) return; const p = svgPoint(e), h = nearestHex(p.x, p.y);
     if (h.q !== ui.dragging.s.q || h.r !== ui.dragging.s.r) { ui.dragging.s.q = h.q; ui.dragging.s.r = h.r; ui.dragging.moved = true; pruneUnavailable(); render(); }
