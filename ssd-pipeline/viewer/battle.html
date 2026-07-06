@@ -355,12 +355,17 @@ function saveSoon(...ids) { ids.forEach(i => pendingTouched.add(i)); clearTimeou
 // apply a newer shared state from another commander (AJAX poll / conflict refresh), keeping local UI selection
 function applyRemote(data) {
   applying = true;
-  clock = { turn: data.turn || 1, impulse: data.impulse ?? 0, phase: clock.phase };
+  // adopt the remote clock/phase only when it is not behind ours — a lagging poll must never rewind our
+  // own optimistic step/wrap (which would strand us a turn back while the server is already ahead).
+  const localPos = clock.turn * 33 + clock.impulse, remotePos = (data.turn || 1) * 33 + (data.impulse ?? 0);
+  if (remotePos >= localPos) {
+    clock = { turn: data.turn || 1, impulse: data.impulse ?? 0, phase: clock.phase };
+    if (data.phase && data.phase !== getPhase()) { const toEnergy = data.phase === 'energy'; setCoarse(data.phase); if (toEnergy) { eafDraft = {}; myLockedEnergy = false; } }
+    else if (data.phase) setCoarse(data.phase);
+  }
   if (data.myFleet) myFleet = data.myFleet;
   if (data.fleets) fleets = { friendly: { ...fleets.friendly, name: data.fleets.friendly?.name }, enemy: { ...fleets.enemy, name: data.fleets.enemy?.name } };
   if (data.committed) { committed = data.committed; if (!committed[myFleet]) { myCommitted = false; myLockedEnergy = false; } }   // resolved / new turn → un-commit
-  if (data.phase && data.phase !== getPhase()) { const toEnergy = data.phase === 'energy'; setCoarse(data.phase); if (toEnergy) { eafDraft = {}; myLockedEnergy = false; } }
-  else if (data.phase) setCoarse(data.phase);
   if (getPhase() === 'energy' && data.eaf) for (const [id, col] of Object.entries(data.eaf)) eafDraft[id] = col;   // my locked column
   if (data.committed) myLockedEnergy = getPhase() === 'energy' && !!data.committed[myFleet];
   plan = data.plans?.[myFleet] || plan || newPlan();
@@ -490,6 +495,7 @@ function render() {
   if (getPhase() === 'energy') svg += plotOverlaySvg({ ships, isMine, byId, plotBase, ui });
   map.querySelector('#dyn').innerHTML = svg;
   applyPhaseUI();
+  renderClock();   // both phases — the energy phase must reflect a turn wrap too
   document.getElementById('ghostBanner').style.display = hasGhosts() ? 'flex' : 'none';   // clear-to-continue prompt
   renderFireSummary();
   if (getPhase() === 'energy') renderEnergy();
@@ -679,7 +685,6 @@ function renderFleet() {
     return row + (s.id === ui.selectedId ? turnCtl(s) : '');   // turn controls follow the last-clicked ship
   }).join('');
   document.getElementById('rotc').style.display = 'none';
-  renderClock();
 }
 function turnCtl(s) {
   if (!(isMine(s) || testMode)) return `<div class="turnctl"><span class="tmc" style="margin:0">target ship — enable Test mode to turn</span></div>`;
