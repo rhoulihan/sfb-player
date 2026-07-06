@@ -76,7 +76,7 @@ export function plotOverlaySvg({ ships, isMine, byId, plotBase, ui }) {
       const cc = hexCenter(cand.hex.q, cand.hex.r);
       s += `<path d="${hexPath(cc.x, cc.y)}" fill="${cand.legal ? '#16a34a' : '#C74634'}" opacity="0.5" style="pointer-events:none"/>`;
     }
-    for (const ss of legalSideslips(cur.pos, cur.facing, cur.slip)) {   // drag-to-sideslip target (purple dashed)
+    for (const ss of (cur.speed > 0 ? legalSideslips(cur.pos, cur.facing, cur.slip) : [])) {   // drag-to-sideslip target (purple dashed) — a stationary ship can't sideslip
       if (!ss.legal) continue; const cc = hexCenter(ss.hex.q, ss.hex.r);
       s += `<path d="${hexPath(cc.x, cc.y)}" fill="none" stroke="#a855f7" stroke-width="3" stroke-dasharray="5 3" opacity="0.95" style="pointer-events:none"/>`;
     }
@@ -99,23 +99,32 @@ export function plotOverlaySvg({ ships, isMine, byId, plotBase, ui }) {
 // once after those are defined. Preserves the suppressClick↔plotDrag ordering and both phase-gated
 // mousedown listeners exactly.
 export function createBattleMap(ctx) {
-  const { map, ui, getPhase, getShips, byId, isMine, COLS, ROWS, hasGhosts,
+  const { map, ui, getPhase, getShips, byId, isMine, COLS, ROWS, hasGhosts, groupOfShip,
           plotBase, saveSoon, render, syncMovementEnergy, onShipClick, renderFleet, pruneUnavailable, openCtxMenu } = ctx;
+  // a dragged ship joins the virtual fire group: friendly → add as a firer (once), enemy → set as target
+  const joinFireGroup = s => { if (isMine(s)) { if (!groupOfShip(s.id)) onShipClick(s); } else onShipClick(s); };
   const svgPoint = e => { const pt = map.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY; return pt.matrixTransform(map.getScreenCTM().inverse()); };
   const clickToHex = e => { const p = svgPoint(e); return pixelToHex(p.x, p.y); };
   const nearestHex = (px, py) => { let b = { q: 0, r: 0 }, bd = Infinity; for (let q = 0; q < COLS; q++) for (let r = 0; r < ROWS; r++) { const c = hexCenter(q, r), d = Math.hypot(c.x - px, c.y - py); if (d < bd) { bd = d; b = { q, r }; } } return b; };
 
   // alt-drag any ship → an ephemeral "ghost" what-if position (both phases); rotate it by clicking it.
   // The real ship never moves — ghosts feed the fire preview only and must be cleared to continue.
-  map.addEventListener('click', e => {   // capture: rotate a ghost, preempting the plotting/fire click handlers
+  map.addEventListener('click', e => {   // capture: select a ghost (arrow keys then rotate it), preempting the plotting/fire click handlers
     const gh = e.target.closest('.ghost'); if (!gh) return;
-    const g = ui.ghosts[gh.dataset.ghost]; if (g) { g.facing = (g.facing + 1) % 6; render(); }
+    ui.selectedGhost = gh.dataset.ghost; render();
     e.stopPropagation(); e.preventDefault();
   }, true);
+  window.addEventListener('keydown', e => {   // ← / → rotate the selected ghost
+    const g = ui.selectedGhost && ui.ghosts[ui.selectedGhost]; if (!g) return;
+    if (e.key === 'ArrowLeft') g.facing = (g.facing + 5) % 6;
+    else if (e.key === 'ArrowRight') g.facing = (g.facing + 1) % 6;
+    else return;
+    e.preventDefault(); render();
+  });
   map.addEventListener('mousedown', e => {
     if (!e.altKey) return; const gg = e.target.closest('.ship, .ghost'); if (!gg) return;
     const id = gg.dataset.id || gg.dataset.ghost, s = byId(id); if (!s) return;
-    ui.ghostDrag = id; ui.ghosts[id] = ui.ghosts[id] || { q: s.q, r: s.r, facing: s.facing };
+    ui.ghostDrag = id; ui.ghosts[id] = ui.ghosts[id] || { q: s.q, r: s.r, facing: s.facing }; ui.selectedGhost = id;
     e.preventDefault(); e.stopPropagation(); render();
   });
   window.addEventListener('mousemove', e => {
@@ -129,9 +138,9 @@ export function createBattleMap(ctx) {
   let plotDrag = null, suppressClick = false;
   map.addEventListener('mousedown', e => {
     if (e.altKey || getPhase() !== 'energy') return;
-    const gg = e.target.closest('.ship'), onShip = !!(gg && byId(gg.dataset.id) && isMine(byId(gg.dataset.id)));
-    const id = onShip ? gg.dataset.id : (ui.plotShipId && byId(ui.plotShipId) ? ui.plotShipId : null);
-    if (id) plotDrag = { id, onShip, x: e.clientX, y: e.clientY, moved: false };
+    const gg = e.target.closest('.ship');
+    const id = gg ? gg.dataset.id : (ui.plotShipId && byId(ui.plotShipId) ? ui.plotShipId : null);
+    if (id) plotDrag = { id, onShip: !!gg, x: e.clientX, y: e.clientY, moved: false };
   });
   map.addEventListener('mousemove', e => { if (plotDrag && (Math.abs(e.clientX - plotDrag.x) > 6 || Math.abs(e.clientY - plotDrag.y) > 6)) plotDrag.moved = true; });
   map.addEventListener('mouseup', e => {
@@ -139,9 +148,15 @@ export function createBattleMap(ctx) {
     if (!d || !d.moved || getPhase() !== 'energy') return;
     const hex = clickToHex(e); if (!hex) return;
     const s = byId(d.id); if (!s) return;
-    const cur = plotCursor(s, plotBase(s)), slip = trySideslip(cur.pos, cur.facing, cur.hst, cur.slip, hex);
-    if (slip) { courseOf(s).steps.push({ q: slip.pos.q, r: slip.pos.r, facing: slip.facing, slip: true }); saveSoon(d.id); suppressClick = true; render(); return; }
-    if (d.onShip && !(hex.q === s.q && hex.r === s.r)) { ui.ghosts[s.id] = { q: hex.q, r: hex.r, facing: s.facing }; suppressClick = true; render(); }   // dragged the ship elsewhere → what-if ghost
+    if (isMine(s)) {   // own ship: an adjacent-oblique drop while moving is a sideslip (C4.0)
+      const cur = plotCursor(s, plotBase(s));
+      const slip = cur.speed > 0 ? trySideslip(cur.pos, cur.facing, cur.hst, cur.slip, hex) : null;
+      if (slip) { courseOf(s).steps.push({ q: slip.pos.q, r: slip.pos.r, facing: slip.facing, slip: true }); saveSoon(s.id); suppressClick = true; render(); return; }
+    }
+    if (d.onShip && !(hex.q === s.q && hex.r === s.r)) {   // dragged a ship (friendly or enemy) elsewhere → what-if ghost + join the virtual fire group
+      ui.ghosts[s.id] = { q: hex.q, r: hex.r, facing: s.facing }; ui.selectedGhost = s.id;
+      joinFireGroup(s); suppressClick = true; render();
+    }
   });
   // energy phase clicks: plot courses (snap) / speed-change on a path hex / shift-click to measure range
   map.addEventListener('click', e => {

@@ -245,7 +245,7 @@ let rev = 0, myCode = '', shipRev = {};   // rev: poll change-detection; shipRev
 let committed = {}, myCommitted = false, lastFireShown = 0;   // 6D fire commits: fire resolves once all fleets commit
 let eafDraft = {}, myLockedEnergy = false;   // start-of-turn energy allocation (phase is clock.phase, a segment id)
 // tactical planning + fire planning + ghosts: shared UI/selection state (also read by battle-map.js)
-const ui = { plotShipId: null, rangeAnchor: null, selectedId: null, activeId: null, dragging: null, eaSelected: null, targetId: null, fireGroup: [], ghosts: {}, ghostMode: false, ghostDrag: null, selectedPathHex: null, viewEA: null };
+const ui = { plotShipId: null, rangeAnchor: null, selectedId: null, activeId: null, dragging: null, eaSelected: null, targetId: null, fireGroup: [], ghosts: {}, ghostMode: false, ghostDrag: null, selectedPathHex: null, viewEA: null, selectedGhost: null };
 const powerOf = s => s._power || (s._power = shipPower(s.code, s._ver, s._det));
 const plotBase = s => Math.floor(((eafDraft[s.id]?.movement) || 0) / powerOf(s).moveCost);   // planned base speed from the EAF
 function syncMovementEnergy(s) {   // a plot with speed changes drives the EAF "Energy for Movement" (C12.21)
@@ -475,9 +475,10 @@ function render() {
     }
   }
   for (const [id, gp] of Object.entries(ui.ghosts)) {   // ghost what-if silhouettes (dashed, translucent)
-    const s = byId(id); if (!s) continue; const c = hexCenter(gp.q, gp.r), fill = sideFill(s);
+    const s = byId(id); if (!s) continue; const c = hexCenter(gp.q, gp.r), fill = sideFill(s), sel = id === ui.selectedGhost;
     const nx = c.x + 27 * Math.cos(rad(gp.facing)), ny = c.y + 27 * Math.sin(rad(gp.facing));
-    svg += `<g class="ghost" data-ghost="${id}" style="cursor:grab" opacity="0.5">` +
+    svg += `<g class="ghost" data-ghost="${id}" style="cursor:grab" opacity="${sel ? 0.85 : 0.5}">` +
+      (sel ? `<circle cx="${c.x}" cy="${c.y}" r="26" fill="none" stroke="#a855f7" stroke-width="2.5"/>` : '') +   // selected ghost — arrow keys rotate it
       `<line x1="${c.x}" y1="${c.y}" x2="${nx}" y2="${ny}" stroke="${fill}" stroke-width="4"/>` +
       `<circle cx="${c.x}" cy="${c.y}" r="20" fill="none" stroke="${fill}" stroke-width="2.5" stroke-dasharray="4 3"/>` +
       `<text x="${c.x}" y="${c.y + 4}" text-anchor="middle" fill="${fill}" font-size="12" font-weight="700" style="pointer-events:none">${s.id}</text></g>`;
@@ -521,7 +522,7 @@ function renderFireSummary() {
   el.style.top = Math.max(8, sp.y - 18) + 'px';
   el.style.display = 'block';
 }
-const clearGhosts = () => { ui.ghosts = {}; ui.ghostDrag = null; render(); };
+const clearGhosts = () => { ui.ghosts = {}; ui.ghostDrag = null; ui.selectedGhost = null; render(); };
 document.getElementById('ghostClear').onclick = clearGhosts;
 function applyPhaseUI() {
   const energy = getPhase() === 'energy';
@@ -939,7 +940,7 @@ window.addEventListener('mouseup', () => { resizing = null; });
 let ctxShip = null;
 // wire the extracted map interaction layer — all map gestures now live in battle-map.js
 createBattleMap({
-  map, ui, getPhase, getShips: () => ships, byId, isMine, COLS, ROWS, hasGhosts,
+  map, ui, getPhase, getShips: () => ships, byId, isMine, COLS, ROWS, hasGhosts, groupOfShip,
   plotBase, saveSoon, render, syncMovementEnergy, onShipClick, renderFleet, pruneUnavailable,
   openCtxMenu: (shipId, e) => { ctxShip = shipId; const m = document.getElementById('ctxMenu'); m.style.display = 'block'; m.style.left = Math.min(e.clientX, innerWidth - 160) + 'px'; m.style.top = e.clientY + 'px'; },
 });
