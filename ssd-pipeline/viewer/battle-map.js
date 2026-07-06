@@ -200,8 +200,9 @@ export function createBattleMap(ctx) {
   window.addEventListener('mouseup', () => { if (ui.dragging) { const s = ui.dragging.s, moved = ui.dragging.moved; ui.dragging = null; if (!moved) onShipClick(s); else saveSoon(s.id); } });
   // right-click: clear the plot (energy) or open the ship context menu
   map.addEventListener('contextmenu', e => {
-    if (getPhase() === 'energy' && ui.plotShipId && byId(ui.plotShipId)) { e.preventDefault(); const s = byId(ui.plotShipId); s.course = null; s.speedPlot = null; s.autopilot = false; saveSoon(ui.plotShipId); render(); return; }
-    const g = e.target.closest('.ship'); if (!g) return; e.preventDefault(); openCtxMenu(g.dataset.id, e);
+    const g = e.target.closest('.ship');
+    if (g) { e.preventDefault(); openCtxMenu(g.dataset.id, e); return; }   // right-click a ship → View EA / View SSD (both phases, any side)
+    if (getPhase() === 'energy' && ui.plotShipId && byId(ui.plotShipId)) { e.preventDefault(); const s = byId(ui.plotShipId); s.course = null; s.speedPlot = null; s.autopilot = false; saveSoon(ui.plotShipId); render(); }   // right-click empty map in EA → clear the plot
   });
 
   return { clickToHex };
