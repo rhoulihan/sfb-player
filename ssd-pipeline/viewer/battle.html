@@ -232,7 +232,7 @@ import { movesOnImpulse, neighbor, turnMode } from './movement.js';
 import { shipPower, newEafColumn, validateEaf, foldEaf, sinkMax, specReinfMax } from './energy-model.js';
 import { legalNextHexes, tryStep, impulseTimeline, hexesInPlot, setSpeedChange, speedAt, legalSideslips, trySideslip } from './course-plan.js';
 import { family } from './battle-phase.js';   // SFB Sequence-of-Play segment cursor
-import { pixelToHex, hexPath, rad, courseOf, speedPlotOf, ensureSpeedPlot, plotCursor, plotOverlaySvg } from './battle-map.js';
+import { hexPath, rad, plotOverlaySvg, createBattleMap } from './battle-map.js';
 import { SCENARIO } from './scenario.js';
 
 const COLS = 42, ROWS = 30, COLORS = ['#2563eb', '#16a34a', '#d97706', '#7c3aed', '#0891b2'];   // standard SFB 42x30 map
@@ -245,44 +245,9 @@ let eafDraft = {}, myLockedEnergy = false;   // start-of-turn energy allocation 
 const ui = { plotShipId: null, rangeAnchor: null, selectedId: null, activeId: null, dragging: null, eaSelected: null, targetId: null, fireGroup: [], ghosts: {}, ghostMode: false };
 const powerOf = s => s._power || (s._power = shipPower(s.code, s._ver, s._det));
 const plotBase = s => Math.floor(((eafDraft[s.id]?.movement) || 0) / powerOf(s).moveCost);   // planned base speed from the EAF
-const speedPlotFor = s => speedPlotOf(s, plotBase(s)), ensureSpeedPlotOf = s => ensureSpeedPlot(s, plotBase(s)), plotCursorOf = s => plotCursor(s, plotBase(s));   // inject the EAF base into the extracted course helpers
 function syncMovementEnergy(s) {   // a plot with speed changes drives the EAF "Energy for Movement" (C12.21)
   if (s.speedPlot && s.speedPlot.changes.length && eafDraft[s.id]) eafDraft[s.id].movement = hexesInPlot(s.speedPlot) * powerOf(s).moveCost;
 }
-function clickToHex(e) { const pt = map.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY; const p = pt.matrixTransform(map.getScreenCTM().inverse()); return pixelToHex(p.x, p.y); }
-// drag on the map during the energy phase = sideslip (move oblique keeping facing, C4.0); a plain click turns
-let plotDrag = null, suppressClick = false;
-map.addEventListener('mousedown', e => { if (getPhase() === 'energy' && ui.plotShipId && byId(ui.plotShipId)) plotDrag = { x: e.clientX, y: e.clientY, moved: false }; });
-map.addEventListener('mousemove', e => { if (plotDrag && (Math.abs(e.clientX - plotDrag.x) > 6 || Math.abs(e.clientY - plotDrag.y) > 6)) plotDrag.moved = true; });
-map.addEventListener('mouseup', e => {
-  const dragged = plotDrag && plotDrag.moved; plotDrag = null;
-  if (!dragged || getPhase() !== 'energy' || !ui.plotShipId || !byId(ui.plotShipId)) return;
-  const hex = clickToHex(e); if (!hex) return;
-  const s = byId(ui.plotShipId), cur = plotCursorOf(s), slip = trySideslip(cur.pos, cur.facing, cur.hst, cur.slip, hex);
-  if (slip) { courseOf(s).steps.push({ q: slip.pos.q, r: slip.pos.r, facing: slip.facing, slip: true }); saveSoon(ui.plotShipId); suppressClick = true; render(); }
-});
-// map clicks during the energy phase: plot courses (snap) + shift-click to measure range
-map.addEventListener('click', e => {
-  if (suppressClick) { suppressClick = false; return; }   // a drag-sideslip just happened; don't also turn
-  if (getPhase() !== 'energy') return;
-  const hex = clickToHex(e); if (!hex) return;
-  if (e.shiftKey) { ui.rangeAnchor = (!ui.rangeAnchor || ui.rangeAnchor.end) ? { start: hex, end: null } : { ...ui.rangeAnchor, end: hex }; render(); return; }
-  const shipHere = ships.find(s => s.q === hex.q && s.r === hex.r);
-  if (shipHere && isMine(shipHere)) { ui.plotShipId = shipHere.id; ui.eaSelected = shipHere.id; render(); return; }
-  if (ui.plotShipId && byId(ui.plotShipId)) {
-    const s = byId(ui.plotShipId), c = courseOf(s);
-    const idx = c.steps.findIndex(st => st.q === hex.q && st.r === hex.r);
-    if (idx >= 0) {   // clicked a plotted hex → set a mid-turn speed change from here
-      const sp = ensureSpeedPlotOf(s), tl = impulseTimeline(sp), imp = tl[idx]?.impulse, cur = speedAt(sp, imp || 1);
-      const v = prompt(`New speed effective after impulse ${imp} (hex ${idx + 1})? Currently ${cur}.`, cur);
-      if (v != null && v !== '') { s.speedPlot = setSpeedChange(sp, tl, idx + 1, Math.max(0, Math.min(31, Math.round(+v) || 0))); syncMovementEnergy(s); saveSoon(ui.plotShipId); render(); }
-      return;
-    }
-    const cur = plotCursorOf(s);
-    const step = tryStep(cur.pos, cur.facing, cur.speed, cur.hst, cur.slip, hex);
-    if (step) { c.steps.push({ q: step.pos.q, r: step.pos.r, facing: step.facing }); saveSoon(ui.plotShipId); render(); }
-  }
-});
 let clock = { turn: 1, impulse: 0, phase: 'energy' };   // impulse 0 = pre-start setup; phase = SFB segment id
 const getPhase = () => family(clock.phase);   // coarse energy/impulse fork for the existing UI branches
 const setCoarse = c => { clock.phase = c === 'impulse' ? (family(clock.phase) === 'impulse' ? clock.phase : '6A2') : 'energy'; };
@@ -770,14 +735,6 @@ function onShipClick(s) {
 }
 
 // pointer: drag to move, click (no drag) = select/group
-function svgPoint(evt) { const pt = map.createSVGPoint(); pt.x = evt.clientX; pt.y = evt.clientY; return pt.matrixTransform(map.getScreenCTM().inverse()); }
-function nearestHex(px, py) { let b = { q: 0, r: 0 }, bd = Infinity; for (let q = 0; q < COLS; q++) for (let r = 0; r < ROWS; r++) { const c = hexCenter(q, r), d = Math.hypot(c.x - px, c.y - py); if (d < bd) { bd = d; b = { q, r }; } } return b; }
-map.addEventListener('mousedown', e => { if (getPhase() !== 'impulse') return; const gg = e.target.closest('.ship'); if (!gg) return; ui.dragging = { s: byId(gg.dataset.id), moved: false }; ui.selectedId = ui.dragging.s.id; renderFleet(); e.preventDefault(); });
-window.addEventListener('mousemove', e => {
-  if (!ui.dragging) return; const p = svgPoint(e), h = nearestHex(p.x, p.y);
-  if (h.q !== ui.dragging.s.q || h.r !== ui.dragging.s.r) { ui.dragging.s.q = h.q; ui.dragging.s.r = h.r; ui.dragging.moved = true; pruneUnavailable(); render(); }
-});
-window.addEventListener('mouseup', () => { if (ui.dragging) { const s = ui.dragging.s, moved = ui.dragging.moved; ui.dragging = null; if (!moved) onShipClick(s); else saveSoon(s.id); } });
 
 document.getElementById('fleet').addEventListener('click', e => {
   const a = e.target.closest('[data-auto]'); if (a) { const s = byId(a.dataset.auto); if (s) { s.autopilot = !s.autopilot; s._autoIdx = 0; saveSoon(s.id); render(); } return; }
@@ -933,9 +890,11 @@ window.addEventListener('mouseup', () => { resizing = null; });
 
 // ship context menu → View SSD (modal)
 let ctxShip = null;
-map.addEventListener('contextmenu', e => {
-  if (getPhase() === 'energy' && ui.plotShipId && byId(ui.plotShipId)) { e.preventDefault(); const s = byId(ui.plotShipId); s.course = null; s.speedPlot = null; s.autopilot = false; saveSoon(ui.plotShipId); render(); return; }   // right-click clears the plot
-  const g = e.target.closest('.ship'); if (!g) return; e.preventDefault(); ctxShip = g.dataset.id; const m = document.getElementById('ctxMenu'); m.style.display = 'block'; m.style.left = Math.min(e.clientX, innerWidth - 160) + 'px'; m.style.top = e.clientY + 'px';
+// wire the extracted map interaction layer — all map gestures now live in battle-map.js
+createBattleMap({
+  map, ui, getPhase, getShips: () => ships, byId, isMine, COLS, ROWS,
+  plotBase, saveSoon, render, syncMovementEnergy, onShipClick, renderFleet, pruneUnavailable,
+  openCtxMenu: (shipId, e) => { ctxShip = shipId; const m = document.getElementById('ctxMenu'); m.style.display = 'block'; m.style.left = Math.min(e.clientX, innerWidth - 160) + 'px'; m.style.top = e.clientY + 'px'; },
 });
 document.addEventListener('click', () => { document.getElementById('ctxMenu').style.display = 'none'; });
 document.getElementById('ctxMenu').addEventListener('click', e => { const it = e.target.closest('[data-act]'); if (it && it.dataset.act === 'ssd' && ctxShip) openSSD(ctxShip); });

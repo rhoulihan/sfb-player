@@ -2,7 +2,7 @@
 // Pure of app globals: the base speed for a plot (the eafDraft "Energy for Movement" contract) is passed
 // in by the host, which keeps plotBase/syncMovementEnergy as the single owner of the plot↔energy seam.
 import { GEOM, hexCenter, headingDeg, hexDistance } from './battle-geom.js';
-import { impulseTimeline, speedAt, legalNextHexes, legalSideslips } from './course-plan.js';
+import { impulseTimeline, speedAt, legalNextHexes, legalSideslips, tryStep, trySideslip, setSpeedChange } from './course-plan.js';
 import { turnMode, neighbor } from './movement.js';
 
 // facing → radians (for on-map heading arrows)
@@ -85,4 +85,65 @@ export function plotOverlaySvg({ ships, isMine, byId, plotBase, ui }) {
     }
   }
   return s;
+}
+
+// Attach all map gesture handlers. Owns its own hit-testing (svgPoint/clickToHex/nearestHex) + the
+// energy-phase plot/sideslip/range/speed-change, the impulse-phase ship-drag, and the map contextmenu.
+// The host injects live state accessors + intent callbacks (never reaches app globals); it must call this
+// once after those are defined. Preserves the suppressClick↔plotDrag ordering and both phase-gated
+// mousedown listeners exactly.
+export function createBattleMap(ctx) {
+  const { map, ui, getPhase, getShips, byId, isMine, COLS, ROWS,
+          plotBase, saveSoon, render, syncMovementEnergy, onShipClick, renderFleet, pruneUnavailable, openCtxMenu } = ctx;
+  const svgPoint = e => { const pt = map.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY; return pt.matrixTransform(map.getScreenCTM().inverse()); };
+  const clickToHex = e => { const p = svgPoint(e); return pixelToHex(p.x, p.y); };
+  const nearestHex = (px, py) => { let b = { q: 0, r: 0 }, bd = Infinity; for (let q = 0; q < COLS; q++) for (let r = 0; r < ROWS; r++) { const c = hexCenter(q, r), d = Math.hypot(c.x - px, c.y - py); if (d < bd) { bd = d; b = { q, r }; } } return b; };
+
+  // energy phase: drag = sideslip (move oblique keeping facing, C4.0); a plain click turns
+  let plotDrag = null, suppressClick = false;
+  map.addEventListener('mousedown', e => { if (getPhase() === 'energy' && ui.plotShipId && byId(ui.plotShipId)) plotDrag = { x: e.clientX, y: e.clientY, moved: false }; });
+  map.addEventListener('mousemove', e => { if (plotDrag && (Math.abs(e.clientX - plotDrag.x) > 6 || Math.abs(e.clientY - plotDrag.y) > 6)) plotDrag.moved = true; });
+  map.addEventListener('mouseup', e => {
+    const dragged = plotDrag && plotDrag.moved; plotDrag = null;
+    if (!dragged || getPhase() !== 'energy' || !ui.plotShipId || !byId(ui.plotShipId)) return;
+    const hex = clickToHex(e); if (!hex) return;
+    const s = byId(ui.plotShipId), cur = plotCursor(s, plotBase(s)), slip = trySideslip(cur.pos, cur.facing, cur.hst, cur.slip, hex);
+    if (slip) { courseOf(s).steps.push({ q: slip.pos.q, r: slip.pos.r, facing: slip.facing, slip: true }); saveSoon(ui.plotShipId); suppressClick = true; render(); }
+  });
+  // energy phase clicks: plot courses (snap) / speed-change on a path hex / shift-click to measure range
+  map.addEventListener('click', e => {
+    if (suppressClick) { suppressClick = false; return; }   // a drag-sideslip just happened; don't also turn
+    if (getPhase() !== 'energy') return;
+    const hex = clickToHex(e); if (!hex) return;
+    if (e.shiftKey) { ui.rangeAnchor = (!ui.rangeAnchor || ui.rangeAnchor.end) ? { start: hex, end: null } : { ...ui.rangeAnchor, end: hex }; render(); return; }
+    const shipHere = getShips().find(s => s.q === hex.q && s.r === hex.r);
+    if (shipHere && isMine(shipHere)) { ui.plotShipId = shipHere.id; ui.eaSelected = shipHere.id; render(); return; }
+    if (ui.plotShipId && byId(ui.plotShipId)) {
+      const s = byId(ui.plotShipId), c = courseOf(s);
+      const idx = c.steps.findIndex(st => st.q === hex.q && st.r === hex.r);
+      if (idx >= 0) {   // clicked a plotted hex → set a mid-turn speed change from here
+        const sp = ensureSpeedPlot(s, plotBase(s)), tl = impulseTimeline(sp), imp = tl[idx]?.impulse, cur = speedAt(sp, imp || 1);
+        const v = prompt(`New speed effective after impulse ${imp} (hex ${idx + 1})? Currently ${cur}.`, cur);
+        if (v != null && v !== '') { s.speedPlot = setSpeedChange(sp, tl, idx + 1, Math.max(0, Math.min(31, Math.round(+v) || 0))); syncMovementEnergy(s); saveSoon(ui.plotShipId); render(); }
+        return;
+      }
+      const cur = plotCursor(s, plotBase(s));
+      const step = tryStep(cur.pos, cur.facing, cur.speed, cur.hst, cur.slip, hex);
+      if (step) { c.steps.push({ q: step.pos.q, r: step.pos.r, facing: step.facing }); saveSoon(ui.plotShipId); render(); }
+    }
+  });
+  // impulse phase: drag a ship to move it (snaps to nearest hex); a plain click selects it
+  map.addEventListener('mousedown', e => { if (getPhase() !== 'impulse') return; const gg = e.target.closest('.ship'); if (!gg) return; ui.dragging = { s: byId(gg.dataset.id), moved: false }; ui.selectedId = ui.dragging.s.id; renderFleet(); e.preventDefault(); });
+  window.addEventListener('mousemove', e => {
+    if (!ui.dragging) return; const p = svgPoint(e), h = nearestHex(p.x, p.y);
+    if (h.q !== ui.dragging.s.q || h.r !== ui.dragging.s.r) { ui.dragging.s.q = h.q; ui.dragging.s.r = h.r; ui.dragging.moved = true; pruneUnavailable(); render(); }
+  });
+  window.addEventListener('mouseup', () => { if (ui.dragging) { const s = ui.dragging.s, moved = ui.dragging.moved; ui.dragging = null; if (!moved) onShipClick(s); else saveSoon(s.id); } });
+  // right-click: clear the plot (energy) or open the ship context menu
+  map.addEventListener('contextmenu', e => {
+    if (getPhase() === 'energy' && ui.plotShipId && byId(ui.plotShipId)) { e.preventDefault(); const s = byId(ui.plotShipId); s.course = null; s.speedPlot = null; s.autopilot = false; saveSoon(ui.plotShipId); render(); return; }
+    const g = e.target.closest('.ship'); if (!g) return; e.preventDefault(); openCtxMenu(g.dataset.id, e);
+  });
+
+  return { clickToHex };
 }
