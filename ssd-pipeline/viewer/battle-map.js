@@ -64,6 +64,10 @@ export function plotOverlaySvg({ ships, isMine, byId, plotBase, ui }) {
       prev = cur;
     });
   }
+  if (ui.selectedPathHex) {   // re-anchor point on a plotted path (amber dashed ring)
+    const sh = byId(ui.selectedPathHex.shipId), st = sh && sh.course && sh.course.steps[ui.selectedPathHex.idx];
+    if (st) { const cc = hexCenter(st.q, st.r); s += `<circle cx="${cc.x}" cy="${cc.y}" r="13" fill="none" stroke="#f59e0b" stroke-width="2.5" stroke-dasharray="4 2" style="pointer-events:none"/>`; }
+  }
   if (ui.plotShipId && byId(ui.plotShipId)) {   // green/red next-hex candidates for the selected ship
     const sh = byId(ui.plotShipId), cur = plotCursor(sh, plotBase(sh));
     for (const cand of legalNextHexes(cur.pos, cur.facing, cur.speed, cur.hst)) {
@@ -117,19 +121,25 @@ export function createBattleMap(ctx) {
     const hex = clickToHex(e); if (!hex) return;
     if (e.shiftKey) { ui.rangeAnchor = (!ui.rangeAnchor || ui.rangeAnchor.end) ? { start: hex, end: null } : { ...ui.rangeAnchor, end: hex }; render(); return; }
     const shipHere = getShips().find(s => s.q === hex.q && s.r === hex.r);
-    if (shipHere && isMine(shipHere)) { ui.plotShipId = shipHere.id; ui.eaSelected = shipHere.id; render(); return; }
+    if (shipHere && isMine(shipHere)) { ui.plotShipId = shipHere.id; ui.eaSelected = shipHere.id; ui.selectedPathHex = null; render(); return; }
     if (ui.plotShipId && byId(ui.plotShipId)) {
       const s = byId(ui.plotShipId), c = courseOf(s);
       const idx = c.steps.findIndex(st => st.q === hex.q && st.r === hex.r);
-      if (idx >= 0) {   // clicked a plotted hex → set a mid-turn speed change from here
-        const sp = ensureSpeedPlot(s, plotBase(s)), tl = impulseTimeline(sp), imp = tl[idx]?.impulse, cur = speedAt(sp, imp || 1);
-        const v = prompt(`New speed effective after impulse ${imp} (hex ${idx + 1})? Currently ${cur}.`, cur);
-        if (v != null && v !== '') { s.speedPlot = setSpeedChange(sp, tl, idx + 1, Math.max(0, Math.min(31, Math.round(+v) || 0))); syncMovementEnergy(s); saveSoon(ui.plotShipId); render(); }
-        return;
+      if (idx >= 0) {   // clicked a hex already on the course
+        const sel = ui.selectedPathHex;
+        if (getPhase() === 'energy' && sel && sel.shipId === s.id && sel.idx === idx) {   // re-click the anchored hex → speed-change modal (allocation only)
+          const sp = ensureSpeedPlot(s, plotBase(s)), tl = impulseTimeline(sp), imp = tl[idx]?.impulse, cur = speedAt(sp, imp || 1);
+          const v = prompt(`New speed effective after impulse ${imp} (hex ${idx + 1})? Currently ${cur}.`, cur);
+          if (v != null && v !== '') { s.speedPlot = setSpeedChange(sp, tl, idx + 1, Math.max(0, Math.min(31, Math.round(+v) || 0))); syncMovementEnergy(s); saveSoon(ui.plotShipId); render(); }
+          return;
+        }
+        c.steps = c.steps.slice(0, idx + 1);   // re-anchor: truncate the course here and re-plot forward from this point
+        ui.selectedPathHex = { shipId: s.id, idx };
+        saveSoon(ui.plotShipId); render(); return;
       }
       const cur = plotCursor(s, plotBase(s));
       const step = tryStep(cur.pos, cur.facing, cur.speed, cur.hst, cur.slip, hex);
-      if (step) { c.steps.push({ q: step.pos.q, r: step.pos.r, facing: step.facing }); saveSoon(ui.plotShipId); render(); }
+      if (step) { c.steps.push({ q: step.pos.q, r: step.pos.r, facing: step.facing }); ui.selectedPathHex = null; saveSoon(ui.plotShipId); render(); }
     }
   });
   // impulse phase: drag a ship to move it (snaps to nearest hex); a plain click selects it
