@@ -175,6 +175,7 @@
   </div>
 </div>
 <div id="ghostBanner" style="display:none;position:fixed;top:10px;left:50%;transform:translateX(-50%);z-index:320;background:#7c3aed;color:#fff;padding:7px 14px;border-radius:20px;box-shadow:0 6px 20px rgba(124,58,237,.4);font-size:13px;font-weight:600;display:none;align-items:center;gap:12px">👻 Ghost what-if active — preview only <button id="ghostClear" style="background:#fff;color:#7c3aed;border:none;border-radius:12px;padding:3px 12px;font-weight:700;cursor:pointer">Clear to continue</button></div>
+<div id="fireSummary" style="display:none;position:fixed;z-index:290;background:rgba(15,23,42,.94);color:#e2e8f0;padding:8px 11px;border-radius:9px;box-shadow:0 8px 24px rgba(0,0,0,.35);font-size:12px;max-width:280px;pointer-events:none;line-height:1.5"></div>
 <div id="ctxMenu" style="display:none;position:fixed;background:#fff;border:1px solid #cbd5e1;border-radius:8px;box-shadow:0 8px 28px rgba(0,0,0,.25);z-index:300;font-size:13px;overflow:hidden;min-width:150px">
   <div class="ctxitem" data-act="ssd" style="padding:8px 14px;cursor:pointer">🖥 View SSD</div>
 </div>
@@ -489,8 +490,27 @@ function render() {
   map.querySelector('#dyn').innerHTML = svg;
   applyPhaseUI();
   document.getElementById('ghostBanner').style.display = hasGhosts() ? 'flex' : 'none';   // clear-to-continue prompt
+  renderFireSummary();
   if (getPhase() === 'energy') renderEnergy();
   else { renderFleet(); renderGroups(); renderPanel(); renderTray(); }
+}
+// floating combined-damage summary anchored beside the target on the map (both phases; ghost-aware)
+function renderFireSummary() {
+  const el = document.getElementById('fireSummary');
+  const primary = plan.groups.find(x => x.targetShipId && x.members.some(m => m.mountIds.length));
+  const t = primary && byId(primary.targetShipId);
+  if (!t) { el.style.display = 'none'; return; }
+  const gt = ghostOf(t), tc = hexCenter(gt.q, gt.r);
+  const pt = map.createSVGPoint(); pt.x = tc.x; pt.y = tc.y; const sp = pt.matrixTransform(map.getScreenCTM());
+  const rows = plan.groups.filter(x => x.targetShipId === t.id && x.members.some(m => m.mountIds.length)).map(gr => {
+    const pv = combinedPreview(gr, ships.map(ghostOf), shipMountsMap());
+    const per = pv.perShield.map(r => `#${r.shield} <b>${r.nominal.toFixed(1)}</b>`).join(' · ');
+    return `<div><span style="color:${gr.color};font-weight:700">${gr.id}</span> ${per}</div>`;
+  }).join('');
+  el.innerHTML = `<div style="font-weight:700;margin-bottom:3px">🎯 ${t.id}${hasGhosts() ? ' <span style="color:#a855f7">(ghost)</span>' : ''} — exp. dmg by shield</div>${rows}`;
+  el.style.left = Math.min(innerWidth - 288, sp.x + 26) + 'px';
+  el.style.top = Math.max(8, sp.y - 18) + 'px';
+  el.style.display = 'block';
 }
 const clearGhosts = () => { ui.ghosts = {}; ui.ghostDrag = null; render(); };
 document.getElementById('ghostClear').onclick = clearGhosts;
