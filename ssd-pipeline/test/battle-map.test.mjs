@@ -28,6 +28,13 @@ test('speedPlotOf/ensureSpeedPlot take the base speed injected (no eafDraft coup
   assert.deepEqual(speedPlotOf({ speedPlot: { base: 3, changes: [{ announceImpulse: 8, speed: 6 }] } }, 8).base, 3);
 });
 
+test('plotCursor seeds the slip counter from s.slipSince (first-move sideslip legality, C4.0)', () => {
+  const mk = extra => ({ q: 4, r: 4, facing: 0, ...extra, course: { start: { q: 4, r: 4, facing: 0 }, steps: [] } });
+  assert.equal(plotCursor(mk({}), 8).slip, 1, 'fresh ship → slip 1 (may sideslip on its first move)');
+  assert.equal(plotCursor(mk({ slipSince: 0 }), 8).slip, 0, 'ended last turn on a sideslip → slip 0 (blocked)');
+  assert.equal(plotCursor(mk({ slipSince: 3 }), 8).slip, 3, 'carried spacing is preserved');
+});
+
 test('plotCursor tracks facing, hexes-since-turn, and slip along the course (base injected)', () => {
   const s = { q: 4, r: 4, facing: 0, course: { start: { q: 4, r: 4, facing: 0 }, steps: [
     { q: 5, r: 4, facing: 0 },              // straight

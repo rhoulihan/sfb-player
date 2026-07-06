@@ -412,10 +412,12 @@ function stepImpulse() {
     if (isDead(s) || !movesOnImpulse(s.speed, clock.impulse)) continue;
     const auto = s.autopilot && s.course && s.course.steps[s._autoIdx || 0];
     if (auto) { const st = s.course.steps[s._autoIdx || 0], turned = st.facing !== s.facing;   // follow the plotted course
-      s.facing = st.facing; s.q = st.q; s.r = st.r; s.hexesSinceTurn = turned ? 1 : s.hexesSinceTurn + 1; s._autoIdx = (s._autoIdx || 0) + 1; continue; }
+      s.facing = st.facing; s.q = st.q; s.r = st.r; s.hexesSinceTurn = turned ? 1 : s.hexesSinceTurn + 1;
+      s.slipSince = st.slip ? 0 : (s.slipSince ?? 1) + 1;   // track sideslip spacing across turns (C4.0)
+      s._autoIdx = (s._autoIdx || 0) + 1; continue; }
     if (s.queuedTurn && s.hexesSinceTurn >= turnMode(s.speed)) { s.facing = (s.facing + s.queuedTurn + 6) % 6; s.hexesSinceTurn = 0; s.queuedTurn = 0; }
     const n = neighbor(s.q, s.r, s.facing);
-    if (n.q >= 0 && n.q < COLS && n.r >= 0 && n.r < ROWS) { s.q = n.q; s.r = n.r; s.hexesSinceTurn++; }
+    if (n.q >= 0 && n.q < COLS && n.r >= 0 && n.r < ROWS) { s.q = n.q; s.r = n.r; s.hexesSinceTurn++; s.slipSince = (s.slipSince ?? 1) + 1; }   // a straight move increments slip spacing
   }
   if (wrapped) { clock.phase = 'energy'; eafDraft = {}; myLockedEnergy = false; }
   pruneUnavailable(); render(); save(null, wrapped ? { step: true, phase: 'energy' } : { step: true });   // movement syncs to all commanders

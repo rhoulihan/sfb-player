@@ -34,7 +34,9 @@ export const ensureSpeedPlot = (s, base) => s.speedPlot || (s.speedPlot = { base
 // impulse the next hex would be reached on. `base` is the planned base speed (injected).
 export function plotCursor(s, base) {
   const c = courseOf(s), sp = speedPlotOf(s, base), tl = impulseTimeline(sp);
-  let pos = { q: c.start.q, r: c.start.r }, facing = c.start.facing, hst = turnMode(sp.base), slip = 0;
+  // seed the slip counter from the carried-over state: a ship may sideslip on its first move UNLESS its
+  // last move of the previous turn was a sideslip (s.slipSince === 0). Fresh ships default to 1 (allowed).
+  let pos = { q: c.start.q, r: c.start.r }, facing = c.start.facing, hst = turnMode(sp.base), slip = s.slipSince ?? 1;
   for (const st of c.steps) {
     if (st.slip) { hst = hst + 1; slip = 0; }                                        // sideslip: straight for turn mode (C3.24), resets slip
     else { const turned = st.facing !== facing; hst = turned ? 1 : hst + 1; slip = slip + 1; }
@@ -122,16 +124,24 @@ export function createBattleMap(ctx) {
   });
   window.addEventListener('mouseup', () => { if (ui.ghostDrag) ui.ghostDrag = null; });
 
-  // energy phase: drag = sideslip (move oblique keeping facing, C4.0); a plain click turns
+  // energy phase: drag a ship onto an adjacent oblique hex to sideslip (C4.0), or drop it anywhere else to
+  // drop a what-if ghost there. Dragging from empty map (with a ship selected) is sideslip-only. A plain click turns.
   let plotDrag = null, suppressClick = false;
-  map.addEventListener('mousedown', e => { if (e.altKey) return; if (getPhase() === 'energy' && ui.plotShipId && byId(ui.plotShipId)) plotDrag = { x: e.clientX, y: e.clientY, moved: false }; });
+  map.addEventListener('mousedown', e => {
+    if (e.altKey || getPhase() !== 'energy') return;
+    const gg = e.target.closest('.ship'), onShip = !!(gg && byId(gg.dataset.id) && isMine(byId(gg.dataset.id)));
+    const id = onShip ? gg.dataset.id : (ui.plotShipId && byId(ui.plotShipId) ? ui.plotShipId : null);
+    if (id) plotDrag = { id, onShip, x: e.clientX, y: e.clientY, moved: false };
+  });
   map.addEventListener('mousemove', e => { if (plotDrag && (Math.abs(e.clientX - plotDrag.x) > 6 || Math.abs(e.clientY - plotDrag.y) > 6)) plotDrag.moved = true; });
   map.addEventListener('mouseup', e => {
-    const dragged = plotDrag && plotDrag.moved; plotDrag = null;
-    if (!dragged || getPhase() !== 'energy' || !ui.plotShipId || !byId(ui.plotShipId)) return;
+    const d = plotDrag; plotDrag = null;
+    if (!d || !d.moved || getPhase() !== 'energy') return;
     const hex = clickToHex(e); if (!hex) return;
-    const s = byId(ui.plotShipId), cur = plotCursor(s, plotBase(s)), slip = trySideslip(cur.pos, cur.facing, cur.hst, cur.slip, hex);
-    if (slip) { courseOf(s).steps.push({ q: slip.pos.q, r: slip.pos.r, facing: slip.facing, slip: true }); saveSoon(ui.plotShipId); suppressClick = true; render(); }
+    const s = byId(d.id); if (!s) return;
+    const cur = plotCursor(s, plotBase(s)), slip = trySideslip(cur.pos, cur.facing, cur.hst, cur.slip, hex);
+    if (slip) { courseOf(s).steps.push({ q: slip.pos.q, r: slip.pos.r, facing: slip.facing, slip: true }); saveSoon(d.id); suppressClick = true; render(); return; }
+    if (d.onShip && !(hex.q === s.q && hex.r === s.r)) { ui.ghosts[s.id] = { q: hex.q, r: hex.r, facing: s.facing }; suppressClick = true; render(); }   // dragged the ship elsewhere → what-if ghost
   });
   // energy phase clicks: plot courses (snap) / speed-change on a path hex / shift-click to measure range
   map.addEventListener('click', e => {
