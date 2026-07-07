@@ -181,11 +181,18 @@
 <div id="ctxMenu" style="display:none;position:fixed;background:#fff;border:1px solid #cbd5e1;border-radius:8px;box-shadow:0 8px 28px rgba(0,0,0,.25);z-index:300;font-size:13px;overflow:hidden;min-width:150px">
   <div class="ctxitem" data-act="ssd" style="padding:8px 14px;cursor:pointer">🖥 View SSD</div>
   <div class="ctxitem" data-act="ea" style="padding:8px 14px;cursor:pointer;border-top:1px solid #eef2f6">⚡ View EA</div>
+  <div class="ctxitem" data-act="intel" style="padding:8px 14px;cursor:pointer;border-top:1px solid #eef2f6">🛰 Show Intel</div>
 </div>
 <div id="ssdModal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:400;align-items:center;justify-content:center">
   <div style="background:#fff;border-radius:10px;width:92vw;height:90vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 12px 44px rgba(0,0,0,.4)">
     <div style="padding:8px 14px;display:flex;align-items:center;gap:10px;border-bottom:1px solid #e2e8f0"><b id="ssdTitle"></b><span style="flex:1"></span><button class="btn" id="ssdClose">✕ Close</button></div>
     <iframe id="ssdFrame" style="flex:1;border:0;width:100%"></iframe>
+  </div>
+</div>
+<div id="intelModal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:400;align-items:center;justify-content:center">
+  <div style="background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:12px;width:min(460px,92vw);max-height:88vh;overflow:auto;box-shadow:0 12px 44px rgba(0,0,0,.5)">
+    <div style="padding:9px 14px;display:flex;align-items:center;gap:10px;border-bottom:1px solid #334155"><b id="intelTitle">🛰 Tactical Intel</b><span style="flex:1"></span><button class="btn" id="intelClose">✕</button></div>
+    <div id="intelBody" style="padding:12px 16px;font-size:13px;line-height:1.55"></div>
   </div>
 </div>
 <div id="startModal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.78);z-index:500;align-items:center;justify-content:center">
@@ -989,11 +996,11 @@ let ctxShip = null;
 createBattleMap({
   map, ui, getPhase, getShips: () => ships, byId, isMine, isFirer, COLS, ROWS, hasGhosts, groupOfShip,
   plotBase, saveSoon, render, syncMovementEnergy, onShipClick, renderFleet, pruneUnavailable,
-  openCtxMenu: (shipId, e) => { ctxShip = shipId; const m = document.getElementById('ctxMenu'); m.style.display = 'block'; m.style.left = Math.min(e.clientX, innerWidth - 160) + 'px'; m.style.top = e.clientY + 'px'; },
+  openCtxMenu: (shipId, e) => { ctxShip = shipId; const mine = isMine(byId(shipId)); document.querySelector('#ctxMenu [data-act="ea"]').style.display = mine ? '' : 'none'; document.querySelector('#ctxMenu [data-act="intel"]').style.display = mine ? 'none' : ''; const m = document.getElementById('ctxMenu'); m.style.display = 'block'; m.style.left = Math.min(e.clientX, innerWidth - 160) + 'px'; m.style.top = e.clientY + 'px'; },
   openSpeedMenu: (shipId, idx, e) => { navSpeed = { shipId, idx }; const m = document.getElementById('speedMenu'); m.style.display = 'block'; m.style.left = Math.min(e.clientX, innerWidth - 160) + 'px'; m.style.top = e.clientY + 'px'; },
 });
 document.addEventListener('click', () => { document.getElementById('ctxMenu').style.display = 'none'; });
-document.getElementById('ctxMenu').addEventListener('click', e => { const it = e.target.closest('[data-act]'); if (!it || !ctxShip) return; if (it.dataset.act === 'ssd') openSSD(ctxShip); else if (it.dataset.act === 'ea' && isMine(byId(ctxShip))) { ui.eaSelected = ctxShip; if (getPhase() === 'energy') ui.eaHidden = false; else ui.viewEA = ctxShip; render(); } });
+document.getElementById('ctxMenu').addEventListener('click', e => { const it = e.target.closest('[data-act]'); if (!it || !ctxShip) return; if (it.dataset.act === 'ssd') openSSD(ctxShip); else if (it.dataset.act === 'ea' && isMine(byId(ctxShip))) { ui.eaSelected = ctxShip; if (getPhase() === 'energy') ui.eaHidden = false; else ui.viewEA = ctxShip; render(); } else if (it.dataset.act === 'intel') openIntel(ctxShip); });
 let navSpeed = null;   // nav-hex speed-change target { shipId, idx }
 document.addEventListener('click', () => { document.getElementById('speedMenu').style.display = 'none'; });
 document.getElementById('speedMenu').addEventListener('click', e => {
@@ -1004,6 +1011,34 @@ document.getElementById('speedMenu').addEventListener('click', e => {
   if (v != null && v !== '') { s.speedPlot = setSpeedChange(sp, tl, idx + 1, Math.max(0, Math.min(31, Math.round(+v) || 0))); syncMovementEnergy(s); saveSoon(s.id); render(); }
 });
 function openSSD(id) { const s = byId(id); document.getElementById('ssdTitle').textContent = `${s.id} — ${s.name} (${s.code})`; document.getElementById('ssdFrame').src = `damage.html?ship=${encodeURIComponent(s.code)}`; document.getElementById('ssdModal').style.display = 'flex'; }
+// Tactical intelligence on an enemy ship: what SFB lets you detect (D4.14 SSD is examinable; D17.4 levels)
+// vs what stays secret (Energy Allocation Form, weapon arming/charge, ammunition), gated by the current phase.
+const EMPIRE = { FED: 'Federation', KLI: 'Klingon', KLG: 'Klingon', GOR: 'Gorn', ROM: 'Romulan', KZI: 'Kzinti', THO: 'Tholian', ORI: 'Orion', HYD: 'Hydran', LYR: 'Lyran', WYN: 'WYN', ISC: 'ISC' };
+function intelReport(s) {
+  const parts = (s.code || '').split('-'), emp = EMPIRE[parts[0]] || parts[0] || '', hull = parts.slice(1).join('-') || s.name || '';
+  const sn = shieldsNow(s), base = s.shields, energy = getPhase() === 'energy';
+  const shieldStr = [1, 2, 3, 4, 5, 6].map(n => { const cur = sn[n - 1] || 0, mx = base[n - 1] || 0, pct = mx ? cur / mx : 0;
+    const c = cur <= 0 ? '#f87171' : pct < 0.5 ? '#fbbf24' : '#4ade80'; return `<span style="color:${c}">#${n}&nbsp;${cur}/${mx}</span>`; }).join('&nbsp; ');
+  const destroyed = Object.keys(s.status || {}).length, tb = totalBoxes(s), hp = Math.round(shipHealth(s) * 100);
+  const fired = Object.entries(s.firedAt || {}).filter(([, fx]) => fx && fx.turn === clock.turn)
+    .map(([mid]) => { const mt = s.mounts.find(m => m.id === mid); return mt ? mt.cls : mid; });
+  const row = (k, v) => `<div style="display:flex;gap:12px;padding:2px 0"><span style="color:#94a3b8;min-width:88px">${k}</span><span style="color:#e2e8f0">${v}</span></div>`;
+  const note = energy
+    ? 'Energy Allocation in progress — the enemy\'s new speed and power distribution are committed secretly (D5) and cannot be read; last-confirmed movement state is shown.'
+    : `Impulse ${clock.impulse}/32 — current hex, facing, and speed are observed; any weapon discharges this impulse are detected.`;
+  return `<div style="font-weight:700;font-size:15px">${s.id} — ${emp} ${hull} <span style="color:#f87171;font-size:11px;font-weight:400">(enemy contact)</span></div>
+    <div style="margin:9px 0 3px;color:#38bdf8;font-weight:600;font-size:11px;letter-spacing:.05em">DETECTED</div>
+    ${row('Position', `hex ${hexId(s.q, s.r)} &middot; facing ${s.facing}`)}
+    ${row('Speed', energy ? `${s.speed} <span style="color:#64748b">(last known — new speed secret)</span>` : `${s.speed} <span style="color:#64748b">(observed)</span>`)}
+    ${row('Shields', shieldStr)}
+    ${row('Hull', `${hp}% intact${destroyed ? ` <span style="color:#64748b">&middot; ${destroyed}/${tb} systems destroyed</span>` : ''}`)}
+    ${row('Fired', fired.length ? fired.join(', ') : '<span style="color:#64748b">none detected this turn</span>')}
+    <div style="margin:11px 0 3px;color:#a78bfa;font-weight:600;font-size:11px;letter-spacing:.05em">NOT DETECTABLE (secret)</div>
+    <div style="color:#64748b;font-size:12px">Energy allocation &middot; weapon arming &amp; charge level &middot; ammunition (drones / mines / boarding parties)</div>
+    <div style="margin-top:11px;padding-top:8px;border-top:1px solid rgba(148,163,184,.25);color:#94a3b8;font-size:11px">🛰 ${note}</div>`;
+}
+function openIntel(id) { const s = byId(id); if (!s) return; document.getElementById('intelTitle').textContent = `🛰 Tactical Intel — ${s.id}`; document.getElementById('intelBody').innerHTML = intelReport(s); document.getElementById('intelModal').style.display = 'flex'; }
+document.getElementById('intelClose').onclick = () => document.getElementById('intelModal').style.display = 'none';
 document.getElementById('ssdClose').onclick = () => { document.getElementById('ssdModal').style.display = 'none'; document.getElementById('ssdFrame').src = 'about:blank'; };
 
 // the weapon-tables editor is a local-only tool — hide its nav link when the page isn't present
