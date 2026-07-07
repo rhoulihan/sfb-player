@@ -246,7 +246,7 @@ let rev = 0, myCode = '', shipRev = {};   // rev: poll change-detection; shipRev
 let committed = {}, myCommitted = false, lastFireShown = 0;   // 6D fire commits: fire resolves once all fleets commit
 let eafDraft = {}, myLockedEnergy = false;   // start-of-turn energy allocation (phase is clock.phase, a segment id)
 // tactical planning + fire planning + ghosts: shared UI/selection state (also read by battle-map.js)
-const ui = { plotShipId: null, rangeAnchor: null, selectedId: null, activeId: null, dragging: null, eaSelected: null, targetId: null, fireGroup: [], ghosts: {}, ghostMode: false, ghostDrag: null, selectedPathHex: null, viewEA: null, selectedGhost: null, eaHidden: false, navPreview: null };
+const ui = { plotShipId: null, selectedId: null, activeId: null, dragging: null, eaSelected: null, targetId: null, fireGroup: [], ghosts: {}, ghostMode: false, ghostDrag: null, selectedPathHex: null, viewEA: null, selectedGhost: null, eaHidden: false, navPreview: null };
 const powerOf = s => s._power || (s._power = shipPower(s.code, s._ver, s._det));
 const plotBase = s => Math.floor(((eafDraft[s.id]?.movement) || 0) / powerOf(s).moveCost);   // planned base speed from the EAF
 function syncMovementEnergy(s) {   // a plot with speed changes drives the EAF "Energy for Movement" (C12.21)

@@ -110,15 +110,6 @@ export function plotOverlaySvg({ ships, isMine, byId, plotBase, ui }) {
       s += `<path d="${hexPath(cc.x, cc.y)}" fill="none" stroke="#a855f7" stroke-width="3" stroke-dasharray="5 3" opacity="0.95" style="pointer-events:none"/>`;
     }
   }
-  if (ui.rangeAnchor) {   // range measurement
-    const a = hexCenter(ui.rangeAnchor.start.q, ui.rangeAnchor.start.r);
-    s += `<circle cx="${a.x}" cy="${a.y}" r="9" fill="none" stroke="#7c3aed" stroke-width="2.5"/>`;
-    if (ui.rangeAnchor.end) {
-      const b = hexCenter(ui.rangeAnchor.end.q, ui.rangeAnchor.end.r), d = hexDistance(ui.rangeAnchor.start, ui.rangeAnchor.end);
-      s += `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="#7c3aed" stroke-width="2.5" stroke-dasharray="6 4"/>` +
-        `<text x="${(a.x + b.x) / 2}" y="${(a.y + b.y) / 2 - 8}" text-anchor="middle" font-size="13" fill="#6d28d9" font-weight="800" style="pointer-events:none">R${d}</text>`;
-    }
-  }
   return s;
 }
 
@@ -231,9 +222,6 @@ export function createBattleMap(ctx) {
     if (getPhase() !== 'energy') return;
     const hex = clickToHex(e); if (!hex) return;
     const shipHere = getShips().find(s => s.q === hex.q && s.r === hex.r);
-    if (e.shiftKey && !shipHere) {   // shift-click empty → measure range
-      ui.rangeAnchor = (!ui.rangeAnchor || ui.rangeAnchor.end) ? { start: hex, end: null } : { ...ui.rangeAnchor, end: hex }; render(); return;
-    }
     if (shipHere && isMine(shipHere)) { ui.plotShipId = shipHere.id; ui.eaSelected = shipHere.id; onShipClick(shipHere); return; }   // friendly → route subject + join the virtual fire group
     if (shipHere && !isMine(shipHere)) { onShipClick(shipHere); return; }   // enemy → fire-group target: draws the target line + opens the weapons panel
     if (hasGhosts()) return;   // nav plotting is blocked while a ghost what-if is open (fire-group + ghosting are not)
