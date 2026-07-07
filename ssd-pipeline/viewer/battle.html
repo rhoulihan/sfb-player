@@ -516,7 +516,9 @@ function renderFireSummary() {
   const rows = plan.groups.filter(x => x.targetShipId === t.id && x.members.some(m => m.mountIds.length)).map(gr => {
     const pv = combinedPreview(gr, ships.map(ghostOf), shipMountsMap());
     const per = pv.perShield.map(r => `#${r.shield} <b>${r.nominal.toFixed(1)}</b>`).join(' · ');
-    return `<div><span style="color:${gr.color};font-weight:700">${gr.id}</span> ${per}</div>`;
+    const rs = gr.members.filter(m => m.mountIds.length && byId(m.shipId)).map(m => hexDistance(ghostOf(byId(m.shipId)), gt));   // range from each firer (ghost) to the target (ghost)
+    const rng = rs.length ? (Math.min(...rs) === Math.max(...rs) ? `R${rs[0]}` : `R${Math.min(...rs)}–${Math.max(...rs)}`) : '';
+    return `<div><span style="color:${gr.color};font-weight:700">${gr.id}</span> ${rng ? `<span style="color:#93c5fd">${rng}</span> ` : ''}${per}</div>`;
   }).join('');
   el.innerHTML = `<div style="font-weight:700;margin-bottom:3px">🎯 ${t.id}${hasGhosts() ? ' <span style="color:#a855f7">(ghost)</span>' : ''} — exp. dmg by shield</div>${rows}`;
   el.style.left = Math.min(innerWidth - 288, sp.x + 26) + 'px';
@@ -720,10 +722,10 @@ function renderPanel() {
   const inWorking = g && ui.activeId && g.members.some(m => m.shipId === ui.activeId);
   if (!inWorking) { box.className = 'hint'; box.innerHTML = g ? 'Select a ship in the fire group (or click a friendly ship to add it).' : 'Click your ships to build a fire group, then an enemy to target.'; return; }
   box.className = '';
-  const s = byId(ui.activeId), assigned = planEligibility(plan), el = eligForTarget(s, byId(g.targetShipId));
+  const s = byId(ui.activeId), gs = ghostOf(s), assigned = planEligibility(plan), el = eligForTarget(gs, ghostOf(byId(g.targetShipId)));   // arc/range from ghost what-if positions (recalcs on every drag/rotate → render)
   const wm = g.members.map(m => m.shipId);
   const pager = wm.length > 1 ? `<div class="pager"><button data-page="-1">◀</button>ship ${wm.indexOf(ui.activeId) + 1}/${wm.length}<button data-page="1">▶</button></div>` : '';
-  const head = `<div style="padding:6px 12px 2px;font-weight:600">${s.id} — ${s.name} <span style="color:#94a3b8;font-weight:400;font-size:11px">facing ${s.facing}${g.targetShipId ? ' → ' + g.targetShipId : ''}</span></div>`;
+  const head = `<div style="padding:6px 12px 2px;font-weight:600">${s.id} — ${s.name} <span style="color:#94a3b8;font-weight:400;font-size:11px">facing ${gs.facing}${g.targetShipId ? ' → ' + g.targetShipId : ''}</span></div>`;
   const alpha = g.targetShipId ? `<div style="padding:5px 12px"><button class="btn fire" id="alphaBtn" style="width:100%">⚡ Alpha Strike — all in-arc</button></div>` : '';
   const rows = s.mounts.map(mt => {
     const e = el[mt.id], a = assigned.get(mt.id), charged = isCharged(s, mt.id, mt.cls);

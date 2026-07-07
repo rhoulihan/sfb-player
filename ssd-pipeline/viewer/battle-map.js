@@ -181,9 +181,10 @@ export function createBattleMap(ctx) {
     return null;                                                                        // red / empty → not a path drag
   };
   map.addEventListener('mousedown', e => {
-    if (e.altKey || e.button !== 0 || hasGhosts() || getPhase() !== 'energy') return;   // left button only; a ghost must be cleared first
-    const gg = e.target.closest('.ship'), shipHere = gg && byId(gg.dataset.id);   // a ship glyph → sideslip / ghost (priority over an underlying nav hex)
+    if (e.altKey || e.button !== 0 || getPhase() !== 'energy') return;   // left button only
+    const gg = e.target.closest('.ship'), shipHere = gg && byId(gg.dataset.id);   // a ship glyph → sideslip / ghost (allowed even with ghosts open; priority over an underlying nav hex)
     if (shipHere) { plotDrag = { id: shipHere.id, ship: true, shift: e.shiftKey, x: e.clientX, y: e.clientY, moved: false }; return; }
+    if (hasGhosts()) return;   // nav-path drags are blocked while a ghost what-if is open
     const ps = ui.plotShipId && byId(ui.plotShipId), hex = clickToHex(e);   // else classify the grabbed hex for the plot ship
     if (ps && isMine(ps) && hex) { const start = startStepsFor(ps, hex); if (start) plotDrag = { id: ps.id, start, shift: e.shiftKey, x: e.clientX, y: e.clientY, moved: false }; }
   });
@@ -207,28 +208,27 @@ export function createBattleMap(ctx) {
       suppressClick = true; render(); return;
     }
     if (d.start) { courseOf(s).steps = pathFrom(s, plotBase(s), d.start, hex); saveSoon(s.id); suppressClick = true; render(); return; }   // nav / candidate drag → path
-    if (isMine(s)) {   // friendly ship glyph onto a green (legal-next) or purple (sideslip) hex → extend one step
+    if (isMine(s) && !hasGhosts()) {   // friendly ship glyph onto a green (legal-next) or purple (sideslip) hex → extend one step (nav is blocked while a ghost is open)
       const cur = plotCursor(s, plotBase(s));
       const step = tryStep(cur.pos, cur.facing, cur.speed, cur.hst, cur.slip, hex);
       if (step) { courseOf(s).steps.push({ q: step.pos.q, r: step.pos.r, facing: step.facing }); saveSoon(s.id); suppressClick = true; render(); return; }
       const slip = cur.speed > 0 ? trySideslip(cur.pos, cur.facing, cur.hst, cur.slip, hex) : null;
       if (slip) { courseOf(s).steps.push({ q: slip.pos.q, r: slip.pos.r, facing: slip.facing, slip: true }); saveSoon(s.id); suppressClick = true; render(); return; }
     }
-    ui.ghosts[s.id] = { q: hex.q, r: hex.r, facing: s.facing }; ui.selectedGhost = s.id; joinFireGroup(s); suppressClick = true; render();   // anywhere else → ghost
+    ui.ghosts[s.id] = { q: hex.q, r: hex.r, facing: s.facing }; ui.selectedGhost = s.id; joinFireGroup(s); suppressClick = true; render();   // anywhere else (or with a ghost already open) → ghost
   });
   // energy phase clicks: plot courses (snap) / speed-change on a path hex / shift-click to measure range
   map.addEventListener('click', e => {
     if (suppressClick) { suppressClick = false; return; }   // a drag-sideslip just happened; don't also turn
-    if (hasGhosts()) return;   // a ghost what-if is open — clear it to continue
     if (getPhase() !== 'energy') return;
     const hex = clickToHex(e); if (!hex) return;
-    if (e.shiftKey) {   // shift-click an enemy → set the fire-group target; shift-click empty → measure range
-      const enemyHere = getShips().find(s => s.q === hex.q && s.r === hex.r && !isMine(s));
-      if (enemyHere) { onShipClick(enemyHere); return; }
+    const shipHere = getShips().find(s => s.q === hex.q && s.r === hex.r);
+    if (e.shiftKey && !shipHere) {   // shift-click empty → measure range
       ui.rangeAnchor = (!ui.rangeAnchor || ui.rangeAnchor.end) ? { start: hex, end: null } : { ...ui.rangeAnchor, end: hex }; render(); return;
     }
-    const shipHere = getShips().find(s => s.q === hex.q && s.r === hex.r);
-    if (shipHere && isMine(shipHere)) { ui.plotShipId = shipHere.id; ui.eaSelected = shipHere.id; onShipClick(shipHere); return; }   // route subject + toggle into the fire group
+    if (shipHere && isMine(shipHere)) { ui.plotShipId = shipHere.id; ui.eaSelected = shipHere.id; onShipClick(shipHere); return; }   // friendly → route subject + join the virtual fire group
+    if (shipHere && !isMine(shipHere)) { onShipClick(shipHere); return; }   // enemy → fire-group target: draws the target line + opens the weapons panel
+    if (hasGhosts()) return;   // nav plotting is blocked while a ghost what-if is open (fire-group + ghosting are not)
     if (ui.plotShipId && byId(ui.plotShipId)) {   // click a legal candidate hex → extend the course one step (drag re-routes; right-click a nav hex = speed change)
       const s = byId(ui.plotShipId), c = courseOf(s), cur = plotCursor(s, plotBase(s));
       const step = tryStep(cur.pos, cur.facing, cur.speed, cur.hst, cur.slip, hex);
