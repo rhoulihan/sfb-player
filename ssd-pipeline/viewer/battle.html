@@ -1011,31 +1011,47 @@ document.getElementById('speedMenu').addEventListener('click', e => {
   if (v != null && v !== '') { s.speedPlot = setSpeedChange(sp, tl, idx + 1, Math.max(0, Math.min(31, Math.round(+v) || 0))); syncMovementEnergy(s); saveSoon(s.id); render(); }
 });
 function openSSD(id) { const s = byId(id); document.getElementById('ssdTitle').textContent = `${s.id} — ${s.name} (${s.code})`; document.getElementById('ssdFrame').src = `damage.html?ship=${encodeURIComponent(s.code)}`; document.getElementById('ssdModal').style.display = 'flex'; }
-// Tactical intelligence on an enemy ship: what SFB lets you detect (D4.14 SSD is examinable; D17.4 levels)
-// vs what stays secret (Energy Allocation Form, weapon arming/charge, ammunition), gated by the current phase.
+// Tactical intelligence on an enemy ship (SFB D17.0). Detection LEVEL (A..M) comes from the effective range
+// from your nearest ship to the target (D17.2/D17.3); each level reveals more (D17.4). The report gates its
+// fields by that level: shield strength needs level I, heavy-weapon charge needs level L; the Energy
+// Allocation Form, phaser capacitor, and ammunition are never detectable. Range bands approximate the chart.
 const EMPIRE = { FED: 'Federation', KLI: 'Klingon', KLG: 'Klingon', GOR: 'Gorn', ROM: 'Romulan', KZI: 'Kzinti', THO: 'Tholian', ORI: 'Orion', HYD: 'Hydran', LYR: 'Lyran', WYN: 'WYN', ISC: 'ISC' };
+const LVL_RANK = 'ABCDEFGHIJKLM';
+const atLeast = (lvl, min) => LVL_RANK.indexOf(lvl) >= LVL_RANK.indexOf(min);
+function tacLevel(enemy) {   // effective range (D17.22) from your nearest ship → information level (D17.3)
+  const obs = ships.filter(o => o.side === myFleet && !isDead(o));
+  if (!obs.length) return { lvl: 'A', range: null };
+  const range = Math.min(...obs.map(o => hexDistance(o, enemy)));
+  const bands = [[4, 'M'], [6, 'L'], [8, 'K'], [10, 'J'], [12, 'I'], [14, 'H'], [15, 'G'], [16, 'F'], [18, 'E'], [20, 'D'], [25, 'C'], [30, 'B']];
+  let lvl = 'A'; for (const [mx, L] of bands) if (range <= mx) { lvl = L; break; }
+  return { lvl, range };
+}
 function intelReport(s) {
+  const { lvl, range } = tacLevel(s), energy = getPhase() === 'energy';
   const parts = (s.code || '').split('-'), emp = EMPIRE[parts[0]] || parts[0] || '', hull = parts.slice(1).join('-') || s.name || '';
-  const sn = shieldsNow(s), base = s.shields, energy = getPhase() === 'energy';
-  const shieldStr = [1, 2, 3, 4, 5, 6].map(n => { const cur = sn[n - 1] || 0, mx = base[n - 1] || 0, pct = mx ? cur / mx : 0;
-    const c = cur <= 0 ? '#f87171' : pct < 0.5 ? '#fbbf24' : '#4ade80'; return `<span style="color:${c}">#${n}&nbsp;${cur}/${mx}</span>`; }).join('&nbsp; ');
+  const ident = atLeast(lvl, 'C') ? `${emp} ${hull}` : atLeast(lvl, 'B') ? `${emp} <span style="color:#64748b">(hull not resolved)</span>` : 'unidentified contact';
+  const sn = shieldsNow(s), base = s.shields;
+  let shieldStr;
+  if (atLeast(lvl, 'I')) shieldStr = [1, 2, 3, 4, 5, 6].map(n => { const cur = sn[n - 1] || 0, mx = base[n - 1] || 0, pct = mx ? cur / mx : 0, c = cur <= 0 ? '#f87171' : pct < 0.5 ? '#fbbf24' : '#4ade80'; return `<span style="color:${c}">#${n}&nbsp;${cur}/${mx}</span>`; }).join('&nbsp; ');
+  else if (atLeast(lvl, 'B')) shieldStr = [1, 2, 3, 4, 5, 6].map(n => { const up = (sn[n - 1] || 0) > 0; return `<span style="color:${up ? '#4ade80' : '#f87171'}">#${n}&nbsp;${up ? 'up' : 'down'}</span>`; }).join('&nbsp; ') + ' <span style="color:#64748b;font-size:10px">(strength needs lvl I)</span>';
+  else shieldStr = '<span style="color:#64748b">not resolved</span>';
+  const fired = Object.entries(s.firedAt || {}).filter(([, fx]) => fx && fx.turn === clock.turn).map(([mid]) => { const mt = s.mounts.find(m => m.id === mid); return mt ? mt.cls : mid; });
   const destroyed = Object.keys(s.status || {}).length, tb = totalBoxes(s), hp = Math.round(shipHealth(s) * 100);
-  const fired = Object.entries(s.firedAt || {}).filter(([, fx]) => fx && fx.turn === clock.turn)
-    .map(([mid]) => { const mt = s.mounts.find(m => m.id === mid); return mt ? mt.cls : mid; });
-  const row = (k, v) => `<div style="display:flex;gap:12px;padding:2px 0"><span style="color:#94a3b8;min-width:88px">${k}</span><span style="color:#e2e8f0">${v}</span></div>`;
-  const note = energy
-    ? 'Energy Allocation in progress — the enemy\'s new speed and power distribution are committed secretly (D5) and cannot be read; last-confirmed movement state is shown.'
-    : `Impulse ${clock.impulse}/32 — current hex, facing, and speed are observed; any weapon discharges this impulse are detected.`;
-  return `<div style="font-weight:700;font-size:15px">${s.id} — ${emp} ${hull} <span style="color:#f87171;font-size:11px;font-weight:400">(enemy contact)</span></div>
-    <div style="margin:9px 0 3px;color:#38bdf8;font-weight:600;font-size:11px;letter-spacing:.05em">DETECTED</div>
+  const charging = atLeast(lvl, 'L') ? s.mounts.filter(m => HEAVY_CLS.has(m.cls) && s.armed && s.armed[m.id]).map(m => m.cls) : null;
+  const row = (k, v) => `<div style="display:flex;gap:12px;padding:2px 0"><span style="color:#94a3b8;min-width:92px">${k}</span><span style="color:#e2e8f0">${v}</span></div>`;
+  const note = energy ? 'Energy Allocation — new speed &amp; power committed secretly (D5); last-confirmed movement shown.' : `Impulse ${clock.impulse}/32 — position, facing, speed observed; discharges this impulse detected.`;
+  return `<div style="font-weight:700;font-size:15px">${s.id} — ${ident} <span style="color:#f87171;font-size:11px;font-weight:400">(enemy)</span></div>
+    <div style="margin:5px 0 6px;display:flex;gap:8px;align-items:center"><span style="background:#1e3a5f;color:#7dd3fc;border-radius:5px;padding:1px 8px;font-weight:700;font-size:11px">SENSOR LEVEL ${lvl}</span><span style="color:#64748b;font-size:11px">${range != null ? `range ${range} hex` : 'no observer'} &middot; D17.4</span></div>
+    <div style="margin:6px 0 3px;color:#38bdf8;font-weight:600;font-size:11px;letter-spacing:.05em">DETECTED</div>
     ${row('Position', `hex ${hexId(s.q, s.r)} &middot; facing ${s.facing}`)}
-    ${row('Speed', energy ? `${s.speed} <span style="color:#64748b">(last known — new speed secret)</span>` : `${s.speed} <span style="color:#64748b">(observed)</span>`)}
+    ${row('Speed', energy ? `${s.speed} <span style="color:#64748b">(last known)</span>` : `${s.speed} <span style="color:#64748b">(observed)</span>`)}
     ${row('Shields', shieldStr)}
-    ${row('Hull', `${hp}% intact${destroyed ? ` <span style="color:#64748b">&middot; ${destroyed}/${tb} systems destroyed</span>` : ''}`)}
-    ${row('Fired', fired.length ? fired.join(', ') : '<span style="color:#64748b">none detected this turn</span>')}
-    <div style="margin:11px 0 3px;color:#a78bfa;font-weight:600;font-size:11px;letter-spacing:.05em">NOT DETECTABLE (secret)</div>
-    <div style="color:#64748b;font-size:12px">Energy allocation &middot; weapon arming &amp; charge level &middot; ammunition (drones / mines / boarding parties)</div>
-    <div style="margin-top:11px;padding-top:8px;border-top:1px solid rgba(148,163,184,.25);color:#94a3b8;font-size:11px">🛰 ${note}</div>`;
+    ${atLeast(lvl, 'I') ? row('Hull', `${hp}% intact${destroyed ? ` <span style="color:#64748b">&middot; ${destroyed}/${tb} destroyed</span>` : ''}`) : row('Hull', '<span style="color:#64748b">damage detail needs level I (get closer)</span>')}
+    ${row('Fired', fired.length ? fired.join(', ') : '<span style="color:#64748b">none this turn</span>')}
+    ${charging ? row('Charging', charging.length ? charging.join(', ') + ' <span style="color:#64748b">(heavy weapon charging)</span>' : '<span style="color:#64748b">no heavy weapon charging</span>') : ''}
+    <div style="margin:10px 0 3px;color:#a78bfa;font-weight:600;font-size:11px;letter-spacing:.05em">NOT DETECTABLE (secret)</div>
+    <div style="color:#64748b;font-size:12px">Energy allocation${atLeast(lvl, 'L') ? '' : ' &middot; weapon arming/charge <span style="color:#475569">(needs lvl L)</span>'} &middot; phaser capacitor &middot; ammunition (drones/mines/crew)</div>
+    <div style="margin-top:10px;padding-top:8px;border-top:1px solid rgba(148,163,184,.25);color:#94a3b8;font-size:11px">🛰 ${note}</div>`;
 }
 function openIntel(id) { const s = byId(id); if (!s) return; document.getElementById('intelTitle').textContent = `🛰 Tactical Intel — ${s.id}`; document.getElementById('intelBody').innerHTML = intelReport(s); document.getElementById('intelModal').style.display = 'flex'; }
 document.getElementById('intelClose').onclick = () => document.getElementById('intelModal').style.display = 'none';
