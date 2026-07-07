@@ -180,8 +180,25 @@
 <div id="speedMenu" style="display:none;position:fixed;background:#fff;border:1px solid #cbd5e1;border-radius:8px;box-shadow:0 8px 28px rgba(0,0,0,.25);z-index:300;font-size:13px;overflow:hidden;min-width:150px"><div class="ctxitem" data-act="speed" style="padding:8px 14px;cursor:pointer">⏱ Speed change here…</div></div>
 <div id="ctxMenu" style="display:none;position:fixed;background:#fff;border:1px solid #cbd5e1;border-radius:8px;box-shadow:0 8px 28px rgba(0,0,0,.25);z-index:300;font-size:13px;overflow:hidden;min-width:150px">
   <div class="ctxitem" data-act="ssd" style="padding:8px 14px;cursor:pointer">🖥 View SSD</div>
+  <div class="ctxitem" data-act="setspeed" style="padding:8px 14px;cursor:pointer;border-top:1px solid #eef2f6">⏱ Set speed</div>
   <div class="ctxitem" data-act="ea" style="padding:8px 14px;cursor:pointer;border-top:1px solid #eef2f6">⚡ View EA</div>
   <div class="ctxitem" data-act="intel" style="padding:8px 14px;cursor:pointer;border-top:1px solid #eef2f6">🛰 Show Intel</div>
+</div>
+<div id="speedModal" style="display:none;position:fixed;z-index:350;background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:12px;box-shadow:0 14px 44px rgba(0,0,0,.5);width:244px;font-size:13px;overflow:hidden">
+  <div id="spTitle" style="padding:9px 14px;border-bottom:1px solid #334155;font-weight:700">⏱ Speed</div>
+  <div style="padding:14px 16px">
+    <div style="display:flex;align-items:center;justify-content:center;gap:16px;margin-bottom:8px">
+      <button class="btn" id="spMinus" style="width:36px;height:36px;font-size:20px;padding:0;line-height:1">−</button>
+      <div style="text-align:center;min-width:60px"><div id="spVal" style="font-size:32px;font-weight:800;line-height:1">0</div><div style="font-size:10px;color:#64748b;letter-spacing:.03em">hexes / turn</div></div>
+      <button class="btn" id="spPlus" style="width:36px;height:36px;font-size:20px;padding:0;line-height:1">+</button>
+    </div>
+    <input type="range" id="spRange" min="0" max="31" value="0" style="width:100%;accent-color:#2563eb">
+    <div id="spHint" style="font-size:11px;color:#64748b;text-align:center;margin-top:7px;min-height:30px"></div>
+    <div style="display:flex;gap:8px;margin-top:11px">
+      <button class="btn" id="spCancel" style="flex:1">Cancel</button>
+      <button class="btn primary" id="spSet" style="flex:1">Set speed</button>
+    </div>
+  </div>
 </div>
 <div id="ssdModal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:400;align-items:center;justify-content:center">
   <div style="background:#fff;border-radius:10px;width:92vw;height:90vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 12px 44px rgba(0,0,0,.4)">
@@ -886,11 +903,11 @@ epanel.addEventListener('click', e => {
   if (w) { const st = col.weapons[w.dataset.wid], what = w.dataset.what; st[what] = !st[what];
     if (what === 'overload' && st.overload) { st.prox = false; st.armed = true; }   // overload & proximity are exclusive modes
     if (what === 'prox' && st.prox) { st.overload = false; st.armed = true; }
-    renderEnergy(); return; }
-  const seg = e.target.closest('[data-ea="seg"]'); if (seg) { col[seg.dataset.key] = +seg.dataset.val; renderEnergy(); return; }
-  const tg = e.target.closest('[data-ea="toggle"]'); if (tg) { col[tg.dataset.key] = tg.dataset.num ? (col[tg.dataset.key] ? 0 : 1) : !col[tg.dataset.key]; renderEnergy(); return; }
-  const stp = e.target.closest('[data-ea="step"]'); if (stp) { const k = stp.dataset.key, max = k === 'phaserCap' ? p.capacitorCap - carriedOf(s) : k === 'recharge' ? p.batteries - batteryOf(s) : sinkMax(p, k); col[k] = Math.max(0, Math.min(max, (col[k] || 0) + (+stp.dataset.d))); renderEnergy(); return; }
-  const sp = e.target.closest('[data-ea="specstep"]'); if (sp) { const n = +sp.dataset.shield, max = specReinfMax(p, n); col.specReinf[n] = Math.max(0, Math.min(max, (col.specReinf[n] || 0) + (+sp.dataset.d))); renderEnergy(); return; }
+    render(); return; }
+  const seg = e.target.closest('[data-ea="seg"]'); if (seg) { col[seg.dataset.key] = +seg.dataset.val; render(); return; }
+  const tg = e.target.closest('[data-ea="toggle"]'); if (tg) { col[tg.dataset.key] = tg.dataset.num ? (col[tg.dataset.key] ? 0 : 1) : !col[tg.dataset.key]; render(); return; }
+  const stp = e.target.closest('[data-ea="step"]'); if (stp) { const k = stp.dataset.key, max = k === 'phaserCap' ? p.capacitorCap - carriedOf(s) : k === 'recharge' ? p.batteries - batteryOf(s) : sinkMax(p, k); col[k] = Math.max(0, Math.min(max, (col[k] || 0) + (+stp.dataset.d))); render(); return; }
+  const sp = e.target.closest('[data-ea="specstep"]'); if (sp) { const n = +sp.dataset.shield, max = specReinfMax(p, n); col.specReinf[n] = Math.max(0, Math.min(max, (col.specReinf[n] || 0) + (+sp.dataset.d))); render(); return; }
 });
 function onEaInput(e) {   // range sliders: live-update value + header meter without rebuilding (would kill the drag)
   if (myLockedEnergy || ui.viewEA) return; const t = e.target, s = ui.eaSelected ? byId(ui.eaSelected) : null; if (!s || t.dataset.ea !== 'num') return;
@@ -899,7 +916,7 @@ function onEaInput(e) {   // range sliders: live-update value + header meter wit
   updateMeter();
 }
 epanel.addEventListener('input', onEaInput);
-epanel.addEventListener('change', e => { if (!myLockedEnergy && e.target.dataset.ea === 'num') renderEnergy(); });   // reposition/clamp after the drag ends
+epanel.addEventListener('change', e => { if (!myLockedEnergy && e.target.dataset.ea === 'num') render(); });   // reposition/clamp after the drag ends
 document.getElementById('epLock').onclick = () => { if (ui.viewEA) { ui.viewEA = null; render(); } else lockEnergy(); };
 // draggable console modal (drag by its title bar; ignore clicks on the tabs/lock buttons)
 let epDrag = null;
@@ -996,20 +1013,78 @@ let ctxShip = null;
 createBattleMap({
   map, ui, getPhase, getShips: () => ships, byId, isMine, isFirer, COLS, ROWS, hasGhosts, groupOfShip,
   plotBase, saveSoon, render, syncMovementEnergy, onShipClick, renderFleet, pruneUnavailable,
-  openCtxMenu: (shipId, e) => { ctxShip = shipId; const mine = isMine(byId(shipId)); document.querySelector('#ctxMenu [data-act="ea"]').style.display = mine ? '' : 'none'; document.querySelector('#ctxMenu [data-act="intel"]').style.display = mine ? 'none' : ''; const m = document.getElementById('ctxMenu'); m.style.display = 'block'; m.style.left = Math.min(e.clientX, innerWidth - 160) + 'px'; m.style.top = e.clientY + 'px'; },
+  openCtxMenu: (shipId, e) => { ctxShip = shipId; const mine = isMine(byId(shipId)); document.querySelector('#ctxMenu [data-act="ea"]').style.display = mine ? '' : 'none'; document.querySelector('#ctxMenu [data-act="intel"]').style.display = mine ? 'none' : ''; document.querySelector('#ctxMenu [data-act="setspeed"]').style.display = (mine && getPhase() === 'energy' && !myLockedEnergy) ? '' : 'none'; const m = document.getElementById('ctxMenu'); m.style.display = 'block'; m.style.left = Math.min(e.clientX, innerWidth - 160) + 'px'; m.style.top = e.clientY + 'px'; },
   openSpeedMenu: (shipId, idx, e) => { navSpeed = { shipId, idx }; const m = document.getElementById('speedMenu'); m.style.display = 'block'; m.style.left = Math.min(e.clientX, innerWidth - 160) + 'px'; m.style.top = e.clientY + 'px'; },
 });
 document.addEventListener('click', () => { document.getElementById('ctxMenu').style.display = 'none'; });
-document.getElementById('ctxMenu').addEventListener('click', e => { const it = e.target.closest('[data-act]'); if (!it || !ctxShip) return; if (it.dataset.act === 'ssd') openSSD(ctxShip); else if (it.dataset.act === 'ea' && isMine(byId(ctxShip))) { ui.eaSelected = ctxShip; if (getPhase() === 'energy') ui.eaHidden = false; else ui.viewEA = ctxShip; render(); } else if (it.dataset.act === 'intel') openIntel(ctxShip); });
+document.getElementById('ctxMenu').addEventListener('click', e => { const it = e.target.closest('[data-act]'); if (!it || !ctxShip) return; if (it.dataset.act === 'ssd') openSSD(ctxShip); else if (it.dataset.act === 'ea' && isMine(byId(ctxShip))) { ui.eaSelected = ctxShip; if (getPhase() === 'energy') ui.eaHidden = false; else ui.viewEA = ctxShip; render(); } else if (it.dataset.act === 'intel') openIntel(ctxShip); else if (it.dataset.act === 'setspeed') openSetSpeed(ctxShip); });
 let navSpeed = null;   // nav-hex speed-change target { shipId, idx }
 document.addEventListener('click', () => { document.getElementById('speedMenu').style.display = 'none'; });
 document.getElementById('speedMenu').addEventListener('click', e => {
   const it = e.target.closest('[data-act]'); if (!it || it.dataset.act !== 'speed' || !navSpeed) return;
   const s = byId(navSpeed.shipId), idx = navSpeed.idx; if (!s) return;
-  const sp = s.speedPlot || { base: plotBase(s), changes: [] }, tl = impulseTimeline(sp), imp = tl[idx]?.impulse, cur = speedAt(sp, imp || 1);
-  const v = prompt(`New speed effective after impulse ${imp} (hex ${idx + 1})? Currently ${cur}.`, cur);
-  if (v != null && v !== '') { s.speedPlot = setSpeedChange(sp, tl, idx + 1, Math.max(0, Math.min(31, Math.round(+v) || 0))); syncMovementEnergy(s); saveSoon(s.id); render(); }
+  const p = powerOf(s), sp = s.speedPlot || { base: plotBase(s), changes: [] }, tl = impulseTimeline(sp), imp = tl[idx]?.impulse, cur = speedAt(sp, imp || 1);
+  const budget = maxBaseSpeed(s);   // total hexes the ship's warp+impulse can sustain this turn
+  let max = 0; for (let v = Math.floor(sinkMax(p, 'movement') / p.moveCost); v >= 0; v--) { if (hexesInPlot(setSpeedChange(sp, tl, idx + 1, v)) <= budget) { max = v; break; } }
+  const menu = document.getElementById('speedMenu'), x = parseInt(menu.style.left) || e.clientX, y = parseInt(menu.style.top) || e.clientY;
+  menu.style.display = 'none';
+  openSpeedModal({ title: `\u23f1 Speed after impulse ${imp}`, current: cur, max, moveCost: p.moveCost, x, y,
+    apply: v => { s.speedPlot = setSpeedChange(sp, tl, idx + 1, v); syncMovementEnergy(s); saveSoon(s.id); render(); } });
 });
+
+// ── warp-aware speed modal ──────────────────────────────────────────────────
+// Only warp + impulse engines can fuel movement (C2); APR and batteries cannot. So the power available for
+// movement is the warp+impulse left after every OTHER system draws APR/batteries first — capped at the
+// 30/31-hex ceiling. This both caps a speed increase to free warp and forces a reduction when others eat it.
+function moveBudget(s) {
+  const p = powerOf(s), v = validateShip(s), col = eaColOf(s);
+  const nonMove = v.used - col.movement;                          // power every other system is drawing
+  const otherSources = p.apr + batteryOf(s);                      // APR + batteries — usable by other systems, never by movement
+  const warpImp = p.warp + p.impulse;                             // the only sources that can drive movement
+  const forMove = warpImp - Math.max(0, nonMove - otherSources);  // warp+impulse left once others exhaust APR/batteries
+  return Math.max(0, Math.min(sinkMax(p, 'movement'), forMove));
+}
+const maxBaseSpeed = s => Math.floor(moveBudget(s) / powerOf(s).moveCost);
+function setStartSpeed(s, hexes) {   // starting speed = the movement allocation; redirect free warp to match, reset the plot base
+  const p = powerOf(s), col = eaColOf(s);
+  col.movement = Math.max(0, Math.min(sinkMax(p, 'movement'), hexes * p.moveCost));
+  s.speedPlot = { base: hexes, changes: [] };
+  saveSoon(s.id); render();
+}
+let spApply = null;
+function openSpeedModal({ title, current, max, moveCost = 1, x, y, apply }) {
+  spApply = apply; max = Math.max(0, max);
+  const m = document.getElementById('speedModal'), rng = document.getElementById('spRange');
+  const forced = current > max;                                   // no free warp → the current speed cannot be sustained
+  let val = Math.max(0, Math.min(max, current));
+  rng.max = max;
+  const paint = () => {
+    document.getElementById('spVal').textContent = val;
+    rng.value = val;
+    document.getElementById('spMinus').disabled = val <= 0;
+    document.getElementById('spPlus').disabled = val >= max;
+    document.getElementById('spHint').innerHTML = `warp+impulse for movement: <b>${val * moveCost}</b> &middot; max <b>${max}</b> hex` +
+      (forced ? '<br><span style="color:#fbbf24">\u26a0 reduced to fit available warp</span>'
+              : (val >= max ? '<br><span style="color:#64748b">no free warp for more speed</span>' : ''));
+  };
+  const set = v => { val = Math.max(0, Math.min(max, Math.round(v) || 0)); paint(); };
+  document.getElementById('spTitle').textContent = title;
+  document.getElementById('spMinus').onclick = () => set(val - 1);
+  document.getElementById('spPlus').onclick = () => set(val + 1);
+  rng.oninput = () => set(+rng.value);
+  document.getElementById('spCancel').onclick = () => { m.style.display = 'none'; };
+  document.getElementById('spSet').onclick = () => { m.style.display = 'none'; if (spApply) spApply(val); };
+  paint();
+  m.style.display = 'block';
+  m.style.left = Math.max(6, Math.min(x, innerWidth - m.offsetWidth - 6)) + 'px';
+  m.style.top = Math.max(6, Math.min(y, innerHeight - m.offsetHeight - 6)) + 'px';
+}
+function openSetSpeed(id) {   // "Set speed" context item → starting speed (= allocated movement)
+  const s = byId(id); if (!s) return;
+  const menu = document.getElementById('ctxMenu'), x = parseInt(menu.style.left) || 0, y = parseInt(menu.style.top) || 0;
+  menu.style.display = 'none';
+  openSpeedModal({ title: `\u23f1 Starting speed \u2014 ${s.id}`, current: plotBase(s), max: maxBaseSpeed(s), moveCost: powerOf(s).moveCost, x, y, apply: v => setStartSpeed(s, v) });
+}
 function openSSD(id) {
   const s = byId(id); let url = `ssd.html?ship=${encodeURIComponent(s.code)}`;
   const dmg = Object.keys(s.status || {}).join(',');
