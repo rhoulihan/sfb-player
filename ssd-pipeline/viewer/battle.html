@@ -134,9 +134,10 @@
   <header>
     <div class="nav"><button class="navbtn" id="navBtn" title="menu">☰</button>
       <div class="navmenu" id="navMenu"><a href="index.html">🏠 Home</a><a href="verify.html?ship=FED-CA">🛠️ Verify editor</a><a href="damage.html?ship=FED-CA">⚔️ Damage processor</a><a href="weapons.html">🎯 Weapon tables</a></div></div>
-    <b>SFB Player</b><span class="sub">drag to move · [ ] turn · set speed on the fleet · ▶ steps impulses</span>
+    <b>SFB Player</b>
     <span class="sp"></span>
     <label class="tmode" title="allow turning any ship, including enemy/target ships (test only)"><input type="checkbox" id="testMode"> Test mode</label>
+    <button class="btn" id="fleetToggle" title="Switch the fleet you command — model attacks from either side">⇄ <span id="fleetName">—</span></button>
     <div class="clock" id="clock">TURN 1 · IMP 0/32</div>
     <button class="btn primary" id="stepBtn">▶ Impulse</button>
     <div class="zoomc"><button data-z="-1">−</button><button data-z="fit">fit</button><span id="zpct">50%</span><button data-z="1">+</button></div>
@@ -175,7 +176,8 @@
   </div>
 </div>
 <div id="ghostBanner" style="display:none;position:fixed;top:10px;left:50%;transform:translateX(-50%);z-index:320;background:#7c3aed;color:#fff;padding:7px 14px;border-radius:20px;box-shadow:0 6px 20px rgba(124,58,237,.4);font-size:13px;font-weight:600;display:none;align-items:center;gap:12px">👻 Ghost what-if active — preview only <button id="ghostClear" style="background:#fff;color:#7c3aed;border:none;border-radius:12px;padding:3px 12px;font-weight:700;cursor:pointer">Clear to continue</button></div>
-<div id="fireSummary" style="display:none;position:fixed;z-index:290;background:rgba(15,23,42,.94);color:#e2e8f0;padding:8px 11px;border-radius:9px;box-shadow:0 8px 24px rgba(0,0,0,.35);font-size:12px;max-width:280px;pointer-events:none;line-height:1.5"></div>
+<div id="fireSummary" style="display:none;position:fixed;z-index:290;background:rgba(15,23,42,.94);color:#e2e8f0;padding:9px 12px;border-radius:9px;box-shadow:0 8px 24px rgba(0,0,0,.35);font-size:12px;max-width:300px;pointer-events:none;line-height:1.55"></div>
+<div id="dragShadow" style="display:none;position:fixed;z-index:400;pointer-events:none;width:34px;height:34px;margin:-17px 0 0 -17px;border-radius:50%;border:2px dashed #fff;box-shadow:0 3px 12px rgba(0,0,0,.45);opacity:.6;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:700"></div>
 <div id="speedMenu" style="display:none;position:fixed;background:#fff;border:1px solid #cbd5e1;border-radius:8px;box-shadow:0 8px 28px rgba(0,0,0,.25);z-index:300;font-size:13px;overflow:hidden;min-width:150px"><div class="ctxitem" data-act="speed" style="padding:8px 14px;cursor:pointer">⏱ Speed change here…</div></div>
 <div id="ctxMenu" style="display:none;position:fixed;background:#fff;border:1px solid #cbd5e1;border-radius:8px;box-shadow:0 8px 28px rgba(0,0,0,.25);z-index:300;font-size:13px;overflow:hidden;min-width:150px">
   <div class="ctxitem" data-act="ssd" style="padding:8px 14px;cursor:pointer">🖥 View SSD</div>
@@ -509,20 +511,32 @@ function render() {
 // floating combined-damage summary anchored beside the target on the map (both phases; ghost-aware)
 function renderFireSummary() {
   const el = document.getElementById('fireSummary');
-  const primary = plan.groups.find(x => x.targetShipId && x.members.some(m => m.mountIds.length));
-  const t = primary && byId(primary.targetShipId);
+  const groups = plan.groups.filter(x => x.targetShipId && x.members.some(m => m.mountIds.length));
+  const t = groups[0] && byId(groups[0].targetShipId);
   if (!t) { el.style.display = 'none'; return; }
   const gt = ghostOf(t), tc = hexCenter(gt.q, gt.r);
   const pt = map.createSVGPoint(); pt.x = tc.x; pt.y = tc.y; const sp = pt.matrixTransform(map.getScreenCTM());
-  const rows = plan.groups.filter(x => x.targetShipId === t.id && x.members.some(m => m.mountIds.length)).map(gr => {
+  const lbl = (k, v) => `<div style="display:flex;justify-content:space-between;gap:14px"><span style="color:#94a3b8">${k}</span><span style="color:#e2e8f0;font-weight:600">${v}</span></div>`;
+  const cards = groups.filter(x => x.targetShipId === t.id).map(gr => {
     const pv = combinedPreview(gr, ships.map(ghostOf), shipMountsMap());
-    const per = pv.perShield.map(r => `#${r.shield} <b>${r.nominal.toFixed(1)}</b>`).join(' · ');
-    const rs = gr.members.filter(m => m.mountIds.length && byId(m.shipId)).map(m => hexDistance(ghostOf(byId(m.shipId)), gt));   // range from each firer (ghost) to the target (ghost)
-    const rng = rs.length ? (Math.min(...rs) === Math.max(...rs) ? `R${rs[0]}` : `R${Math.min(...rs)}–${Math.max(...rs)}`) : '';
-    return `<div><span style="color:${gr.color};font-weight:700">${gr.id}</span> ${rng ? `<span style="color:#93c5fd">${rng}</span> ` : ''}${per}</div>`;
+    const firers = gr.members.filter(m => m.mountIds.length && byId(m.shipId));
+    const rs = firers.map(m => hexDistance(ghostOf(byId(m.shipId)), gt));
+    const rng = rs.length ? (Math.min(...rs) === Math.max(...rs) ? `${rs[0]}` : `${Math.min(...rs)}–${Math.max(...rs)}`) : '—';
+    const nMounts = firers.reduce((a, m) => a + m.mountIds.length, 0);
+    const total = pv.perShield.reduce((a, r) => a + r.nominal, 0);
+    const shieldRows = pv.perShield.map(r => `<div style="display:flex;justify-content:space-between;gap:14px">
+      <span style="color:#94a3b8">Shield ${r.shield} <span style="color:#64748b;font-size:10px">(${t.shields[r.shield - 1]} box${t.shields[r.shield - 1] !== 1 ? 'es' : ''})</span></span>
+      <span><b style="color:#fca5a5">${r.nominal.toFixed(1)}</b> <span style="color:#64748b;font-size:10px">dmg</span></span></div>`).join('');
+    return `<div style="margin-top:7px;padding-top:6px;border-top:1px solid rgba(148,163,184,.25)">
+      <div style="font-weight:700;color:${gr.color};margin-bottom:2px">${gr.id}</div>
+      ${lbl('Firing ships', firers.length)}${lbl('Weapons', nMounts)}${lbl('Range', rng + ' hex')}
+      <div style="height:3px"></div>${shieldRows}
+      <div style="display:flex;justify-content:space-between;gap:14px;margin-top:3px;border-top:1px dotted rgba(148,163,184,.3);padding-top:3px">
+        <span style="color:#cbd5e1;font-weight:600">Expected total</span><b style="color:#fca5a5">${total.toFixed(1)}</b></div></div>`;
   }).join('');
-  el.innerHTML = `<div style="font-weight:700;margin-bottom:3px">🎯 ${t.id}${hasGhosts() ? ' <span style="color:#a855f7">(ghost)</span>' : ''} — exp. dmg by shield</div>${rows}`;
-  el.style.left = Math.min(innerWidth - 288, sp.x + 26) + 'px';
+  el.innerHTML = `<div style="font-weight:700;font-size:12.5px">🎯 ${t.id}<span style="color:#94a3b8;font-weight:400;font-size:11px"> — ${t.name || t.code || 'target'}</span>${hasGhosts() ? ' <span style="color:#c4b5fd;font-size:10px">(what-if)</span>' : ''}</div>
+    <div style="color:#64748b;font-size:10px;margin-bottom:1px">hit-weighted expected damage per shield facing</div>${cards}`;
+  el.style.left = Math.min(innerWidth - 296, sp.x + 26) + 'px';
   el.style.top = Math.max(8, sp.y - 18) + 'px';
   el.style.display = 'block';
 }
@@ -537,6 +551,8 @@ function applyPhaseUI() {
   const hasTarget = !!(working() && working().targetShipId);   // weapons panel pops out on the right once a target is selected — in both phases
   document.getElementById('panel').style.display = (energy && !hasTarget) ? 'none' : '';
   document.querySelector('.tray').style.display = energy ? 'none' : 'flex';
+  const fn = document.getElementById('fleetName'); if (fn) fn.textContent = fleets[myFleet]?.name || myFleet;
+  if (!ui.dragging && !ui.ghostDrag) document.getElementById('dragShadow').style.display = 'none';
   document.querySelectorAll('.body .resizer').forEach(r => (r.style.display = energy ? 'none' : ''));
   document.getElementById('stepBtn').style.display = energy ? 'none' : '';
 }
@@ -702,7 +718,10 @@ function turnCtl(s) {
   return `<div class="turnctl"><button data-turn="-1" data-ship="${s.id}" class="${s.queuedTurn === -1 ? 'lit' : ''}">↺ turn</button>
     <button data-turn="1" data-ship="${s.id}" class="${s.queuedTurn === 1 ? 'lit' : ''}">turn ↻</button><span class="tmc">${cd}</span></div>`;
 }
-function renderClock() { document.getElementById('clock').textContent = `TURN ${clock.turn} · IMP ${clock.impulse}/32`; }
+function renderClock() {
+  const phase = getPhase() === 'energy' ? '⚡ Energy Allocation' : `Impulse ${clock.impulse}/32`;
+  document.getElementById('clock').textContent = `Turn ${clock.turn} · ${phase}`;
+}
 
 function renderGroups() {
   const box = document.getElementById('groups');
@@ -795,7 +814,27 @@ document.getElementById('fleet').addEventListener('click', e => {
 });
 window.addEventListener('keydown', e => { if (e.target.tagName === 'INPUT') return; if (e.key === '[') turnAction(-1); else if (e.key === ']') turnAction(1); });
 document.getElementById('stepBtn').onclick = () => stepImpulse();
-document.getElementById('testMode').onchange = e => { testMode = e.target.checked; render(); };
+document.getElementById('testMode').onchange = e => { testMode = e.target.checked; if (testMode) armAllShips(); render(); };
+let stashedPlan = null;   // the other fleet's fire plan, kept while you model this side
+function armAllShips() {   // test mode: every weapon on every ship ready to fire right now
+  for (const s of ships) {
+    const p = powerOf(s);
+    s.capacitor = p.capacitorCap || 0;                                                                   // full phaser capacitor
+    s.armed = s.armed || {}; for (const mt of s.mounts) if (HEAVY_CLS.has(mt.cls)) s.armed[mt.id] = true; // arm heavy weapons
+    s.firedAt = {};                                                                                       // nothing spent this turn
+  }
+}
+document.getElementById('fleetToggle').onclick = () => {   // command the other fleet (model attacks from either side); each side keeps its own plan
+  const other = stashedPlan; stashedPlan = plan; plan = other || newPlan();
+  myFleet = myFleet === 'friendly' ? 'enemy' : 'friendly';
+  workingId = null; ui.activeId = ui.selectedId = ui.plotShipId = null; render();
+};
+window.addEventListener('mousemove', e => {   // a shadow icon trails the cursor while dragging a ship or ghost
+  const sh = document.getElementById('dragShadow'); const id = ui.dragging ? ui.dragging.s.id : ui.ghostDrag;
+  if (id) { const s = byId(id); sh.textContent = id; sh.style.background = s ? sideFill(s) : '#2563eb'; sh.style.left = e.clientX + 'px'; sh.style.top = e.clientY + 'px'; sh.style.display = 'flex'; }
+  else if (sh.style.display !== 'none') sh.style.display = 'none';
+});
+window.addEventListener('mouseup', () => { const sh = document.getElementById('dragShadow'); if (sh.style.display !== 'none') sh.style.display = 'none'; });   // release the shadow when the drag ends
 document.getElementById('fleet').addEventListener('click', e => { if (e.target.closest('.spin') || e.target.closest('[data-turn]')) return; const row = e.target.closest('.shiprow'); if (row) { ui.selectedId = row.dataset.id; ui.activeId = row.dataset.id; render(); } });
 document.getElementById('fleet').addEventListener('change', e => { const sp = e.target.closest('.spin'); if (!sp) return; const s = byId(sp.dataset.spd); if (s) { s.speed = Math.max(0, Math.min(32, parseInt(sp.value) || 0)); render(); saveSoon(s.id); } });
 
