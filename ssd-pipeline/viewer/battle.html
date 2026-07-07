@@ -1018,16 +1018,39 @@ function openSSD(id) { const s = byId(id); document.getElementById('ssdTitle').t
 const EMPIRE = { FED: 'Federation', KLI: 'Klingon', KLG: 'Klingon', GOR: 'Gorn', ROM: 'Romulan', KZI: 'Kzinti', THO: 'Tholian', ORI: 'Orion', HYD: 'Hydran', LYR: 'Lyran', WYN: 'WYN', ISC: 'ISC' };
 const LVL_RANK = 'ABCDEFGHIJKLM';
 const atLeast = (lvl, min) => LVL_RANK.indexOf(lvl) >= LVL_RANK.indexOf(min);
-function tacLevel(enemy) {   // effective range (D17.22) from your nearest ship → information level (D17.3)
+// D17.3 INFORMATION CHART — max effective range (hexes) at which each observer column obtains a level.
+// Columns (D17.121-132), best sensors → worst: Scout, Ship, PFS/SWAC, MRS/PF/EWF, Manned Shuttle, Probe
+// Drone. -1 = never obtainable ('–'). Level M is not range-based (D17.4 Level M — special means only).
+const D17_COLS = ['Scout', 'Ship', 'SWAC', 'PF', 'Shuttle', 'Probe'];
+const D17_3 = {
+  A: [150, 100, 75, 50, 35, 30], B: [75, 50, 37, 25, 20, 20], C: [60, 40, 30, 20, 12, 10],
+  D: [45, 30, 22, 15, 9, 6], E: [30, 20, 15, 10, 6, 3], F: [24, 16, 12, 8, 5, 1],
+  G: [21, 14, 10, 7, 4, 1], H: [18, 12, 9, 6, 3, 1], I: [15, 10, 7, 4, 2, 0],
+  J: [12, 8, 5, 3, 1, 0], K: [9, 6, 3, 2, 0, 0], L: [6, 4, 1, 1, -1, -1],
+};
+const sensorRating = o => { const g = (o._ver.groups || []).find(x => x.family === 'sensor'); return g ? (g.boxIds || []).filter(id => !o.status[id]).length : 6; };
+function observerColumn(o) {   // base 'Ship' column, shifted right by damage state (D17.211-214)
+  let col = 1, shift = '';                                          // scouts aren't distinguished in-game → treat as Ship
+  if (shipHealth(o) <= 0.5) { col += 2; shift = 'crippled'; }       // crippled → two columns right (D17.211)
+  else if (sensorRating(o) < 6) { col += 1; shift = 'sensors hit'; }// sensor rating < 6 → one column right (D17.212)
+  return { col: Math.min(col, D17_COLS.length - 1), shift };        // off the chart → Probe Drone column
+}
+function tacLevel(enemy) {   // best information level across all your ships (D17.2 range → D17.3 chart)
   const obs = ships.filter(o => o.side === myFleet && !isDead(o));
-  if (!obs.length) return { lvl: 'A', range: null };
-  const range = Math.min(...obs.map(o => hexDistance(o, enemy)));
-  const bands = [[4, 'M'], [6, 'L'], [8, 'K'], [10, 'J'], [12, 'I'], [14, 'H'], [15, 'G'], [16, 'F'], [18, 'E'], [20, 'D'], [25, 'C'], [30, 'B']];
-  let lvl = 'A'; for (const [mx, L] of bands) if (range <= mx) { lvl = L; break; }
-  return { lvl, range };
+  if (!obs.length) return { lvl: 'A', range: null, via: null };
+  const nearest = Math.min(...obs.map(o => hexDistance(o, enemy)));
+  let bestIdx = 0, via = null;                                      // everyone always has at least level A on a mapped unit
+  for (const o of obs) {
+    const range = hexDistance(o, enemy), { col, shift } = observerColumn(o);
+    for (let li = LVL_RANK.indexOf('L'); li > bestIdx; li--) {      // deepest range-based level is L; stop once we can't beat the best
+      const rng = (D17_3[LVL_RANK[li]] || [])[col];
+      if (rng >= 0 && range <= rng) { bestIdx = li; via = { ship: o.id, col: D17_COLS[col], shift, range }; break; }
+    }
+  }
+  return { lvl: LVL_RANK[bestIdx], range: nearest, via };
 }
 function intelReport(s) {
-  const { lvl, range } = tacLevel(s), energy = getPhase() === 'energy';
+  const { lvl, range, via } = tacLevel(s), energy = getPhase() === 'energy';
   const parts = (s.code || '').split('-'), emp = EMPIRE[parts[0]] || parts[0] || '', hull = parts.slice(1).join('-') || s.name || '';
   const ident = atLeast(lvl, 'C') ? `${emp} ${hull}` : atLeast(lvl, 'B') ? `${emp} <span style="color:#64748b">(hull not resolved)</span>` : 'unidentified contact';
   const sn = shieldsNow(s), base = s.shields;
@@ -1041,7 +1064,7 @@ function intelReport(s) {
   const row = (k, v) => `<div style="display:flex;gap:12px;padding:2px 0"><span style="color:#94a3b8;min-width:92px">${k}</span><span style="color:#e2e8f0">${v}</span></div>`;
   const note = energy ? 'Energy Allocation — new speed &amp; power committed secretly (D5); last-confirmed movement shown.' : `Impulse ${clock.impulse}/32 — position, facing, speed observed; discharges this impulse detected.`;
   return `<div style="font-weight:700;font-size:15px">${s.id} — ${ident} <span style="color:#f87171;font-size:11px;font-weight:400">(enemy)</span></div>
-    <div style="margin:5px 0 6px;display:flex;gap:8px;align-items:center"><span style="background:#1e3a5f;color:#7dd3fc;border-radius:5px;padding:1px 8px;font-weight:700;font-size:11px">SENSOR LEVEL ${lvl}</span><span style="color:#64748b;font-size:11px">${range != null ? `range ${range} hex` : 'no observer'} &middot; D17.4</span></div>
+    <div style="margin:5px 0 6px;display:flex;gap:8px;align-items:center"><span style="background:#1e3a5f;color:#7dd3fc;border-radius:5px;padding:1px 8px;font-weight:700;font-size:11px">SENSOR LEVEL ${lvl}</span><span style="color:#64748b;font-size:11px">${range != null ? `range ${range} hex` : 'no observer'}${via ? ` &middot; via ${via.ship} (${via.col}${via.shift ? ', ' + via.shift : ''})` : ''} &middot; D17.3</span></div>
     <div style="margin:6px 0 3px;color:#38bdf8;font-weight:600;font-size:11px;letter-spacing:.05em">DETECTED</div>
     ${row('Position', `hex ${hexId(s.q, s.r)} &middot; facing ${s.facing}`)}
     ${row('Speed', energy ? `${s.speed} <span style="color:#64748b">(last known)</span>` : `${s.speed} <span style="color:#64748b">(observed)</span>`)}
