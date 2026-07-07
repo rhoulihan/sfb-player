@@ -202,7 +202,7 @@ export function createBattleMap(ctx) {
     const d = plotDrag; plotDrag = null; const had = !!ui.navPreview; ui.navPreview = null;
     if (!d || !d.moved || getPhase() !== 'energy') { if (had) render(); return; }
     const s = byId(d.id), hex = clickToHex(e); if (!s || !hex) { render(); return; }
-    if (d.shift && isMine(s)) {   // shift-drag → sideslip from the course end
+    if (d.shift && isMine(s) && !hasGhosts()) {   // shift-drag → sideslip from the course end (nav — blocked while a ghost is open)
       const cur = plotCursor(s, plotBase(s)), slip = cur.speed > 0 ? trySideslip(cur.pos, cur.facing, cur.hst, cur.slip, hex) : null;
       if (slip) { courseOf(s).steps.push({ q: slip.pos.q, r: slip.pos.r, facing: slip.facing, slip: true }); saveSoon(s.id); }
       suppressClick = true; render(); return;
@@ -215,7 +215,8 @@ export function createBattleMap(ctx) {
       const slip = cur.speed > 0 ? trySideslip(cur.pos, cur.facing, cur.hst, cur.slip, hex) : null;
       if (slip) { courseOf(s).steps.push({ q: slip.pos.q, r: slip.pos.r, facing: slip.facing, slip: true }); saveSoon(s.id); suppressClick = true; render(); return; }
     }
-    ui.ghosts[s.id] = { q: hex.q, r: hex.r, facing: s.facing }; ui.selectedGhost = s.id; joinFireGroup(s); suppressClick = true; render();   // anywhere else (or with a ghost already open) → ghost
+    if (!(hex.q === s.q && hex.r === s.r)) { ui.ghosts[s.id] = { q: hex.q, r: hex.r, facing: s.facing }; ui.selectedGhost = s.id; joinFireGroup(s); }   // dropped elsewhere → ghost (a same-hex near-click release is a no-op)
+    suppressClick = true; render();
   });
   // energy phase clicks: plot courses (snap) / speed-change on a path hex / shift-click to measure range
   map.addEventListener('click', e => {
