@@ -286,7 +286,8 @@ def battle_view(data, my_fleet):
     return {"rev": data.get("rev", 0), "turn": data.get("turn", 1), "impulse": data.get("impulse", 0),
             "phase": data.get("phase", "energy"), "fleets": fleets, "myFleet": my_fleet, "plans": plans,
             "eaf": eaf, "ships": data.get("ships", []),
-            "committed": data.get("committed", {}), "lastFire": data.get("lastFire")}
+            "committed": data.get("committed", {}), "lastFire": data.get("lastFire"),
+            "seed": data.get("seed", 0), "rngCursor": data.get("rngCursor", 0)}
 
 def merge_plan(current, posted, touched):
     """Per-ship merge: touched ships take their fire assignments from `posted`; other ships keep `current`."""
@@ -317,10 +318,13 @@ def apply_battle_post(payload):
             for s in data.get("ships", []): s["rev"] = 0
             data["rev"] = 1
             data["phase"] = data.get("phase", "energy")                 # a new battle opens in energy allocation
+            data.setdefault("rngCursor", 0)                             # shared dice cursor starts at 0
+            data["seed"] = int(data.get("seed") or 0) or (int.from_bytes(os.urandom(4), "big") & 0x7fffffff) or 1   # authoritative shared dice seed
             with open(_battle_path(), "w") as f: json.dump(data, f, indent=1)
-            return 200, {"ok": True, "rev": 1, "ships": {s["id"]: 0 for s in data.get("ships", [])}}
+            return 200, {"ok": True, "rev": 1, "seed": data["seed"], "ships": {s["id"]: 0 for s in data.get("ships", [])}}
         my = _fleet_for_code(cur, payload.get("code", ""))
         if my is None: return 403, {"error": "invalid commander code"}
+        if "rngCursor" in payload: cur["rngCursor"] = max(cur.get("rngCursor", 0), int(payload.get("rngCursor") or 0))   # shared dice cursor: monotonic, never rewind
         if kind == "commit":                                            # lock in this fleet's firing plan for the impulse
             committed = cur.get("committed", {}) or {}
             was_all = all(committed.get(s) for s in ("friendly", "enemy"))
@@ -383,7 +387,8 @@ def apply_battle_post(payload):
                   "fleets": cur.get("fleets", {}), "plans": plans, "ships": list(curships.values()),
                   "committed": {} if kind == "step" else cur.get("committed", {}),   # new impulse clears commits
                   "phase": payload.get("phase", cur.get("phase", "impulse")),        # step may wrap turn → 'energy'
-                  "eaf": cur.get("eaf", {}), "lastFire": cur.get("lastFire")}
+                  "eaf": cur.get("eaf", {}), "lastFire": cur.get("lastFire"),
+                  "seed": cur.get("seed", 0), "rngCursor": cur.get("rngCursor", 0)}   # carry the shared dice through edit/step
         with open(_battle_path(), "w") as f: json.dump(result, f, indent=1)
         return 200, {"ok": True, "rev": result["rev"], "ships": newrevs}
 

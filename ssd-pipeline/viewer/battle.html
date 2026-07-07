@@ -257,6 +257,7 @@ import { shipLoadout } from './ship-loadout.js';
 import { buildShipModel } from './ship-model.js';
 import { newPlan, newGroup, assignMount, unassignMount, planEligibility, mountEligibility, combinedPreview } from './fire-plan.js';
 import { resolveAttackPlan } from './direct-fire.js';
+import { makeRng } from './rng.js';
 import { movesOnImpulse, neighbor, turnMode } from './movement.js';
 import { shipPower, newEafColumn, validateEaf, foldEaf, sinkMax, specReinfMax } from './energy-model.js';
 import { legalNextHexes, tryStep, impulseTimeline, hexesInPlot, setSpeedChange, speedAt, legalSideslips, trySideslip } from './course-plan.js';
@@ -268,6 +269,7 @@ const COLS = 42, ROWS = 30, COLORS = ['#2563eb', '#16a34a', '#d97706', '#7c3aed'
 const map = document.getElementById('map');
 let ships = [], plan = newPlan(), workingId = null, zoom = 0.5, gridBuilt = false;
 let rev = 0, myCode = '', shipRev = {};   // rev: poll change-detection; shipRev: per-ship version for optimistic locking
+let seed = 0, rngCursor = 0;   // shared deterministic dice (RNG-1 / SEAL-1): every resolution draws from makeRng(seed, rngCursor) and persists the advanced cursor
 let committed = {}, myCommitted = false, lastFireShown = 0;   // 6D fire commits: fire resolves once all fleets commit
 let eafDraft = {}, myLockedEnergy = false;   // start-of-turn energy allocation (phase is clock.phase, a segment id)
 // tactical planning + fire planning + ghosts: shared UI/selection state (also read by battle-map.js)
@@ -346,6 +348,7 @@ async function resumeSaved(saved) {
   myLockedEnergy = !!committed[myFleet];
   shipRev = {}; for (const s of saved.ships) shipRev[s.id] = s.rev ?? 0;
   rev = saved.rev || 0;
+  seed = saved.seed ?? 0; rngCursor = saved.rngCursor ?? 0;
   render();
 }
 let savedBattle = null;
@@ -368,7 +371,7 @@ async function save(touched, opts = {}) {
   const step = !!opts.step;
   const list = step ? ships : [...new Set(touched)].filter(Boolean).map(byId).filter(Boolean);
   if (!step && !list.length) return;
-  const body = { code: myCode, kind: step ? 'step' : 'edit', turn: clock.turn, impulse: clock.impulse, plan,
+  const body = { code: myCode, kind: step ? 'step' : 'edit', turn: clock.turn, impulse: clock.impulse, plan, rngCursor,
     ships: list.map(s => ({ ...serializeShip(s), rev: shipRev[s.id] ?? 0 })) };
   if (opts.phase) body.phase = opts.phase;
   saving = true;
@@ -411,6 +414,7 @@ function applyRemote(data) {
     s.model = null;
   }
   rev = data.rev || rev;
+  if (data.seed) seed = data.seed; if (data.rngCursor != null) rngCursor = data.rngCursor;
   if (data.lastFire && data.lastFire.id && data.lastFire.id !== lastFireShown) { lastFireShown = data.lastFire.id; renderLog({ log: data.lastFire.log || [] }, true); }   // show the resolver's fire result
   render(); applying = false;
 }
@@ -976,7 +980,7 @@ const serializeShip = s => ({
 });
 // full snapshot for creating a new battle (both fire plans empty at creation)
 function serializeBattle() {
-  return { turn: clock.turn, impulse: clock.impulse, fleets,
+  return { turn: clock.turn, impulse: clock.impulse, fleets, seed, rngCursor,
     plans: { friendly: myFleet === 'friendly' ? plan : newPlan(), enemy: myFleet === 'enemy' ? plan : newPlan() },
     ships: ships.map(serializeShip) };
 }
@@ -1187,7 +1191,9 @@ function resolvePlanInto(p, models, log, affected) {
     let u = used; const fromSpec = Math.min(u, rl.spec[sh] || 0); rl.spec[sh] = (rl.spec[sh] || 0) - fromSpec; u -= fromSpec; rl.gen = Math.max(0, (rl.gen || 0) - u);
     return used;
   };
-  const res = resolveAttackPlan(clean, ships, shipMountsMap(), models, undefined, modeFn, reinforceOf);
+  const rng = makeRng(seed, rngCursor);   // deterministic shared dice — both clients agree, replayable
+  const res = resolveAttackPlan(clean, ships, shipMountsMap(), models, rng.next, modeFn, reinforceOf);
+  rngCursor = rng.cursor();
   res.log.filter(l => l.kind === 'shot').forEach(l => { const s = byId(l.firer); if (s) { s.firedAt[l.mount] = { turn: clock.turn, impulse: clock.impulse }; if (isPhaser(l.cls)) s.capacitor = Math.max(0, (s.capacitor || 0) - PHASER_FIRE_COST); } affected.add(l.firer); affected.add(l.target); });
   res.volleys.forEach(v => { const s = byId(v.targetShipId); v.effects.forEach(ef => { if (ef.boxId) s.status[ef.boxId] = 'destroyed'; }); affected.add(v.targetShipId); });
   log.push(...res.log);
@@ -1217,7 +1223,7 @@ async function resolveAll(plans) {                      // single resolver: both
   myCommitted = false; lastFireShown = Date.now();
   pruneUnavailable(); render(); renderLog({ log }, true);
   try {
-    const body = { code: myCode, kind: 'fireResult', ships: ships.map(serializeShip), lastFire: { turn: clock.turn, impulse: clock.impulse, id: lastFireShown, log } };
+    const body = { code: myCode, kind: 'fireResult', rngCursor, ships: ships.map(serializeShip), lastFire: { turn: clock.turn, impulse: clock.impulse, id: lastFireShown, log } };
     const j = await (await fetch('/api/battle', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })).json();
     if (j.rev) rev = j.rev; for (const [id, nr] of Object.entries(j.ships || {})) shipRev[id] = nr;
   } catch {}
@@ -1294,7 +1300,7 @@ document.getElementById('nbStart').onclick = async () => {
   myCode = fleets[myFleet].code;
   document.getElementById('nbModal').style.display = 'none';
   await startBattle(defs, { turn: 1, impulse: 0 });
-  try { const j = await (await fetch('/api/battle', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...serializeBattle(), kind: 'new', code: myCode }) })).json(); rev = j.rev || 1; for (const [id, nr] of Object.entries(j.ships || {})) shipRev[id] = nr; } catch {}
+  try { const j = await (await fetch('/api/battle', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...serializeBattle(), kind: 'new', code: myCode }) })).json(); rev = j.rev || 1; if (j.seed) seed = j.seed; rngCursor = 0; for (const [id, nr] of Object.entries(j.ships || {})) shipRev[id] = nr; } catch {}
   showCodes();
 };
 
