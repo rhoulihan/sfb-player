@@ -84,7 +84,12 @@ const _q=new URLSearchParams(location.search);
 const intel=_q.get("intel");                                    // present -> enemy view, filtered by tactical-intel level (D17.0)
 const dmgIds=(_q.get("dmg")||"").split(",").filter(Boolean);    // the enemy's actual battle damage, passed from the sandbox
 const _LR='ABCDEFGHIJKLM';
-const canSeeDamage=!intel||_LR.indexOf(intel)>=_LR.indexOf('I');// internal damage + shield strength need level I (D17.4)
+const canSeeDamage=!intel||_LR.indexOf(intel)>=_LR.indexOf('I');// shield strength readout needs level I (D17.4)
+// The level at which a DESTROYED box of each system becomes detectable (D17.4): weapon mounts are made out
+// before the fine shield/internal detail; a few systems' status shows at range. Families not listed -> default.
+const DMG_LVL={'fire-control':'B','tractor':'B','heavy-weapon':'F','phaser':'G'};
+const DMG_DEFAULT='I';   // shields (strength) + all other internal systems: very fine detail (D17.4 level I)
+const canSeeFam=fam=>!intel||_LR.indexOf(intel)>=_LR.indexOf(DMG_LVL[fam]||DMG_DEFAULT);
 
 let DET,IMGW,IMGH,boxIndex={},groupOf={},allBoxes=[],labels={},labelOv={},model,status={},CELL={w:24,h:24},verifiedData=null;
 
@@ -107,7 +112,9 @@ async function load(){
   verified.groups.forEach(g=>g.boxIds.forEach(id=>groupOf[id]=g));
   model=buildShipModel(verified,DET);
   dmgIds.forEach(id=>status[id]="destroyed");                   // show the enemy's real damage (D4.14, restricted by D17.0)
-  if(intel) document.getElementById("sub").innerHTML=` — 🛰 enemy contact · sensor level <b>${intel}</b> · ${canSeeDamage?'damage &amp; shield detail visible':'damage / shield detail hidden — needs level I (get closer)'}`;
+  if(intel){ const seen=lv=>_LR.indexOf(intel)>=_LR.indexOf(lv);
+    const vis=[]; if(seen('B'))vis.push('fire-control/tractor'); if(seen('F'))vis.push('heavy weapons'); if(seen('G'))vis.push('phasers'); if(seen('I'))vis.push('shields &amp; internals');
+    document.getElementById("sub").innerHTML=` — 🛰 enemy contact · sensor level <b>${intel}</b> · ${vis.length?'damage visible: '+vis.join(', '):'no damage detail at this range'}`; }
   fetch(`/api/labels/${ship}`).then(r=>r.json()).then(m=>{if(m&&!m.error){labels=m;render();}}).catch(()=>{});
   render(); renderShields(); fit();
 }
@@ -168,7 +175,7 @@ function render(){
   allBoxes.forEach(b=>{const g=groupOf[b.id]; if(g&&!seen.has(g.id)){seen.add(g.id);layouts[g.id]=E.layoutGroup(g.boxIds,boxIndex,IMGW,IMGH);}});
   allBoxes.forEach(b=>{
     const g=groupOf[b.id]; const fam=g?g.family:"markers";
-    const dead=status[b.id]==="destroyed"&&canSeeDamage;   // damage you cannot detect is filtered out
+    const dead=status[b.id]==="destroyed"&&canSeeFam(fam);   // damage you cannot detect at this level is filtered out
     const wide=E.isWide(b,CELL.w,IMGW);
     const {x,y,w,h}=E.boxRect(b,g?layouts[g.id]:null,CELL,wide,IMGW,IMGH);
     const col=dead?"#334155":(E.FAMCOL[fam]||"#94a3b8");
