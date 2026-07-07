@@ -119,10 +119,10 @@ export function plotOverlaySvg({ ships, isMine, byId, plotBase, ui }) {
 // once after those are defined. Preserves the suppressClick↔plotDrag ordering and both phase-gated
 // mousedown listeners exactly.
 export function createBattleMap(ctx) {
-  const { map, ui, getPhase, getShips, byId, isMine, COLS, ROWS, hasGhosts, groupOfShip,
+  const { map, ui, getPhase, getShips, byId, isMine, isFirer, COLS, ROWS, hasGhosts, groupOfShip,
           plotBase, saveSoon, render, syncMovementEnergy, onShipClick, renderFleet, pruneUnavailable, openCtxMenu, openSpeedMenu } = ctx;
-  // a dragged ship joins the virtual fire group: friendly → add as a firer (once), enemy → set as target
-  const joinFireGroup = s => { if (isMine(s)) { if (!groupOfShip(s.id)) onShipClick(s); } else onShipClick(s); };
+  // a dragged ship joins the virtual fire group: attacker → add as a firer (once), other side → set as target
+  const joinFireGroup = s => { if (isFirer(s)) { if (!groupOfShip(s.id)) onShipClick(s); } else onShipClick(s); };
   const svgPoint = e => { const pt = map.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY; return pt.matrixTransform(map.getScreenCTM().inverse()); };
   const clickToHex = e => { const p = svgPoint(e); return pixelToHex(p.x, p.y); };
   const nearestHex = (px, py) => { let b = { q: 0, r: 0 }, bd = Infinity; for (let q = 0; q < COLS; q++) for (let r = 0; r < ROWS; r++) { const c = hexCenter(q, r), d = Math.hypot(c.x - px, c.y - py); if (d < bd) { bd = d; b = { q, r }; } } return b; };
@@ -170,7 +170,7 @@ export function createBattleMap(ctx) {
   const startStepsFor = (ps, hex) => {   // classify the grabbed hex → the course prefix to path-find from, or null
     const steps = ps.course ? ps.course.steps : [];
     const navIdx = navIdxAt(ps, hex);
-    if (navIdx >= 0) return steps.slice(0, navIdx);                                     // existing nav hex → truncate here
+    if (navIdx >= 0) return steps.slice(0, navIdx + 1);                                 // existing nav hex → keep it, re-draw forward FROM that hex (don't back up to the previous)
     const cur = plotCursor(ps, plotBase(ps));
     const g = legalNextHexes(cur.pos, cur.facing, cur.speed, cur.hst).find(x => x.legal && x.hex.q === hex.q && x.hex.r === hex.r);
     if (g) return [...steps, { q: g.hex.q, r: g.hex.r, facing: g.facing }];             // green next-hex → extend
@@ -222,8 +222,7 @@ export function createBattleMap(ctx) {
     if (getPhase() !== 'energy') return;
     const hex = clickToHex(e); if (!hex) return;
     const shipHere = getShips().find(s => s.q === hex.q && s.r === hex.r);
-    if (shipHere && isMine(shipHere)) { ui.plotShipId = shipHere.id; ui.eaSelected = shipHere.id; onShipClick(shipHere); return; }   // friendly → route subject + join the virtual fire group
-    if (shipHere && !isMine(shipHere)) { onShipClick(shipHere); return; }   // enemy → fire-group target: draws the target line + opens the weapons panel
+    if (shipHere) { if (isMine(shipHere)) { ui.plotShipId = shipHere.id; ui.eaSelected = shipHere.id; } onShipClick(shipHere); return; }   // your ship is also the route subject; onShipClick adds it as a firer (attacker) or sets it as the target
     if (hasGhosts()) return;   // nav plotting is blocked while a ghost what-if is open (fire-group + ghosting are not)
     if (ui.plotShipId && byId(ui.plotShipId)) {   // click a legal candidate hex → extend the course one step (drag re-routes; right-click a nav hex = speed change)
       const s = byId(ui.plotShipId), c = courseOf(s), cur = plotCursor(s, plotBase(s));

@@ -137,7 +137,6 @@
     <b>SFB Player</b>
     <span class="sp"></span>
     <label class="tmode" title="allow turning any ship, including enemy/target ships (test only)"><input type="checkbox" id="testMode"> Test mode</label>
-    <button class="btn" id="fleetToggle" title="Switch the fleet you command — model attacks from either side">⇄ <span id="fleetName">—</span></button>
     <div class="clock" id="clock">TURN 1 · IMP 0/32</div>
     <button class="btn primary" id="stepBtn">▶ Impulse</button>
     <div class="zoomc"><button data-z="-1">−</button><button data-z="fit">fit</button><span id="zpct">50%</span><button data-z="1">+</button></div>
@@ -160,7 +159,7 @@
     <div class="stage"><svg id="map" preserveAspectRatio="xMidYMid meet"></svg></div>
     <div class="resizer" data-r="panel"></div>
     <aside class="panel" id="panel">
-      <h3>Weapon mounts</h3>
+      <h3>Weapon mounts <button class="btn" id="perspToggle" style="float:right;font-weight:600;font-size:11px" title="Toggle whose attack you model — command always stays on your own fleet">🎯 <span id="perspLabel">your attack</span></button></h3>
       <div id="mounts" class="hint">Select a ship.</div>
     </aside>
   </div>
@@ -259,8 +258,10 @@ const getPhase = () => family(clock.phase);   // coarse energy/impulse fork for 
 const setCoarse = c => { clock.phase = c === 'impulse' ? (family(clock.phase) === 'impulse' ? clock.phase : '6A2') : 'energy'; };
 let testMode = false;                   // when on, any ship (incl. enemy/target) can be turned
 let myFleet = 'friendly';               // which fleet the local commander controls
+let modelFleet = 'friendly';            // fire-modeling perspective (whose attack you preview); command stays on myFleet
 let fleets = { friendly: { name: 'Fleet 1', code: '' }, enemy: { name: 'Fleet 2', code: '' } };
 const isMine = s => s.side === myFleet;                                     // my ships (turn/fire); the other fleet = targets
+const isFirer = s => s.side === modelFleet;                                 // fire-group firers — the modeled attacker side
 const genCode = () => Array.from({ length: 4 }, () => 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'[Math.floor(Math.random() * 31)]).join('');
 const hexId = (q, r) => `${String(q + 1).padStart(2, '0')}${String(r + 1).padStart(2, '0')}`;   // XXYY hex number
 
@@ -300,7 +301,7 @@ async function startBattle(defs, clk, restore, ph) {
   battleDefs = defs.map(d => ({ ...d }));
   ships = []; plan = newPlan(); shipRev = {}; workingId = null; ui.activeId = null; clock = clk || { turn: 1, impulse: 0 };
   setCoarse(ph || 'energy'); eafDraft = {}; myLockedEnergy = false; ui.eaSelected = null; ui.eaHidden = false;   // turns open in energy allocation
-  ui.ghosts = {}; ui.selectedGhost = null; ui.ghostDrag = null; ui.navPreview = null; ui.plotShipId = null;   // fresh battle → no carried-over what-if / plot state
+  ui.ghosts = {}; ui.selectedGhost = null; ui.ghostDrag = null; ui.navPreview = null; ui.plotShipId = null; modelFleet = myFleet; stashedPlan = null;   // fresh battle → no carried-over what-if / plot / perspective state
   for (const d of defs) {
     const s = await hydrate(d), r = restore && restore[d.id];
     if (r) { (r.destroyed || []).forEach(id => (s.status[id] = 'destroyed')); s.firedAt = r.firedAt || {}; if (r.hexesSinceTurn != null) s.hexesSinceTurn = r.hexesSinceTurn; s.queuedTurn = r.queuedTurn || 0; }
@@ -551,7 +552,7 @@ function applyPhaseUI() {
   const hasTarget = !!(working() && working().targetShipId);   // weapons panel pops out on the right once a target is selected — in both phases
   document.getElementById('panel').style.display = (energy && !hasTarget) ? 'none' : '';
   document.querySelector('.tray').style.display = energy ? 'none' : 'flex';
-  const fn = document.getElementById('fleetName'); if (fn) fn.textContent = fleets[myFleet]?.name || myFleet;
+  const pl = document.getElementById('perspLabel'); if (pl) { pl.textContent = modelFleet === myFleet ? 'your attack' : 'enemy attack'; document.getElementById('perspToggle').style.background = modelFleet === myFleet ? '' : '#7c2d12'; }
   if (!ui.dragging && !ui.ghostDrag) document.getElementById('dragShadow').style.display = 'none';
   document.querySelectorAll('.body .resizer').forEach(r => (r.style.display = energy ? 'none' : ''));
   document.getElementById('stepBtn').style.display = energy ? 'none' : '';
@@ -773,7 +774,7 @@ function renderTray() {
   }
   const nMounts = withTarget.reduce((a, g) => a + g.members.reduce((b, m) => b + m.mountIds.length, 0), 0);
   const fb = document.getElementById('fireBtn');
-  fb.disabled = myCommitted;
+  fb.disabled = myCommitted || modelFleet !== myFleet;
   fb.textContent = myCommitted ? '✓ Committed — waiting' : nMounts ? '⚡ Commit firing plan' : '⚡ Commit (no fire)';
   document.getElementById('planStatus').textContent = testMode
     ? `${nMounts} mount${nMounts !== 1 ? 's' : ''} ready (test — resolves immediately)`
@@ -786,9 +787,9 @@ function autoSelectShip(g, shipId) {
   for (const mt of s.mounts) if (el[mt.id] && el[mt.id].available && isCharged(s, mt.id, mt.cls) && !assigned.has(mt.id)) assignMount(plan, g.id, shipId, mt.id);
 }
 function onShipClick(s) {
-  if (myCommitted) return;                                // firing plan is committed & final this impulse
+  if (myCommitted && modelFleet === myFleet) return;      // your plan is committed; modeling the enemy attack is still allowed
   let touched = [];
-  if (!isMine(s)) {                                       // opponent ship → set as the working group's target
+  if (!isFirer(s)) {                                      // not the attacker side → set as the working group's target
     const g = working();
     if (g && g.members.length) {
       g.targetShipId = s.id; g.members.forEach(m => autoSelectShip(g, m.shipId));
@@ -824,11 +825,12 @@ function armAllShips() {   // test mode: every weapon on every ship ready to fir
     s.firedAt = {};                                                                                       // nothing spent this turn
   }
 }
-document.getElementById('fleetToggle').onclick = () => {   // command the other fleet (model attacks from either side); each side keeps its own plan
+function togglePerspective() {   // model attacks from the other fleet's side — preview only; command stays on your own fleet, each side keeps its own plan
   const other = stashedPlan; stashedPlan = plan; plan = other || newPlan();
-  myFleet = myFleet === 'friendly' ? 'enemy' : 'friendly';
-  workingId = null; ui.activeId = ui.selectedId = ui.plotShipId = null; render();
-};
+  modelFleet = modelFleet === 'friendly' ? 'enemy' : 'friendly';
+  workingId = null; ui.activeId = null; render();
+}
+document.getElementById('perspToggle').onclick = togglePerspective;
 window.addEventListener('mousemove', e => {   // a shadow icon trails the cursor while dragging a ship or ghost
   const sh = document.getElementById('dragShadow'); const id = ui.dragging ? ui.dragging.s.id : ui.ghostDrag;
   if (id) { const s = byId(id); sh.textContent = id; sh.style.background = s ? sideFill(s) : '#2563eb'; sh.style.left = e.clientX + 'px'; sh.style.top = e.clientY + 'px'; sh.style.display = 'flex'; }
@@ -985,7 +987,7 @@ window.addEventListener('mouseup', () => { resizing = null; });
 let ctxShip = null;
 // wire the extracted map interaction layer — all map gestures now live in battle-map.js
 createBattleMap({
-  map, ui, getPhase, getShips: () => ships, byId, isMine, COLS, ROWS, hasGhosts, groupOfShip,
+  map, ui, getPhase, getShips: () => ships, byId, isMine, isFirer, COLS, ROWS, hasGhosts, groupOfShip,
   plotBase, saveSoon, render, syncMovementEnergy, onShipClick, renderFleet, pruneUnavailable,
   openCtxMenu: (shipId, e) => { ctxShip = shipId; const m = document.getElementById('ctxMenu'); m.style.display = 'block'; m.style.left = Math.min(e.clientX, innerWidth - 160) + 'px'; m.style.top = e.clientY + 'px'; },
   openSpeedMenu: (shipId, idx, e) => { navSpeed = { shipId, idx }; const m = document.getElementById('speedMenu'); m.style.display = 'block'; m.style.left = Math.min(e.clientX, innerWidth - 160) + 'px'; m.style.top = e.clientY + 'px'; },
