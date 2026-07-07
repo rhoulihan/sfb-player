@@ -258,6 +258,7 @@ import { buildShipModel } from './ship-model.js';
 import { newPlan, newGroup, assignMount, unassignMount, planEligibility, mountEligibility, combinedPreview } from './fire-plan.js';
 import { resolveAttackPlan } from './direct-fire.js';
 import { makeRng } from './rng.js';
+import { repairBoxes } from './repair.js';
 import { movesOnImpulse, neighbor, turnMode } from './movement.js';
 import { shipPower, newEafColumn, validateEaf, foldEaf, sinkMax, specReinfMax } from './energy-model.js';
 import { legalNextHexes, tryStep, impulseTimeline, hexesInPlot, setSpeedChange, speedAt, legalSideslips, trySideslip } from './course-plan.js';
@@ -452,7 +453,17 @@ function stepImpulse() {
     const n = neighbor(s.q, s.r, s.facing);
     if (n.q >= 0 && n.q < COLS && n.r >= 0 && n.r < ROWS) { s.q = n.q; s.r = n.r; s.hexesSinceTurn++; s.slipSince = (s.slipSince ?? 1) + 1; }   // a straight move increments slip spacing
   }
-  if (wrapped) { clock.phase = 'energy'; eafDraft = {}; myLockedEnergy = false; ui.eaHidden = false; }
+  if (wrapped) {
+    for (const s of ships) {   // damage control repairs destroyed boxes at the turn boundary (D9.7); gated by each ship's own allocation (fog-safe)
+      const pts = Math.floor(eafDraft[s.id]?.damageControl || 0), dead = Object.keys(s.status || {});
+      if (pts <= 0 || !dead.length) continue;
+      const famOf = id => { for (const g of (s._ver.groups || [])) if ((g.boxIds || []).includes(id)) return g.family; return null; };
+      const { repaired } = repairBoxes(dead, pts, { repairable: id => !['excess-damage', 'damage-control'].includes(famOf(id)) });
+      repaired.forEach(id => delete s.status[id]);
+      if (repaired.length) s.model = null;   // rebuild the working model so it reflects the repair (matches applyRemote)
+    }
+    clock.phase = 'energy'; eafDraft = {}; myLockedEnergy = false; ui.eaHidden = false;
+  }
   pruneUnavailable(); render(); save(null, wrapped ? { step: true, phase: 'energy' } : { step: true });   // movement syncs to all commanders
 }
 // a queued turn executes when the ship next moves; applies to the given ship (defaults to the last-clicked one)
@@ -667,7 +678,7 @@ function fedShieldSvg(s, p) {
   return `<svg class="shsvg" viewBox="0 0 2816 1536" preserveAspectRatio="none"><defs><filter id="shGlow" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="7"/></filter></defs>${fills}${glows}</svg>`;
 }
 function renderEnergy() {
-  const mine = ships.filter(isMine);
+  const mine = testMode ? ships.slice() : ships.filter(isMine);   // test-mode sandbox: allocate any ship's energy
   const theme = (mine[0]?.code?.split('-')[0] === 'KLI') ? 'kli' : 'fed';
   const L = CONSOLE[theme], ep = document.getElementById('energyPanel');
   ep.className = 'epanel ' + L.cls; ep.style.backgroundImage = '';

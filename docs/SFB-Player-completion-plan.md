@@ -60,10 +60,10 @@ Legend: ✅ done · 🟡 partial · ⬜ missing.  Priority: **P0** core-loop cor
 tournament-complete · **P2** breadth.
 
 ### P0 — Make the core loop correct & fair
-- ⬜ **RNG-1** Deterministic seeded RNG service (one seeded stream; replaces `Math.random` in dice/DAC/to-hit).
-- 🟡 **SEAL-1** Sealed-simultaneous fire: server holds committed fire, reveals only when all fleets locked, resolves **authoritatively** (not on one client), broadcasts results.
-- 🟡 **DAC-1** Critical hits (C7) on internal damage (the DAC "excess/critical" outcomes).
-- ⬜ **REP-1** Repair phase (C7): apply `damageControl` allocation at phase 8 to restore boxes.
+- ✅ **RNG-1** Deterministic seeded RNG service (one seeded stream; replaces `Math.random` in dice/DAC/to-hit).
+- ✅ **SEAL-1** Sealed-simultaneous fire: server holds committed fire, reveals only when all fleets locked, resolves **authoritatively** (not on one client), broadcasts results.
+- ⬜ **DAC-1** *(deferred — optional v1 flag)* Critical hits (C7) on internal damage (the DAC "excess/critical" outcomes).
+- ✅ **REP-1** Repair phase (C7): apply `damageControl` allocation at phase 8 to restore boxes.
 - 🟡 **REC-1** Phase-7/8 record-keeping wiring: capacitor carryover, weapon/rack reload, turn reset, `firedAt` clear (audit what already happens vs. is assumed).
 
 ### P1 — Tournament-complete mechanics
