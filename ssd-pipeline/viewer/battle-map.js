@@ -181,7 +181,7 @@ export function createBattleMap(ctx) {
   map.addEventListener('mousedown', e => {
     if (e.altKey || e.button !== 0 || getPhase() !== 'energy') return;   // left button only
     const gg = e.target.closest('.ship'), shipHere = gg && byId(gg.dataset.id);   // a ship glyph → sideslip / ghost (allowed even with ghosts open; priority over an underlying nav hex)
-    if (shipHere) { plotDrag = { id: shipHere.id, ship: true, shift: e.shiftKey, x: e.clientX, y: e.clientY, moved: false }; return; }
+    if (shipHere) { plotDrag = { id: shipHere.id, ship: true, shift: e.shiftKey, x: e.clientX, y: e.clientY, moved: false }; ui.shipDragId = shipHere.id; return; }
     if (hasGhosts()) return;   // nav-path drags are blocked while a ghost what-if is open
     const ps = ui.plotShipId && byId(ui.plotShipId), hex = clickToHex(e);   // else classify the grabbed hex for the plot ship
     if (ps && isMine(ps) && hex) { const start = startStepsFor(ps, hex); if (start) plotDrag = { id: ps.id, start, shift: e.shiftKey, x: e.clientX, y: e.clientY, moved: false }; }
@@ -197,7 +197,7 @@ export function createBattleMap(ctx) {
     render();
   });
   window.addEventListener('mouseup', e => {
-    const d = plotDrag; plotDrag = null; const had = !!ui.navPreview; ui.navPreview = null;
+    const d = plotDrag; plotDrag = null; ui.shipDragId = null; const had = !!ui.navPreview; ui.navPreview = null;
     if (!d || !d.moved || getPhase() !== 'energy') { if (had) render(); return; }
     const s = byId(d.id), hex = clickToHex(e); if (!s || !hex) { render(); return; }
     if (d.shift && isMine(s) && !hasGhosts()) {   // shift-drag → sideslip from the course end (nav — blocked while a ghost is open)

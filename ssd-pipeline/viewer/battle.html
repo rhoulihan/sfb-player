@@ -553,7 +553,7 @@ function applyPhaseUI() {
   document.getElementById('panel').style.display = (energy && !hasTarget) ? 'none' : '';
   document.querySelector('.tray').style.display = energy ? 'none' : 'flex';
   const pl = document.getElementById('perspLabel'); if (pl) { pl.textContent = modelFleet === myFleet ? 'your attack' : 'enemy attack'; document.getElementById('perspToggle').style.background = modelFleet === myFleet ? '' : '#7c2d12'; }
-  if (!ui.dragging && !ui.ghostDrag) document.getElementById('dragShadow').style.display = 'none';
+  if (!ui.dragging && !ui.ghostDrag && !ui.shipDragId) document.getElementById('dragShadow').style.display = 'none';
   document.querySelectorAll('.body .resizer').forEach(r => (r.style.display = energy ? 'none' : ''));
   document.getElementById('stepBtn').style.display = energy ? 'none' : '';
 }
@@ -783,7 +783,7 @@ function renderTray() {
 
 // ---------- interactions ----------
 function autoSelectShip(g, shipId) {
-  const el = eligForTarget(byId(shipId), byId(g.targetShipId)), assigned = planEligibility(plan), s = byId(shipId);
+  const el = eligForTarget(ghostOf(byId(shipId)), ghostOf(byId(g.targetShipId))), assigned = planEligibility(plan), s = byId(shipId);   // arc/range from ghost what-if positions (alpha strike / auto-select uses the modeled position)
   for (const mt of s.mounts) if (el[mt.id] && el[mt.id].available && isCharged(s, mt.id, mt.cls) && !assigned.has(mt.id)) assignMount(plan, g.id, shipId, mt.id);
 }
 function onShipClick(s) {
@@ -832,7 +832,7 @@ function togglePerspective() {   // model attacks from the other fleet's side â€
 }
 document.getElementById('perspToggle').onclick = togglePerspective;
 window.addEventListener('mousemove', e => {   // a shadow icon trails the cursor while dragging a ship or ghost
-  const sh = document.getElementById('dragShadow'); const id = ui.dragging ? ui.dragging.s.id : ui.ghostDrag;
+  const sh = document.getElementById('dragShadow'); const id = ui.dragging ? ui.dragging.s.id : (ui.ghostDrag || ui.shipDragId);
   if (id) { const s = byId(id); sh.textContent = id; sh.style.background = s ? sideFill(s) : '#2563eb'; sh.style.left = e.clientX + 'px'; sh.style.top = e.clientY + 'px'; sh.style.display = 'flex'; }
   else if (sh.style.display !== 'none') sh.style.display = 'none';
 });
