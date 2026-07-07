@@ -151,7 +151,14 @@ export function createBattleMap(ctx) {
     e.preventDefault(); render();
   });
   map.addEventListener('mousedown', e => {
-    if (!e.altKey) return; const gg = e.target.closest('.ship, .ghost'); if (!gg) return;
+    if (e.button !== 0) return;
+    const gh = e.target.closest('.ghost');
+    if (gh && !e.altKey) {   // plain-drag an EXISTING ghost → select it + reposition it (no alt, no re-join)
+      const id = gh.dataset.ghost; if (!ui.ghosts[id]) return;
+      ui.ghostDrag = id; ui.selectedGhost = id;
+      e.preventDefault(); e.stopPropagation(); render(); return;
+    }
+    if (!e.altKey) return; const gg = e.target.closest('.ship, .ghost'); if (!gg) return;   // alt-drag any ship/ghost → create/move a ghost
     const id = gg.dataset.id || gg.dataset.ghost, s = byId(id); if (!s) return;
     ui.ghostDrag = id; ui.ghosts[id] = ui.ghosts[id] || { q: s.q, r: s.r, facing: s.facing }; ui.selectedGhost = id;
     joinFireGroup(s);   // alt-drag also builds the virtual fire group (friendly → firer, enemy → target)
