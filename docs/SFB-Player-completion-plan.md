@@ -64,7 +64,7 @@ tournament-complete · **P2** breadth.
 - ✅ **SEAL-1** Sealed-simultaneous fire: server holds committed fire, reveals only when all fleets locked, resolves **authoritatively** (not on one client), broadcasts results.
 - ⬜ **DAC-1** *(deferred — optional v1 flag)* Critical hits (C7) on internal damage (the DAC "excess/critical" outcomes).
 - ✅ **REP-1** Repair phase (C7): apply `damageControl` allocation at phase 8 to restore boxes.
-- 🟡 **REC-1** Phase-7/8 record-keeping wiring: capacitor carryover, weapon/rack reload, turn reset, `firedAt` clear (audit what already happens vs. is assumed).
+- ✅ **REC-1** *(audit-pass — no code needed)* `resolveEnergy` already carries the phaser capacitor (H6.21, foldEaf), re-arms from the new column, and resets movement/EW/battery every turn; heavy-weapon re-arm is handled by `armedOk`'s turn comparison; capacitor carryover is covered by existing energy-model tests. Rack reload is N/A until SEEK-1.
 
 ### P1 — Tournament-complete mechanics
 - 🟡 **LOCK-1** Phase-4 lock-on procedure (C8) + enforce `hasLockOn` in `resolveAttackPlan`.
