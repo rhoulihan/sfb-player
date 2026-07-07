@@ -67,14 +67,14 @@
 const sel=document.getElementById("ship");
 const cardV=document.getElementById("cardVerify"), cardD=document.getElementById("cardDamage");
 let VERIFIED=new Set();
-function updateCards(){ const s=sel.value; cardV.href=`verify.html?ship=${encodeURIComponent(s)}`; cardD.href=`damage.html?ship=${encodeURIComponent(s)}`; }
+function updateCards(){ const s=sel.value; cardV.href=`verify.html?ship=${encodeURIComponent(s)}`; cardD.href=`ssd.html?ship=${encodeURIComponent(s)}`; }
 sel.onchange=updateCards;
 async function loadShips(){
   const j=await (await fetch("/api/ships")).json();
   VERIFIED=new Set(j.verified||[]);
   sel.innerHTML=(j.ships||[]).map(s=>`<option value="${s}">${s}${VERIFIED.has(s)?" ✓":""}</option>`).join("");
   const list=document.getElementById("shiplist");
-  list.innerHTML=(j.ships||[]).map(s=>`<span class="chip"><a href="verify.html?ship=${s}">${s}</a>${VERIFIED.has(s)?'<a class="d" href="damage.html?ship='+s+'" title="damage processor">⚔</a><span class="v" title="verified">✓</span>':'<span class="d" title="not verified yet">·</span>'}</span>`).join("")||'<span class="chip">no ships yet — scan one above</span>';
+  list.innerHTML=(j.ships||[]).map(s=>`<span class="chip"><a href="verify.html?ship=${s}">${s}</a>${VERIFIED.has(s)?'<a class="d" href="ssd.html?ship='+s+'" title="SSD viewer">🖥</a><span class="v" title="verified">✓</span>':'<span class="d" title="not verified yet">·</span>'}</span>`).join("")||'<span class="chip">no ships yet — scan one above</span>';
   updateCards();
 }
 // new-ship scan

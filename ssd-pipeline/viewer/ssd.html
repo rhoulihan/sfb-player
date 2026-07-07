@@ -46,13 +46,13 @@
 </style></head>
 <body>
 <header>
-  <div class="nav"><button class="navbtn" id="navBtn" title="menu">☰</button><div class="navmenu" id="navMenu"><a href="index.html">🏠 Home</a><a id="navVerify">🛠️ Verify editor</a><a id="navDamage">⚔️ Damage processor</a><a href="weapons.html">🎯 Weapon tables</a><a href="battle.html">🚀 Battle sandbox</a></div></div>
+  <div class="nav"><button class="navbtn" id="navBtn" title="menu">☰</button><div class="navmenu" id="navMenu"><a href="index.html">🏠 Home</a><a id="navVerify">🛠️ Verify editor</a><a id="navDamage">🖥️ SSD viewer</a><a href="weapons.html">🎯 Weapon tables</a><a href="battle.html">🚀 Battle sandbox</a></div></div>
   <b id="ttl">SSD DAMAGE</b><span class="sub" id="sub"></span>
   <input id="ssdSearch" placeholder="load SSD — RACE-HULL (e.g. GOR-DD)" autocomplete="off" spellcheck="false"
     title="Type a ship as RACE-HULL and press Enter — loads it if it exists, else finds it in your PDFs and scans it"
     style="font:inherit;font-size:12px;background:#334155;color:#fff;border:1px solid #475569;border-radius:7px;padding:5px 10px;width:240px;margin-left:10px">
   <span class="spacer"></span>
-  <span class="sub">shields → armor → internal DAC (D3.6–D4.4)</span>
+  <span class="sub" id="subLabel">read-only SSD viewer</span>
 </header>
 <div id="banner">◈ SHIP DESTROYED ◈</div>
 <div id="scanModal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:100;align-items:center;justify-content:center">
@@ -68,25 +68,8 @@
   <div id="stage"><div id="wrap"><img id="img" alt="SSD"><svg id="ovl" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none"></svg></div></div>
   <aside>
     <div class="panel">
-      <h3>Apply damage</h3>
-      <label>Struck shield</label>
-      <select id="shield"><option value="1">#1 (front)</option><option value="2">#2 (fwd-right)</option><option value="3">#3 (rear-right)</option><option value="4">#4 (rear)</option><option value="5">#5 (rear-left)</option><option value="6">#6 (fwd-left)</option></select>
-      <label>Volley size (damage points)</label>
-      <input type="number" id="points" value="20" min="1" max="200">
-      <div class="chk"><input type="checkbox" id="leaky"><label for="leaky" style="margin:0">Leaky shields (D3.6)</label>
-        <select id="rate" style="flex:none;width:auto" disabled><option value="4">every 4th</option><option value="6">every 6th</option><option value="10">every 10th</option></select></div>
-      <label>Application speed</label>
-      <select id="speed"><option value="150">Medium</option><option value="400">Slow</option><option value="40">Fast</option><option value="0">Instant</option></select>
-      <button class="go" id="apply">⚡ Apply damage</button>
-      <button class="reset" id="reset">↺ Reset ship</button>
-    </div>
-    <div class="panel">
       <h3>Shields</h3>
       <div class="shields" id="shReadout"></div>
-    </div>
-    <div class="panel">
-      <h3>Last volley</h3>
-      <div id="summary" class="hint">No damage applied yet.</div>
     </div>
   </aside>
 </main>
@@ -94,10 +77,14 @@
 <script type="module">
 import * as E from "./ssd-engine.js";
 import { buildShipModel } from "./ship-model.js";
-import { applyVolley, makeDice } from "./dac-allocator.js";
 const SVGNS="http://www.w3.org/2000/svg";
 const el=(t,a)=>{const e=document.createElementNS(SVGNS,t);for(const k in a)e.setAttribute(k,a[k]);return e;};
 const ship=new URLSearchParams(location.search).get("ship")||"FED-CA";
+const _q=new URLSearchParams(location.search);
+const intel=_q.get("intel");                                    // present -> enemy view, filtered by tactical-intel level (D17.0)
+const dmgIds=(_q.get("dmg")||"").split(",").filter(Boolean);    // the enemy's actual battle damage, passed from the sandbox
+const _LR='ABCDEFGHIJKLM';
+const canSeeDamage=!intel||_LR.indexOf(intel)>=_LR.indexOf('I');// internal damage + shield strength need level I (D17.4)
 
 let DET,IMGW,IMGH,boxIndex={},groupOf={},allBoxes=[],labels={},labelOv={},model,status={},CELL={w:24,h:24},verifiedData=null;
 
@@ -107,10 +94,10 @@ async function load(){
   const img=document.getElementById("img");
   img.src=`../data/${ship}/image.png`;
   document.getElementById("ovl").setAttribute("viewBox",`0 0 ${IMGW} ${IMGH}`);
-  document.getElementById("ttl").textContent="SSD DAMAGE · "+ship.replace("-"," ");
+  document.getElementById("ttl").textContent="SSD · "+ship.replace("-"," ");
   document.getElementById("sub").textContent=` — ${DET.orientationClass} · ${IMGW}×${IMGH}`;
   let verified=null; try{const r=await fetch(`../data/${ship}/verified.json`); if(r.ok)verified=await r.json();}catch(e){}
-  if(!verified){document.getElementById("summary").textContent="No verified.json for this ship — damage needs a verified inventory.";return;}
+  if(!verified){document.getElementById("sub").textContent=" — no verified.json for this ship";return;}
   verifiedData=verified;
   labelOv=verified.labels||{};                 // the cell-label edits saved in the verify editor
   const deleted=new Set(verified.deleted||[]);
@@ -119,6 +106,8 @@ async function load(){
   allBoxes=DET.boxes.concat(verified.extraBoxes||[]).filter(b=>!deleted.has(b.id));
   verified.groups.forEach(g=>g.boxIds.forEach(id=>groupOf[id]=g));
   model=buildShipModel(verified,DET);
+  dmgIds.forEach(id=>status[id]="destroyed");                   // show the enemy's real damage (D4.14, restricted by D17.0)
+  if(intel) document.getElementById("sub").innerHTML=` — 🛰 enemy contact · sensor level <b>${intel}</b> · ${canSeeDamage?'damage &amp; shield detail visible':'damage / shield detail hidden — needs level I (get closer)'}`;
   fetch(`/api/labels/${ship}`).then(r=>r.json()).then(m=>{if(m&&!m.error){labels=m;render();}}).catch(()=>{});
   render(); renderShields(); fit();
 }
@@ -134,7 +123,7 @@ ssdSearch.addEventListener("keydown",async e=>{
   const s=ssdSearch.value.trim().toUpperCase().replace(/\s+/g,"");
   if(!s||s===ship)return;
   const j=await (await fetch(`/api/find/${s}`)).json();
-  if(j.exists){ location.href=`damage.html?ship=${encodeURIComponent(s)}`; return; }
+  if(j.exists){ location.href=`ssd.html?ship=${encodeURIComponent(s)}`; return; }
   startScan(s);
 });
 function startScan(s){
@@ -168,7 +157,7 @@ const navMenu=document.getElementById("navMenu");
 document.getElementById("navBtn").onclick=e=>{e.stopPropagation();navMenu.classList.toggle("open");};
 document.addEventListener("click",()=>navMenu.classList.remove("open"));
 document.getElementById("navVerify").href=`verify.html?ship=${encodeURIComponent(ship)}`;
-document.getElementById("navDamage").href=`damage.html?ship=${encodeURIComponent(ship)}`;
+document.getElementById("navDamage").href=`ssd.html?ship=${encodeURIComponent(ship)}`;
 fetch('weapons.html',{method:'HEAD'}).then(r=>{if(!r.ok)throw 0;}).catch(()=>document.querySelectorAll('a[href="weapons.html"]').forEach(a=>a.remove()));
 const labelText=id=>{const o=labelOv[id]; return o!==undefined?o:(labels[id]||"");};   // user edits win over OCR
 
@@ -179,7 +168,7 @@ function render(){
   allBoxes.forEach(b=>{const g=groupOf[b.id]; if(g&&!seen.has(g.id)){seen.add(g.id);layouts[g.id]=E.layoutGroup(g.boxIds,boxIndex,IMGW,IMGH);}});
   allBoxes.forEach(b=>{
     const g=groupOf[b.id]; const fam=g?g.family:"markers";
-    const dead=status[b.id]==="destroyed";
+    const dead=status[b.id]==="destroyed"&&canSeeDamage;   // damage you cannot detect is filtered out
     const wide=E.isWide(b,CELL.w,IMGW);
     const {x,y,w,h}=E.boxRect(b,g?layouts[g.id]:null,CELL,wide,IMGW,IMGH);
     const col=dead?"#334155":(E.FAMCOL[fam]||"#94a3b8");
@@ -200,50 +189,14 @@ function render(){
 
 function renderShields(){
   const box=document.getElementById("shReadout"); box.innerHTML="";
-  const hit=+document.getElementById("shield").value;
   for(let n=1;n<=6;n++){
     const s=model&&model.shields[n]; const max=s?s.max:0, down=s?s.down:0;
-    const d=document.createElement("div"); d.className="sh"+(n===hit?" hit":"");
-    d.innerHTML=`<b>#${n}</b><span class="n ${down?'down':''}">${max-down}</span><span class="hint">/${max}</span>`;
+    const d=document.createElement("div"); d.className="sh";
+    d.innerHTML=canSeeDamage?`<b>#${n}</b><span class="n ${down?'down':''}">${max-down}</span><span class="hint">/${max}</span>`:`<b>#${n}</b><span class="n">${(max-down)>0?'up':'down'}</span>`;
     box.appendChild(d);
   }
 }
 
-const FAMNAME=E.FAMNAME;
-async function apply(){
-  if(!model)return;
-  const shield=+document.getElementById("shield").value;
-  const points=Math.max(1,+document.getElementById("points").value||0);
-  const leaky=document.getElementById("leaky").checked;
-  const leakRate=+document.getElementById("rate").value;
-  const speed=+document.getElementById("speed").value;
-  const btn=document.getElementById("apply"); btn.disabled=true;
-  const effects=applyVolley(model,{shield,points,leaky,leakRate},makeDice());
-  // play the effects at the chosen rate
-  const tally={}; let shHit=0, armorHit=0, destroyed=false;
-  for(const fx of effects){
-    if(fx.type==="shield"){status[fx.box]="destroyed";shHit++;}
-    else if(fx.type==="armor"){status[fx.box]="destroyed";armorHit++;}
-    else if(fx.type==="destroy"){status[fx.boxId]="destroyed";tally[fx.token]=(tally[fx.token]||0)+1;}
-    else if(fx.type==="shipDestroyed"){destroyed=true;}
-    if(speed>0){render();renderShields();await new Promise(r=>setTimeout(r,speed));}
-  }
-  render();renderShields();
-  document.getElementById("banner").style.display=destroyed?"block":"none";
-  const internal=Object.values(tally).reduce((a,b)=>a+b,0);
-  const parts=Object.entries(tally).sort((a,b)=>b[1]-a[1]).map(([t,n])=>`${n} ${t.toLowerCase().replace(/_/g,'-')}`);
-  document.getElementById("summary").textContent =
-    `Shield #${shield}: ${shHit} boxes down`+(armorHit?` · armor: ${armorHit}`:"")+
-    `\nInternal (${internal}): `+(parts.join(", ")||"—")+(destroyed?"\n\n◈ SHIP DESTROYED":"");
-  btn.disabled=false;
-}
-
-function reset(){ status={}; if(verifiedData)model=buildShipModel(verifiedData,DET); document.getElementById("banner").style.display="none"; document.getElementById("summary").textContent="No damage applied yet."; render(); renderShields(); }
-
-document.getElementById("leaky").onchange=e=>{document.getElementById("rate").disabled=!e.target.checked;};
-document.getElementById("shield").onchange=renderShields;
-document.getElementById("apply").onclick=apply;
-document.getElementById("reset").onclick=reset;
 load();
 </script>
 </body></html>

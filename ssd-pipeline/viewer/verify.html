@@ -67,7 +67,7 @@
 <body>
 <div class="app">
   <header>
-    <div class="nav"><button class="navbtn" id="navBtn" title="menu">☰</button><div class="navmenu" id="navMenu"><a href="index.html">🏠 Home</a><a id="navVerify">🛠️ Verify editor</a><a id="navDamage">⚔️ Damage processor</a><a href="weapons.html">🎯 Weapon tables</a><a href="battle.html">🚀 Battle sandbox</a></div></div>
+    <div class="nav"><button class="navbtn" id="navBtn" title="menu">☰</button><div class="navmenu" id="navMenu"><a href="index.html">🏠 Home</a><a id="navVerify">🛠️ Verify editor</a><a id="navDamage">🖥️ SSD viewer</a><a href="weapons.html">🎯 Weapon tables</a><a href="battle.html">🚀 Battle sandbox</a></div></div>
     <b id="ttl">B4 VERIFY</b><small id="sub"></small>
     <input id="ssdSearch" placeholder="load SSD — RACE-HULL (e.g. GOR-DD)" autocomplete="off" spellcheck="false"
       title="Type a ship as RACE-HULL and press Enter — loads it if it exists, else finds it in your PDFs and scans it"
@@ -516,7 +516,7 @@ const navMenu=document.getElementById("navMenu");
 document.getElementById("navBtn").onclick=e=>{e.stopPropagation();navMenu.classList.toggle("open");};
 document.addEventListener("click",()=>navMenu.classList.remove("open"));
 document.getElementById("navVerify").href=`verify.html?ship=${encodeURIComponent(ship)}`;
-document.getElementById("navDamage").href=`damage.html?ship=${encodeURIComponent(ship)}`;
+document.getElementById("navDamage").href=`ssd.html?ship=${encodeURIComponent(ship)}`;
 fetch('weapons.html',{method:'HEAD'}).then(r=>{if(!r.ok)throw 0;}).catch(()=>document.querySelectorAll('a[href="weapons.html"]').forEach(a=>a.remove()));
 document.addEventListener("keydown",e=>{if(e.target.tagName==="INPUT"||e.target.tagName==="SELECT")return;if(e.key==="Escape"){document.getElementById("arcModal").classList.remove("open");sel=new Set();renderAll();}
   const g=gById(curG);if(g&&e.key>="1"&&e.key<="9"&&FAMS[+e.key-1]){g.family=FAMS[+e.key-1];renderAll();}
