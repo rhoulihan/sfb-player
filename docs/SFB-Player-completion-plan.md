@@ -49,7 +49,7 @@ client-side ES modules, `serve.py` JSON state + fog, and code-based fleet join.
 | Shuttles / wild weasel / scatter-pack | C6 | ⬜ | None. |
 | Mines / boarding / transporters / self-destruct | C10 | ⬜ | None. |
 | Terrain (barrier, asteroids, planets) | C9 | ⬜ | Open map only. |
-| Ship roster (four-empire v1) | B3 | 🟡 | Verified: FED-CA, FED-CL, FED-NCL, GOR-CA, KLI-D7. **Missing Kzinti**; finish arcs. |
+| Ship roster (four-empire v1) | B3 | ✅ | Clean audits: FED (CA/CL/NCL), KLI-D7, GOR-CA, KZIN-CS, ROM-KR (cloak). |
 | SSD viewer + verify/overlay editor | D2/B4 | ✅ | `ssd.html` (read-only, tac-intel filtered) + `verify.html`. |
 
 ---
@@ -70,7 +70,7 @@ tournament-complete · **P2** breadth.
 - ✅ **LOCK-1** Phase-4 lock-on: roll per turn (deterministic from seed+turn), net ECM can deny a lock, enforced in fire resolution.
 - ✅ **EW-1** ECM/ECCM combat effect (C8): net ECM shifts effective range in both fire resolution and the targeting preview.
 - ✅ **SEEK-1** Seeking weapons (C5): **drones done** — launch from armed racks, homing on the Impulse Chart, impact → DAC, map tokens, per-turn rack reload, multiplayer-synced. **Fully complete**: drones, plasma launcher (fading green torpedoes), and point-defense (a target's PH-3/ADD shoots down close-in seekers before impact).
-- 🟡 **ROSTER-1** **Kzinti KZIN-CS** (disruptors + drones + phasers) and **Romulan ROM-KR** (phasers + plasma + cloak) verified with clean audits and in the picker; cloak detected from the SSD `cloaking-device` family. **GOR-CA (Gorn) is NOT fully verified** — first-pass, old generic taxonomy (weapon/system), 32/57 groups unverified, 0 shuttle bays; needs a manual re-verify pass (fine families + arcs → clean audit) before it's a valid v1 ship. FED/KLI/KZI/ROM are ready; GORN slot is the gap.
+- ✅ **ROSTER-1** Four-empire roster complete, all clean audits and in the picker: **Kzinti KZIN-CS** (disruptors + drones + phasers), **Romulan ROM-KR** (phasers + plasma + cloak — detected from the SSD `cloaking-device` family), and **Gorn GOR-CA** (plasma-S/F + phasers + shuttles), re-verified from scratch to 52/52 groups after the first-pass version failed audit. All verified in-game (load + fire + plasma/cloak).
 - ✅ **TERR-1** Terrain slice (C9): a New-Battle scenario picker (Open vs Tournament); tournament inserts a barrier ring + asteroid field (rendered), and asteroids block line of sight so a shot through one is dropped. Deterministic (replay-safe), synced. Movement barrier turn-back is a follow-on.
 
 ### P2 — Breadth (rounds out "faithful", optional to first-finish)

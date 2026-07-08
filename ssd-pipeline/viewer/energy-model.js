@@ -11,7 +11,8 @@ export const CAP_PER_PHASER = { 'PH-1': 1, 'PH-2': 1, 'PH-3': 0.5 };            
 export const SHIP_PROFILES = {   // size class + movement cost per ship code (default SC3 / cost 1)
   'FED-CA': { sizeClass: 3, moveCost: 1 }, 'FED-CL': { sizeClass: 3, moveCost: 1 },
   'FED-NCL': { sizeClass: 3, moveCost: 1 }, 'KLI-D7': { sizeClass: 3, moveCost: 1 },
-  'GOR-CA': { sizeClass: 3, moveCost: 1 },
+  'GOR-CA': { sizeClass: 3, moveCost: 1 }, 'KZIN-CS': { sizeClass: 3, moveCost: 1 },
+  'ROM-KR': { sizeClass: 3, moveCost: 1 },
 };
 const DEFAULT_PROFILE = { sizeClass: 3, moveCost: 1 };
 
