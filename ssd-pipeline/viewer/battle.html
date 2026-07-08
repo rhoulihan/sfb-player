@@ -169,6 +169,7 @@
         <button class="btn fire" id="fireBtn" disabled>⚡ Commit firing plan</button>
         <button class="btn" id="launchBtn" style="display:none">🚀 Launch drone</button>
         <button class="btn" id="launchPlasmaBtn" style="display:none">☄ Launch plasma</button>
+        <button class="btn" id="launchShuttleBtn" style="display:none">🛰 Launch shuttle</button>
         <span id="planStatus" style="color:#94a3b8"></span>
       </div>
       <div id="planBody" class="hint">Form fire groups to see the combined-damage preview, then Fire (6D).</div>
@@ -184,6 +185,7 @@
   <div class="ctxitem" data-act="ssd" style="padding:8px 14px;cursor:pointer">🖥 View SSD</div>
   <div class="ctxitem" data-act="setspeed" style="padding:8px 14px;cursor:pointer;border-top:1px solid #eef2f6">⏱ Set speed</div>
   <div class="ctxitem" data-act="cloak" style="padding:8px 14px;cursor:pointer;border-top:1px solid #eef2f6">🌫 Cloak</div>
+  <div class="ctxitem" data-act="weasel" style="padding:8px 14px;cursor:pointer;border-top:1px solid #eef2f6">🎣 Wild weasel</div>
   <div class="ctxitem" data-act="ea" style="padding:8px 14px;cursor:pointer;border-top:1px solid #eef2f6">⚡ View EA</div>
   <div class="ctxitem" data-act="intel" style="padding:8px 14px;cursor:pointer;border-top:1px solid #eef2f6">🛰 Show Intel</div>
 </div>
@@ -264,7 +266,7 @@ import { resolveAttackPlan } from './direct-fire.js';
 import { makeRng } from './rng.js';
 import { repairBoxes } from './repair.js';
 import { resolveLocks, applyLockGate } from './lock-on.js';
-import { launchSeeker, stepSeeker, seekerImpacts, seekerDamage, seekerExpired, plasmaSpec, pointDefense } from './seeking.js';
+import { launchSeeker, stepSeeker, seekerImpacts, seekerDamage, seekerExpired, plasmaSpec, pointDefense, SUICIDE_SHUTTLE, weaselFor } from './seeking.js';
 import { applyVolley, makeDice } from './dac-allocator.js';
 import { cloakEcm, applyCloakFireGate } from './cloak.js';
 import { makeScenario, applyLoSGate } from './terrain.js';
@@ -296,6 +298,20 @@ const plasmaGroupsOf = s => (s._ver.groups || []).filter(g => g.family === 'heav
 const plasmaLoaded = s => plasmaGroupsOf(s).filter(g => (g.boxIds || []).some(id => !s.status[id])).length;   // undamaged plasma launchers
 const plasmaLeftOf = s => (s.plasmaLeft == null ? (s.plasmaLeft = plasmaLoaded(s)) : s.plasmaLeft);
 const pdRatingOf = s => (s.mounts || []).filter(m => m.cls === 'PH-3').length + (s._ver.groups || []).filter(g => g.family === 'anti-drone').reduce((n, g) => n + (g.boxIds || []).filter(id => !s.status[id]).length, 0);   // point-defense: PH-3 + ADD
+const shuttleBaysOf = s => (s._ver.groups || []).filter(g => g.family === 'shuttle-bay').reduce((n, g) => n + (g.boxIds || []).filter(id => !s.status[id]).length, 0);
+const shuttlesLeftOf = s => (s.shuttlesLeft == null ? (s.shuttlesLeft = shuttleBaysOf(s)) : s.shuttlesLeft);
+function launchShuttle(firer, target) {   // suicide shuttle (C6): a slow homing seeker at the target
+  if (!firer || !target || shuttlesLeftOf(firer) <= 0) return;
+  firer.shuttlesLeft = shuttlesLeftOf(firer) - 1;
+  seekers.push(launchSeeker({ id: `sh${++seekerSeq}`, owner: firer.id, q: firer.q, r: firer.r, facing: firer.facing, targetId: target.id, ...SUICIDE_SHUTTLE }));
+  saveSoon(firer.id); render();
+}
+function launchWeasel(ship) {   // wild weasel (J): a stationary decoy that diverts incoming seekers away from the ship
+  if (!ship || shuttlesLeftOf(ship) <= 0 || seekers.some(s => s.type === 'weasel' && s.owner === ship.id)) return;
+  ship.shuttlesLeft = shuttlesLeftOf(ship) - 1;
+  seekers.push({ id: `ww${++seekerSeq}`, owner: ship.id, type: 'weasel', q: ship.q, r: ship.r, facing: ship.facing, speed: 0, warhead: 0, fade: 0, endurance: 8, travelled: 0 });
+  saveSoon(ship.id); render();
+}
 function launchPlasma(firer, target) {   // 6B: fire a plasma torpedo — a fading seeker (FP)
   if (!firer || !target || plasmaLeftOf(firer) <= 0) return;
   firer.plasmaLeft = plasmaLeftOf(firer) - 1;
@@ -306,13 +322,20 @@ function launchPlasma(firer, target) {   // 6B: fire a plasma torpedo — a fadi
 function stepSeekers(out) {   // 6A: move every seeker one impulse toward its target; resolve any impact through the DAC
   if (!seekers.length) return;
   const rng = makeRng((seed + clock.turn * 1000 + clock.impulse) >>> 0), dice = makeDice(rng.next), impacts = [];
+  const hitWeasels = new Set();
   seekers = seekers.map(sk => {
+    if (sk.type === 'weasel') { const e = (sk.endurance ?? 8) - 1; return { ...sk, endurance: e, _done: e <= 0 }; }   // decoy ages out over the turn
     const target = byId(sk.targetId);
     if (!target || isDead(target)) return { ...sk, _done: true };   // target gone → the seeker lapses
-    const s2 = stepSeeker(sk, target, clock.impulse);
-    if (!seekerImpacts(s2, target) && pointDefense(pdRatingOf(target), rng, hexDistance(s2, target))) { out.push({ kind: 'shot', firer: target.id, cls: 'PD', target: s2.id, points: 0, hit: false }); return { ...s2, _done: true }; }   // point-defense shoots it down
-    if (seekerImpacts(s2, target)) { impacts.push({ shield: exposedShield(sk, target), points: seekerDamage(s2), t: target, id: s2.id, cls: s2.type === 'plasma' ? 'PLASMA' : 'DRONE' }); s2._done = true; }
-    else if (seekerExpired(s2)) s2._done = true;
+    const weasel = weaselFor(sk.targetId, seekers);                  // divert to a wild weasel the target deployed
+    const home = weasel || target;
+    const s2 = stepSeeker(sk, home, clock.impulse);
+    if (!weasel && !seekerImpacts(s2, target) && pointDefense(pdRatingOf(target), rng, hexDistance(s2, target))) { out.push({ kind: 'shot', firer: target.id, cls: 'PD', target: s2.id, points: 0, hit: false }); return { ...s2, _done: true }; }   // point-defense shoots it down
+    if (seekerImpacts(s2, home)) {
+      if (weasel) { hitWeasels.add(weasel.id); out.push({ kind: 'shot', firer: sk.targetId, cls: 'WEASEL', target: s2.id, points: 0, hit: false }); }   // decoyed onto the weasel — no ship damage
+      else impacts.push({ shield: exposedShield(sk, target), points: seekerDamage(s2), t: target, id: s2.id, cls: s2.type === 'plasma' ? 'PLASMA' : s2.type === 'shuttle' ? 'SHUTTLE' : 'DRONE' });
+      s2._done = true;
+    } else if (seekerExpired(s2)) s2._done = true;
     return s2;
   });
   for (const im of impacts) {
@@ -321,7 +344,7 @@ function stepSeekers(out) {   // 6A: move every seeker one impulse toward its ta
     effects.forEach(ef => { if (ef.boxId) t.status[ef.boxId] = 'destroyed'; });
     (out || []).push({ kind: 'shot', firer: im.id, cls: im.cls, target: t.id, points: im.points, struckShield: im.shield, hit: im.points > 0 });
   }
-  seekers = seekers.filter(sk => !sk._done);
+  seekers = seekers.filter(sk => !sk._done && !hitWeasels.has(sk.id));
 }
 const netEcmOf = (fr, t) => (fr && t) ? Math.max(0, (t.ecmLevel || 0) + cloakEcm(t) - (fr.eccmLevel || 0)) : 0;   // net ECM: target ECM + cloak, beyond firer ECCM (D6.3/G13) — gates lock-on and shifts effective range
 function ensureLocks() {   // roll phase-4 locks lazily for this turn (deterministic from seed+turn so clients agree; net ECM can deny a lock)
@@ -527,7 +550,7 @@ function stepImpulse() {
     clock.phase = 'energy'; eafDraft = {}; myLockedEnergy = false; ui.eaHidden = false;
   }
   const skLog = []; stepSeekers(skLog);   // 6A: seeking weapons advance + impact this impulse
-  if (wrapped) for (const s of ships) { s.dronesLeft = droneRacksOf(s); s.plasmaLeft = plasmaLoaded(s); }   // reload racks + plasma launchers each turn
+  if (wrapped) for (const s of ships) { s.dronesLeft = droneRacksOf(s); s.plasmaLeft = plasmaLoaded(s); s.shuttlesLeft = shuttleBaysOf(s); }   // reload racks + plasma + shuttle bays each turn
   pruneUnavailable(); render(); if (skLog.length) renderLog({ log: skLog }, true); save(null, wrapped ? { step: true, phase: 'energy' } : { step: true });   // movement syncs to all commanders
 }
 // a queued turn executes when the ship next moves; applies to the given ship (defaults to the last-clicked one)
@@ -606,13 +629,18 @@ function render() {
       `<circle cx="${c.x}" cy="${c.y}" r="20" fill="${fill}" stroke="#fff" stroke-width="2"/>` +
       `<text x="${c.x}" y="${c.y + 4}" text-anchor="middle" fill="#fff" font-size="12" font-weight="700" style="pointer-events:none">${s.id}</text></g>`;
   }
-  for (const sk of seekers) {   // seeking-weapon tokens: drone darts + plasma bolts
-    const c = hexCenter(sk.q, sk.r), owner = byId(sk.owner), fill = owner ? sideFill(owner) : '#C74634', plasma = sk.type === 'plasma';
+  for (const sk of seekers) {   // seeking-weapon tokens: drones, plasma, shuttles, wild-weasel decoys
+    const c = hexCenter(sk.q, sk.r), owner = byId(sk.owner), fill = owner ? sideFill(owner) : '#C74634';
     const nx = c.x + 15 * Math.cos(rad(sk.facing)), ny = c.y + 15 * Math.sin(rad(sk.facing));
-    const body = plasma
+    const line = sk.type === 'weasel' ? '' : `<line x1="${c.x}" y1="${c.y}" x2="${nx}" y2="${ny}" stroke="${sk.type === 'plasma' ? '#16a34a' : fill}" stroke-width="2.5"/>`;
+    const body = sk.type === 'weasel'
+      ? `<rect x="${c.x - 8}" y="${c.y - 8}" width="16" height="16" transform="rotate(45 ${c.x} ${c.y})" fill="#eab308" stroke="#fff" stroke-width="1.5" opacity="0.9"/><text x="${c.x}" y="${c.y + 3}" text-anchor="middle" font-size="7" fill="#000" font-weight="800" style="pointer-events:none">WW</text>`
+      : sk.type === 'plasma'
       ? `<circle cx="${c.x}" cy="${c.y}" r="10" fill="#22c55e" stroke="#fff" stroke-width="1.5" opacity="0.8"/><circle cx="${c.x}" cy="${c.y}" r="5" fill="#bbf7d0"/>`
+      : sk.type === 'shuttle'
+      ? `<rect x="${c.x - 6}" y="${c.y - 5}" width="12" height="10" fill="${fill}" stroke="#fff" stroke-width="1.5"/>`
       : `<circle cx="${c.x}" cy="${c.y}" r="7" fill="${fill}" stroke="#fff" stroke-width="1.5"/><text x="${c.x}" y="${c.y + 3}" text-anchor="middle" font-size="9" fill="#fff" font-weight="800" style="pointer-events:none">◈</text>`;
-    svg += `<g class="seeker" data-seeker="${sk.id}" opacity="0.92"><line x1="${c.x}" y1="${c.y}" x2="${nx}" y2="${ny}" stroke="${plasma ? '#16a34a' : fill}" stroke-width="2.5"/>${body}</g>`;
+    svg += `<g class="seeker" data-seeker="${sk.id}" opacity="0.92">${line}${body}</g>`;
   }
   if (getPhase() === 'energy') svg += plotOverlaySvg({ ships, isMine, byId, plotBase, ui });
   map.querySelector('#dyn').innerHTML = svg;
@@ -901,9 +929,13 @@ function renderTray() {
   const pb = document.getElementById('launchPlasmaBtn'), canPlasma = targeted && plasmaLeftOf(af) > 0;
   pb.style.display = canPlasma ? '' : 'none';
   if (canPlasma) pb.textContent = `☄ Launch plasma (${plasmaLeftOf(af)})`;
+  const sb = document.getElementById('launchShuttleBtn'), canShuttle = targeted && shuttlesLeftOf(af) > 0;
+  sb.style.display = canShuttle ? '' : 'none';
+  if (canShuttle) sb.textContent = `🛰 Launch shuttle (${shuttlesLeftOf(af)})`;
 }
 document.getElementById('launchBtn').onclick = () => { const g = working(), af = byId(ui.activeId); if (af && g && g.targetShipId) launchDrone(af, byId(g.targetShipId)); };
 document.getElementById('launchPlasmaBtn').onclick = () => { const g = working(), af = byId(ui.activeId); if (af && g && g.targetShipId) launchPlasma(af, byId(g.targetShipId)); };
+document.getElementById('launchShuttleBtn').onclick = () => { const g = working(), af = byId(ui.activeId); if (af && g && g.targetShipId) launchShuttle(af, byId(g.targetShipId)); };
 
 // ---------- interactions ----------
 function autoSelectShip(g, shipId) {
@@ -1113,11 +1145,11 @@ let ctxShip = null;
 createBattleMap({
   map, ui, getPhase, getShips: () => ships, byId, isMine, isFirer, COLS, ROWS, hasGhosts, groupOfShip,
   plotBase, saveSoon, render, syncMovementEnergy, onShipClick, renderFleet, pruneUnavailable,
-  openCtxMenu: (shipId, e) => { ctxShip = shipId; const mine = isMine(byId(shipId)); document.querySelector('#ctxMenu [data-act="ea"]').style.display = mine ? '' : 'none'; document.querySelector('#ctxMenu [data-act="intel"]').style.display = mine ? 'none' : ''; document.querySelector('#ctxMenu [data-act="setspeed"]').style.display = (mine && getPhase() === 'energy' && !myLockedEnergy) ? '' : 'none'; const ci = document.querySelector('#ctxMenu [data-act="cloak"]'); const cShip = byId(shipId); ci.style.display = (mine && (testMode || powerOf(cShip).systems.cloak)) ? '' : 'none'; ci.textContent = cShip.cloaked ? '🌫 Decloak' : '🌫 Cloak'; const m = document.getElementById('ctxMenu'); m.style.display = 'block'; m.style.left = Math.min(e.clientX, innerWidth - 160) + 'px'; m.style.top = e.clientY + 'px'; },
+  openCtxMenu: (shipId, e) => { ctxShip = shipId; const mine = isMine(byId(shipId)); document.querySelector('#ctxMenu [data-act="ea"]').style.display = mine ? '' : 'none'; document.querySelector('#ctxMenu [data-act="intel"]').style.display = mine ? 'none' : ''; document.querySelector('#ctxMenu [data-act="setspeed"]').style.display = (mine && getPhase() === 'energy' && !myLockedEnergy) ? '' : 'none'; const ci = document.querySelector('#ctxMenu [data-act="cloak"]'); const cShip = byId(shipId); ci.style.display = (mine && (testMode || powerOf(cShip).systems.cloak)) ? '' : 'none'; ci.textContent = cShip.cloaked ? '🌫 Decloak' : '🌫 Cloak'; document.querySelector('#ctxMenu [data-act="weasel"]').style.display = ((mine || testMode) && getPhase() !== 'energy' && shuttleBaysOf(cShip) > 0) ? '' : 'none'; const m = document.getElementById('ctxMenu'); m.style.display = 'block'; m.style.left = Math.min(e.clientX, innerWidth - 160) + 'px'; m.style.top = e.clientY + 'px'; },
   openSpeedMenu: (shipId, idx, e) => { navSpeed = { shipId, idx }; const m = document.getElementById('speedMenu'); m.style.display = 'block'; m.style.left = Math.min(e.clientX, innerWidth - 160) + 'px'; m.style.top = e.clientY + 'px'; },
 });
 document.addEventListener('click', () => { document.getElementById('ctxMenu').style.display = 'none'; });
-document.getElementById('ctxMenu').addEventListener('click', e => { const it = e.target.closest('[data-act]'); if (!it || !ctxShip) return; if (it.dataset.act === 'ssd') openSSD(ctxShip); else if (it.dataset.act === 'ea' && isMine(byId(ctxShip))) { ui.eaSelected = ctxShip; if (getPhase() === 'energy') ui.eaHidden = false; else ui.viewEA = ctxShip; render(); } else if (it.dataset.act === 'intel') openIntel(ctxShip); else if (it.dataset.act === 'setspeed') openSetSpeed(ctxShip); else if (it.dataset.act === 'cloak') { const s = byId(ctxShip); if (s) { s.cloaked = !s.cloaked; saveSoon(s.id); render(); } } });
+document.getElementById('ctxMenu').addEventListener('click', e => { const it = e.target.closest('[data-act]'); if (!it || !ctxShip) return; if (it.dataset.act === 'ssd') openSSD(ctxShip); else if (it.dataset.act === 'ea' && isMine(byId(ctxShip))) { ui.eaSelected = ctxShip; if (getPhase() === 'energy') ui.eaHidden = false; else ui.viewEA = ctxShip; render(); } else if (it.dataset.act === 'intel') openIntel(ctxShip); else if (it.dataset.act === 'setspeed') openSetSpeed(ctxShip); else if (it.dataset.act === 'cloak') { const s = byId(ctxShip); if (s) { s.cloaked = !s.cloaked; saveSoon(s.id); render(); } } else if (it.dataset.act === 'weasel') launchWeasel(byId(ctxShip)); });
 let navSpeed = null;   // nav-hex speed-change target { shipId, idx }
 document.addEventListener('click', () => { document.getElementById('speedMenu').style.display = 'none'; });
 document.getElementById('speedMenu').addEventListener('click', e => {

@@ -63,3 +63,15 @@ test('point-defense: a close seeker is shot down on a good roll, spared on a bad
   assert.equal(pointDefense(3, { d6: () => 6 }, PD_RANGE + 1), false, 'beyond PD range → safe');
   assert.equal(pointDefense(0, { d6: () => 6 }, 1), false, 'no PD systems → no defense');
 });
+
+import { SUICIDE_SHUTTLE, weaselFor } from '../viewer/seeking.js';
+test('SUICIDE_SHUTTLE is a slow homing shuttle carrying a warhead', () => {
+  assert.equal(SUICIDE_SHUTTLE.type, 'shuttle');
+  assert.ok(SUICIDE_SHUTTLE.speed > 0 && SUICIDE_SHUTTLE.warhead > 0 && SUICIDE_SHUTTLE.endurance > 0);
+});
+test('weaselFor finds a wild-weasel decoy protecting a ship, and only that ship', () => {
+  const seekers = [{ id: 'w1', type: 'weasel', owner: 'F1' }, { id: 'd1', type: 'drone', owner: 'E1' }];
+  assert.equal(weaselFor('F1', seekers).id, 'w1');
+  assert.equal(weaselFor('E1', seekers), null);
+  assert.equal(weaselFor('F1', []), null);
+});

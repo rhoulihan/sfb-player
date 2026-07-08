@@ -74,7 +74,7 @@ tournament-complete · **P2** breadth.
 - ✅ **TERR-1** Terrain slice (C9): a New-Battle scenario picker (Open vs Tournament); tournament inserts a barrier ring + asteroid field (rendered), and asteroids block line of sight so a shot through one is dropped. Deterministic (replay-safe), synced. Movement barrier turn-back is a follow-on.
 
 ### P2 — Breadth (rounds out "faithful", optional to first-finish)
-- ⬜ **SHUT-1** Admin/suicide shuttles, wild weasel, scatter-packs (C6 v1 slice).
+- ✅ **SHUT-1** Suicide shuttle (a slow homing seeker, launched from shuttle bays, interceptable by point-defense) + **wild weasel** (a decoy that diverts incoming drones/plasma away from the ship). Reuses the seeking machinery; synced. Admin shuttle / scatter-pack are follow-ons.
 - ⬜ **MINE-1** Transporter bombs, boarding parties / hit-and-run, self-destruct, transporters (C10 v1 slice).
 - ⬜ **SOP-1** Activate remaining segments (6B activity, 6E post-combat announce, phase-3 self-destruct); 6C dogfight stays deferred (needs C6).
 

@@ -43,6 +43,15 @@ export function seekerExpired(seeker) {
 
 export const PD_RANGE = 3;   // point-defense only engages seekers this close
 
+// A suicide shuttle (C6/J) — a slow, cheap homing seeker a ship launches at a target.
+export const SUICIDE_SHUTTLE = { type: 'shuttle', speed: 8, warhead: 12, fade: 0, endurance: 40 };
+
+// A wild weasel is a decoy token (type 'weasel', owned by the ship it protects). Returns the weasel
+// currently protecting shipId, if any — seeking weapons homing on that ship divert to the weasel instead.
+export function weaselFor(shipId, seekers) {
+  return (seekers || []).find(s => s.type === 'weasel' && s.owner === shipId) || null;
+}
+
 // Point-defense / anti-drone: a defender rolls each of its PD systems (phaser-3 / ADD count) at a close-in
 // seeker; any 4+ shoots it down. Returns true if the seeker is destroyed. Sandbox values, not rulebook.
 export function pointDefense(pdRating, rng, range) {
