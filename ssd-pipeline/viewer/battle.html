@@ -342,7 +342,7 @@ function selfDestruct(ship) {   // D19 (SOP phase-3): the ship explodes, hitting
   for (const victim of selfDestructHits(ship, ships.filter(s => !isDead(s)))) {
     const dmg = selfDestructDamage(hexDistance(ship, victim)), shield = exposedShield(ship, victim);
     const model = victim.model || (victim.model = buildShipModel(victim._ver, victim._det));
-    const effects = dmg > 0 ? applyVolley(model, { shield, points: dmg }, dice) : [];
+    const effects = dmg > 0 ? applyVolley(model, { shield, points: dmg, criticals: true }, dice) : [];
     effects.forEach(ef => { if (ef.boxId) victim.status[ef.boxId] = 'destroyed'; });
     log.push({ target: victim.id, shield, points: dmg, effects }); saveSoon(victim.id);
   }
@@ -379,7 +379,7 @@ function stepSeekers(out) {   // 6A: move every seeker one impulse toward its ta
   });
   for (const im of impacts) {
     const t = im.t, model = t.model || (t.model = buildShipModel(t._ver, t._det));
-    const effects = im.points > 0 ? applyVolley(model, { shield: im.shield, points: im.points }, dice) : [];
+    const effects = im.points > 0 ? applyVolley(model, { shield: im.shield, points: im.points, criticals: true }, dice) : [];
     effects.forEach(ef => { if (ef.boxId) t.status[ef.boxId] = 'destroyed'; });
     (out || []).push({ kind: 'shot', firer: im.id, cls: im.cls, target: t.id, points: im.points, struckShield: im.shield, hit: im.points > 0 });
   }
@@ -1365,7 +1365,7 @@ function resolvePlanInto(p, models, log, affected) {
     return used;
   };
   const rng = makeRng(seed, rngCursor);   // deterministic shared dice — both clients agree, replayable
-  const res = resolveAttackPlan(clean, ships, shipMountsMap(), models, rng.next, modeFn, reinforceOf, netEcmOf);
+  const res = resolveAttackPlan(clean, ships, shipMountsMap(), models, rng.next, modeFn, reinforceOf, netEcmOf, true);   // DAC-1: criticals on
   rngCursor = rng.cursor();
   res.log.filter(l => l.kind === 'shot').forEach(l => { const s = byId(l.firer); if (s) { s.firedAt[l.mount] = { turn: clock.turn, impulse: clock.impulse }; if (isPhaser(l.cls)) s.capacitor = Math.max(0, (s.capacitor || 0) - PHASER_FIRE_COST); } affected.add(l.firer); affected.add(l.target); });
   res.volleys.forEach(v => { const s = byId(v.targetShipId); v.effects.forEach(ef => { if (ef.boxId) s.status[ef.boxId] = 'destroyed'; }); affected.add(v.targetShipId); });
@@ -1407,7 +1407,7 @@ function renderLog(res, append) {
     ? `<div class="${l.hit ? 'hit' : 'miss'}">${l.firer} ${l.cls} → ${l.target}: die ${l.die}, ${l.hit ? l.points + ' pts → shield #' + l.struckShield : 'miss'}</div>`
     : l.kind === 'death'
     ? `<div class="vol"><span class="kill">☠ ${l.ship} destroyed</span></div>`
-    : `<div class="vol">${l.target} shield #${l.shield}: ${l.points} pts → ${l.effects.filter(e => e.type === 'destroy').length} internal${l.effects.some(e => e.type === 'shipDestroyed') ? ' <span class="kill">◈ DESTROYED</span>' : ''}</div>`);
+    : `<div class="vol">${l.target} shield #${l.shield}: ${l.points} pts → ${l.effects.filter(e => e.type === 'destroy').length} internal${l.effects.some(e => e.type === 'critical') ? ` <span style="color:#dc2626;font-weight:700">💥 ${l.effects.filter(e => e.type === 'critical').length} crit</span>` : ''}${l.effects.some(e => e.type === 'shipDestroyed') ? ' <span class="kill">◈ DESTROYED</span>' : ''}</div>`);
   const block = `<div style="font-weight:700;color:#0f172a;margin:2px 0">▶ Turn ${clock.turn} · Impulse ${clock.impulse}</div>` + (lines.join('') || '<div class="miss">no shots</div>');
   if (append) L.insertAdjacentHTML('afterbegin', block); else L.innerHTML = block;
 }

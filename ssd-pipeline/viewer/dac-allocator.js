@@ -13,6 +13,15 @@ const firstLive = pool => {
 const liveCount = pool => (pool ? pool.boxIds.length - pool.destroyed.size : 0);
 const phaserRank = type => { const t = (type || '').toLowerCase(); return t.includes('3') ? 3 : t.includes('2') ? 2 : 1; };
 
+// DAC-1 critical hits: volatile systems (warp engines, heavy weapons) can suffer a secondary explosion when
+// destroyed by internal damage, taking out an extra box of the same system. Functional sandbox rule, not a
+// rulebook table. Off by default so the D4.5 worked example (and existing callers) are unchanged.
+export const CRIT_VOLATILE = new Set(['C_WARP', 'L_WARP', 'R_WARP', 'ANY_WARP', 'TORP']);
+export const CRIT_THRESHOLD = 11;   // secondary explosion on a 2d6 of 11-12 (~8%)
+export function criticalHit(system, roll) {
+  return CRIT_VOLATILE.has(system) && roll >= CRIT_THRESHOLD;
+}
+
 /** roll two dice via an injected source: rollFn() returns a 2d6 total (2–12). */
 export function makeDice(rand = Math.random) {
   return () => 1 + Math.floor(rand() * 6) + 1 + Math.floor(rand() * 6);
@@ -65,7 +74,7 @@ function scoreExcess(model) {                                             // D4.
 }
 
 export function applyVolley(model, params, rollFn) {
-  const { shield, points, leaky = false, leakRate = 4 } = params;
+  const { shield, points, leaky = false, leakRate = 4, criticals = false } = params;
   const roll = rollFn || makeDice();
   const effects = [];
 
@@ -110,6 +119,10 @@ export function applyVolley(model, params, rollFn) {
       if (col.sys === 'PHASER') ctx.phaserHits++;
       if (col.sys === 'TORP') ctx.torpHits++;
       effects.push({ type: 'destroy', token: col.sys, family: FAM[col.sys], boxId: t.boxId });
+      if (criticals && CRIT_VOLATILE.has(col.sys) && criticalHit(col.sys, roll())) {   // DAC-1: volatile secondary explosion
+        const extra = firstLive(t.pool);
+        if (extra) { t.pool.destroyed.add(extra); effects.push({ type: 'critical', system: col.sys, family: FAM[col.sys], boxId: extra, severity: 'explosion' }); }
+      }
       hit = t; break;
     }
     if (!hit) {

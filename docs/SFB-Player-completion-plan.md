@@ -62,7 +62,7 @@ tournament-complete · **P2** breadth.
 ### P0 — Make the core loop correct & fair
 - ✅ **RNG-1** Deterministic seeded RNG service (one seeded stream; replaces `Math.random` in dice/DAC/to-hit).
 - ✅ **SEAL-1** Sealed-simultaneous fire: server holds committed fire, reveals only when all fleets locked, resolves **authoritatively** (not on one client), broadcasts results.
-- ⬜ **DAC-1** *(deferred — optional v1 flag)* Critical hits (C7) on internal damage (the DAC "excess/critical" outcomes).
+- ✅ **DAC-1** Critical hits: a volatile system (warp engine / heavy weapon) destroyed by internal damage can suffer a secondary explosion (2d6 ≥ 11) that takes out an extra box, emitted as a `critical` effect and shown as `💥 N crit` in the fire log. On for all fire paths (direct/seekers/self-destruct); off by default in the allocator so the D4.5 rulebook example is byte-for-byte unchanged.
 - ✅ **REP-1** Repair phase (C7): apply `damageControl` allocation at phase 8 to restore boxes.
 - ✅ **REC-1** *(audit-pass — no code needed)* `resolveEnergy` already carries the phaser capacitor (H6.21, foldEaf), re-arms from the new column, and resets movement/EW/battery every turn; heavy-weapon re-arm is handled by `armedOk`'s turn comparison; capacitor carryover is covered by existing energy-model tests. Rack reload is N/A until SEEK-1.
 

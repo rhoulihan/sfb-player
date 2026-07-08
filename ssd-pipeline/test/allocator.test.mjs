@@ -158,3 +158,39 @@ test('ANY_WEAPON lands on a live weapon box (D4.324)', () => {
   assert.equal(fx.find(e => e.type === 'destroy').token, 'ANY_WEAPON');
   assert.equal(m.pools.DRONE.destroyed.size, 1);
 });
+
+import { criticalHit, CRIT_VOLATILE, CRIT_THRESHOLD } from '../viewer/dac-allocator.js';
+
+test('criticalHit: volatile systems (warp, heavy weapons) explode on a high roll; others never', () => {
+  assert.equal(criticalHit('L_WARP', 12), true);
+  assert.equal(criticalHit('L_WARP', CRIT_THRESHOLD), true);
+  assert.equal(criticalHit('L_WARP', CRIT_THRESHOLD - 1), false);
+  assert.equal(criticalHit('TORP', 12), true);
+  assert.equal(criticalHit('PHASER', 12), false);
+  assert.equal(criticalHit('F_HULL', 12), false);
+  assert.ok(CRIT_VOLATILE.has('R_WARP'));
+});
+
+test('DAC-1: criticals on — a volatile hit rolling the crit threshold destroys an extra box', () => {
+  const m = buildD7Model();
+  // roll 9 → L_WARP primary; volatile → crit roll 12 (>= threshold) → secondary L_WARP box
+  const fx = applyVolley(m, { shield: 1, points: 1, criticals: true }, seqRoll([9, 12]));
+  const destroys = fx.filter(e => e.type === 'destroy');
+  const crits = fx.filter(e => e.type === 'critical');
+  assert.equal(destroys.length, 1, 'one primary box');
+  assert.equal(crits.length, 1, 'plus a critical secondary box');
+  assert.equal(crits[0].system, 'L_WARP');
+  assert.ok(crits[0].boxId && crits[0].boxId !== destroys[0].boxId, 'a different box');
+});
+
+test('DAC-1: a low crit roll on a volatile hit does NOT explode', () => {
+  const m = buildD7Model();
+  const fx = applyVolley(m, { shield: 1, points: 1, criticals: true }, seqRoll([9, 7]));  // crit roll 7 < threshold
+  assert.equal(fx.filter(e => e.type === 'critical').length, 0);
+});
+
+test('DAC-1: criticals default OFF — the D4.5 rulebook example is unchanged', () => {
+  const m = buildD7Model();
+  const fx = applyVolley(m, { shield: 1, points: 25 }, seqRoll(D45_ROLLS));
+  assert.deepEqual(fx.filter(e => e.type === 'destroy').map(e => e.token), D45_EXPECT);
+});
