@@ -67,7 +67,7 @@ tournament-complete · **P2** breadth.
 - ✅ **REC-1** *(audit-pass — no code needed)* `resolveEnergy` already carries the phaser capacitor (H6.21, foldEaf), re-arms from the new column, and resets movement/EW/battery every turn; heavy-weapon re-arm is handled by `armedOk`'s turn comparison; capacitor carryover is covered by existing energy-model tests. Rack reload is N/A until SEEK-1.
 
 ### P1 — Tournament-complete mechanics
-- 🟡 **LOCK-1** Phase-4 lock-on procedure (C8) + enforce `hasLockOn` in `resolveAttackPlan`.
+- ✅ **LOCK-1** Phase-4 lock-on: roll per turn (deterministic from seed+turn), net ECM can deny a lock, enforced in fire resolution.
 - ⬜ **EW-1** ECM/ECCM combat effect (C8): net shift → effective range in fire & targeting preview.
 - ⬜ **SEEK-1** Seeking weapons (C5): drone/plasma launch (6B), seeking movement on the Impulse Chart (6A), tracking/lock, impact resolution → DAC. Racks, reloads, plasma bolt/enveloping.
 - 🟡 **ROSTER-1** Complete the four-empire v1 roster (verify **Kzinti** CA; finish/annotate all weapon arcs; confirm clean audits).

@@ -259,6 +259,7 @@ import { newPlan, newGroup, assignMount, unassignMount, planEligibility, mountEl
 import { resolveAttackPlan } from './direct-fire.js';
 import { makeRng } from './rng.js';
 import { repairBoxes } from './repair.js';
+import { resolveLocks, applyLockGate } from './lock-on.js';
 import { movesOnImpulse, neighbor, turnMode } from './movement.js';
 import { shipPower, newEafColumn, validateEaf, foldEaf, sinkMax, specReinfMax } from './energy-model.js';
 import { legalNextHexes, tryStep, impulseTimeline, hexesInPlot, setSpeedChange, speedAt, legalSideslips, trySideslip } from './course-plan.js';
@@ -271,6 +272,17 @@ const map = document.getElementById('map');
 let ships = [], plan = newPlan(), workingId = null, zoom = 0.5, gridBuilt = false;
 let rev = 0, myCode = '', shipRev = {};   // rev: poll change-detection; shipRev: per-ship version for optimistic locking
 let seed = 0, rngCursor = 0;   // shared deterministic dice (RNG-1 / SEAL-1): every resolution draws from makeRng(seed, rngCursor) and persists the advanced cursor
+let lockOn = {}, lockOnTurn = -1;   // sensor lock-on (LOCK-1, D6): { firerId: Set<targetId> }, rolled once per turn
+function ensureLocks() {   // roll phase-4 locks lazily for this turn (deterministic from seed+turn so clients agree; net ECM can deny a lock)
+  if (lockOnTurn === clock.turn) return;
+  lockOn = {}; const lockRng = makeRng((seed ^ (clock.turn * 0x9e3779b9)) >>> 0);
+  const netEcm = (fr, t) => Math.max(0, (t.ecmLevel || 0) - (fr.eccmLevel || 0));
+  for (const side of ['friendly', 'enemy']) {
+    const firers = ships.filter(s => s.side === side && !isDead(s)), targets = ships.filter(s => s.side !== side && !isDead(s));
+    Object.assign(lockOn, resolveLocks(firers, targets, lockRng, netEcm));
+  }
+  lockOnTurn = clock.turn;
+}
 let committed = {}, myCommitted = false, lastFireShown = 0;   // 6D fire commits: fire resolves once all fleets commit
 let eafDraft = {}, myLockedEnergy = false;   // start-of-turn energy allocation (phase is clock.phase, a segment id)
 // tactical planning + fire planning + ghosts: shared UI/selection state (also read by battle-map.js)
@@ -328,7 +340,7 @@ async function startBattle(defs, clk, restore, ph) {
   battleDefs = defs.map(d => ({ ...d }));
   ships = []; plan = newPlan(); shipRev = {}; workingId = null; ui.activeId = null; clock = clk || { turn: 1, impulse: 0 };
   setCoarse(ph || 'energy'); eafDraft = {}; myLockedEnergy = false; ui.eaSelected = null; ui.eaHidden = false;   // turns open in energy allocation
-  ui.ghosts = {}; ui.selectedGhost = null; ui.ghostDrag = null; ui.navPreview = null; ui.plotShipId = null; modelFleet = myFleet; stashedPlan = null;   // fresh battle → no carried-over what-if / plot / perspective state
+  ui.ghosts = {}; ui.selectedGhost = null; ui.ghostDrag = null; ui.navPreview = null; ui.plotShipId = null; modelFleet = myFleet; stashedPlan = null; lockOn = {}; lockOnTurn = -1;   // fresh battle → no carried-over what-if / plot / perspective / lock state
   for (const d of defs) {
     const s = await hydrate(d), r = restore && restore[d.id];
     if (r) { (r.destroyed || []).forEach(id => (s.status[id] = 'destroyed')); s.firedAt = r.firedAt || {}; if (r.hexesSinceTurn != null) s.hexesSinceTurn = r.hexesSinceTurn; s.queuedTurn = r.queuedTurn || 0; }
@@ -941,7 +953,7 @@ window.addEventListener('mouseup', () => { epDrag = null; });
 
 async function lockEnergy() {
   if (myLockedEnergy) return;
-  const mine = ships.filter(isMine);
+  const mine = testMode ? ships.slice() : ships.filter(isMine);   // test-mode sandbox folds every ship's energy
   if (mine.some(s => validateShip(s).status === 'over')) return;
   if (!confirm('Lock your energy allocation for this turn?\n\nThis is FINAL — you cannot change it once locked.')) return;
   myLockedEnergy = true; render();
@@ -1183,6 +1195,7 @@ fetch('weapons.html', { method: 'HEAD' }).then(r => { if (!r.ok) throw 0; }).cat
 // ---------- direct fire (6D of each impulse) — cached target models so damage accumulates across impulses ----------
 // resolve one fleet's plan into shared models/log/affected (cached models keep pre-fire shields for simultaneity)
 function resolvePlanInto(p, models, log, affected) {
+  ensureLocks(); p = applyLockGate(p, lockOn);   // D6.1: a mount may only fire at a target its firer has a lock on
   const mk = t => t.model || (t.model = buildShipModel(t._ver, t._det));
   for (const g of (p.groups || [])) { const t = byId(g.targetShipId); if (t) models[t.id] = mk(t); }
   const capLeft = {}; for (const s of ships) capLeft[s.id] = Math.floor(s.capacitor || 0);   // phaser budget for this resolution
