@@ -287,7 +287,7 @@ def battle_view(data, my_fleet):
             "phase": data.get("phase", "energy"), "fleets": fleets, "myFleet": my_fleet, "plans": plans,
             "eaf": eaf, "ships": data.get("ships", []),
             "committed": data.get("committed", {}), "lastFire": data.get("lastFire"),
-            "seed": data.get("seed", 0), "rngCursor": data.get("rngCursor", 0)}
+            "seed": data.get("seed", 0), "rngCursor": data.get("rngCursor", 0), "seekers": data.get("seekers", [])}
 
 def merge_plan(current, posted, touched):
     """Per-ship merge: touched ships take their fire assignments from `posted`; other ships keep `current`."""
@@ -388,7 +388,8 @@ def apply_battle_post(payload):
                   "committed": {} if kind == "step" else cur.get("committed", {}),   # new impulse clears commits
                   "phase": payload.get("phase", cur.get("phase", "impulse")),        # step may wrap turn → 'energy'
                   "eaf": cur.get("eaf", {}), "lastFire": cur.get("lastFire"),
-                  "seed": cur.get("seed", 0), "rngCursor": cur.get("rngCursor", 0)}   # carry the shared dice through edit/step
+                  "seed": cur.get("seed", 0), "rngCursor": cur.get("rngCursor", 0),
+                  "seekers": payload.get("seekers", cur.get("seekers", []))}   # carry the shared dice + seeking weapons through edit/step
         with open(_battle_path(), "w") as f: json.dump(result, f, indent=1)
         return 200, {"ok": True, "rev": result["rev"], "ships": newrevs}
 

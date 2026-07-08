@@ -416,7 +416,7 @@ async function save(touched, opts = {}) {
   const step = !!opts.step;
   const list = step ? ships : [...new Set(touched)].filter(Boolean).map(byId).filter(Boolean);
   if (!step && !list.length) return;
-  const body = { code: myCode, kind: step ? 'step' : 'edit', turn: clock.turn, impulse: clock.impulse, plan, rngCursor,
+  const body = { code: myCode, kind: step ? 'step' : 'edit', turn: clock.turn, impulse: clock.impulse, plan, rngCursor, seekers,
     ships: list.map(s => ({ ...serializeShip(s), rev: shipRev[s.id] ?? 0 })) };
   if (opts.phase) body.phase = opts.phase;
   saving = true;
@@ -459,7 +459,7 @@ function applyRemote(data) {
     s.model = null;
   }
   rev = data.rev || rev;
-  if (data.seed) seed = data.seed; if (data.rngCursor != null) rngCursor = data.rngCursor;
+  if (data.seed) seed = data.seed; if (data.rngCursor != null) rngCursor = data.rngCursor; if (data.seekers) seekers = data.seekers;
   if (data.lastFire && data.lastFire.id && data.lastFire.id !== lastFireShown) { lastFireShown = data.lastFire.id; renderLog({ log: data.lastFire.log || [] }, true); }   // show the resolver's fire result
   render(); applying = false;
 }
@@ -1047,7 +1047,7 @@ const serializeShip = s => ({
 });
 // full snapshot for creating a new battle (both fire plans empty at creation)
 function serializeBattle() {
-  return { turn: clock.turn, impulse: clock.impulse, fleets, seed, rngCursor,
+  return { turn: clock.turn, impulse: clock.impulse, fleets, seed, rngCursor, seekers,
     plans: { friendly: myFleet === 'friendly' ? plan : newPlan(), enemy: myFleet === 'enemy' ? plan : newPlan() },
     ships: ships.map(serializeShip) };
 }
