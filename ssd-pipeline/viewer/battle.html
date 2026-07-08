@@ -168,6 +168,7 @@
       <div class="acts">
         <button class="btn fire" id="fireBtn" disabled>⚡ Commit firing plan</button>
         <button class="btn" id="launchBtn" style="display:none">🚀 Launch drone</button>
+        <button class="btn" id="launchPlasmaBtn" style="display:none">☄ Launch plasma</button>
         <span id="planStatus" style="color:#94a3b8"></span>
       </div>
       <div id="planBody" class="hint">Form fire groups to see the combined-damage preview, then Fire (6D).</div>
@@ -263,7 +264,7 @@ import { resolveAttackPlan } from './direct-fire.js';
 import { makeRng } from './rng.js';
 import { repairBoxes } from './repair.js';
 import { resolveLocks, applyLockGate } from './lock-on.js';
-import { launchSeeker, stepSeeker, seekerImpacts, seekerDamage, seekerExpired } from './seeking.js';
+import { launchSeeker, stepSeeker, seekerImpacts, seekerDamage, seekerExpired, plasmaSpec } from './seeking.js';
 import { applyVolley, makeDice } from './dac-allocator.js';
 import { cloakEcm, applyCloakFireGate } from './cloak.js';
 import { makeScenario, applyLoSGate } from './terrain.js';
@@ -291,6 +292,16 @@ function launchDrone(firer, target) {   // 6B: an armed rack puts a drone on the
   seekers.push(launchSeeker({ id: `dr${++seekerSeq}`, owner: firer.id, q: firer.q, r: firer.r, facing: firer.facing, targetId: target.id, ...DRONE }));
   saveSoon(firer.id); render();
 }
+const plasmaGroupsOf = s => (s._ver.groups || []).filter(g => g.family === 'heavy-weapon' && /plasma/i.test(g.type || ''));
+const plasmaLoaded = s => plasmaGroupsOf(s).filter(g => (g.boxIds || []).some(id => !s.status[id])).length;   // undamaged plasma launchers
+const plasmaLeftOf = s => (s.plasmaLeft == null ? (s.plasmaLeft = plasmaLoaded(s)) : s.plasmaLeft);
+function launchPlasma(firer, target) {   // 6B: fire a plasma torpedo — a fading seeker (FP)
+  if (!firer || !target || plasmaLeftOf(firer) <= 0) return;
+  firer.plasmaLeft = plasmaLeftOf(firer) - 1;
+  const gtype = (plasmaGroupsOf(firer)[0] || {}).type || 'Plasma S';
+  seekers.push(launchSeeker({ id: `pl${++seekerSeq}`, owner: firer.id, q: firer.q, r: firer.r, facing: firer.facing, targetId: target.id, ...plasmaSpec(gtype) }));
+  saveSoon(firer.id); render();
+}
 function stepSeekers(out) {   // 6A: move every seeker one impulse toward its target; resolve any impact through the DAC
   if (!seekers.length) return;
   const rng = makeRng((seed + clock.turn * 1000 + clock.impulse) >>> 0), dice = makeDice(rng.next), impacts = [];
@@ -298,7 +309,7 @@ function stepSeekers(out) {   // 6A: move every seeker one impulse toward its ta
     const target = byId(sk.targetId);
     if (!target || isDead(target)) return { ...sk, _done: true };   // target gone → the seeker lapses
     const s2 = stepSeeker(sk, target, clock.impulse);
-    if (seekerImpacts(s2, target)) { impacts.push({ shield: exposedShield(sk, target), points: seekerDamage(s2), t: target, id: s2.id }); s2._done = true; }
+    if (seekerImpacts(s2, target)) { impacts.push({ shield: exposedShield(sk, target), points: seekerDamage(s2), t: target, id: s2.id, cls: s2.type === 'plasma' ? 'PLASMA' : 'DRONE' }); s2._done = true; }
     else if (seekerExpired(s2)) s2._done = true;
     return s2;
   });
@@ -306,7 +317,7 @@ function stepSeekers(out) {   // 6A: move every seeker one impulse toward its ta
     const t = im.t, model = t.model || (t.model = buildShipModel(t._ver, t._det));
     const effects = im.points > 0 ? applyVolley(model, { shield: im.shield, points: im.points }, dice) : [];
     effects.forEach(ef => { if (ef.boxId) t.status[ef.boxId] = 'destroyed'; });
-    (out || []).push({ kind: 'shot', firer: im.id, cls: 'DRONE', target: t.id, points: im.points, struckShield: im.shield, hit: im.points > 0 });
+    (out || []).push({ kind: 'shot', firer: im.id, cls: im.cls, target: t.id, points: im.points, struckShield: im.shield, hit: im.points > 0 });
   }
   seekers = seekers.filter(sk => !sk._done);
 }
@@ -514,7 +525,7 @@ function stepImpulse() {
     clock.phase = 'energy'; eafDraft = {}; myLockedEnergy = false; ui.eaHidden = false;
   }
   const skLog = []; stepSeekers(skLog);   // 6A: seeking weapons advance + impact this impulse
-  if (wrapped) for (const s of ships) s.dronesLeft = droneRacksOf(s);   // reload drone racks each turn
+  if (wrapped) for (const s of ships) { s.dronesLeft = droneRacksOf(s); s.plasmaLeft = plasmaLoaded(s); }   // reload racks + plasma launchers each turn
   pruneUnavailable(); render(); if (skLog.length) renderLog({ log: skLog }, true); save(null, wrapped ? { step: true, phase: 'energy' } : { step: true });   // movement syncs to all commanders
 }
 // a queued turn executes when the ship next moves; applies to the given ship (defaults to the last-clicked one)
@@ -593,10 +604,13 @@ function render() {
       `<circle cx="${c.x}" cy="${c.y}" r="20" fill="${fill}" stroke="#fff" stroke-width="2"/>` +
       `<text x="${c.x}" y="${c.y + 4}" text-anchor="middle" fill="#fff" font-size="12" font-weight="700" style="pointer-events:none">${s.id}</text></g>`;
   }
-  for (const sk of seekers) {   // seeking-weapon tokens (small homing darts)
-    const c = hexCenter(sk.q, sk.r), owner = byId(sk.owner), fill = owner ? sideFill(owner) : '#C74634';
+  for (const sk of seekers) {   // seeking-weapon tokens: drone darts + plasma bolts
+    const c = hexCenter(sk.q, sk.r), owner = byId(sk.owner), fill = owner ? sideFill(owner) : '#C74634', plasma = sk.type === 'plasma';
     const nx = c.x + 15 * Math.cos(rad(sk.facing)), ny = c.y + 15 * Math.sin(rad(sk.facing));
-    svg += `<g class="seeker" data-seeker="${sk.id}" opacity="0.92"><line x1="${c.x}" y1="${c.y}" x2="${nx}" y2="${ny}" stroke="${fill}" stroke-width="2.5"/><circle cx="${c.x}" cy="${c.y}" r="7" fill="${fill}" stroke="#fff" stroke-width="1.5"/><text x="${c.x}" y="${c.y + 3}" text-anchor="middle" font-size="9" fill="#fff" font-weight="800" style="pointer-events:none">◈</text></g>`;
+    const body = plasma
+      ? `<circle cx="${c.x}" cy="${c.y}" r="10" fill="#22c55e" stroke="#fff" stroke-width="1.5" opacity="0.8"/><circle cx="${c.x}" cy="${c.y}" r="5" fill="#bbf7d0"/>`
+      : `<circle cx="${c.x}" cy="${c.y}" r="7" fill="${fill}" stroke="#fff" stroke-width="1.5"/><text x="${c.x}" y="${c.y + 3}" text-anchor="middle" font-size="9" fill="#fff" font-weight="800" style="pointer-events:none">◈</text>`;
+    svg += `<g class="seeker" data-seeker="${sk.id}" opacity="0.92"><line x1="${c.x}" y1="${c.y}" x2="${nx}" y2="${ny}" stroke="${plasma ? '#16a34a' : fill}" stroke-width="2.5"/>${body}</g>`;
   }
   if (getPhase() === 'energy') svg += plotOverlaySvg({ ships, isMine, byId, plotBase, ui });
   map.querySelector('#dyn').innerHTML = svg;
@@ -878,11 +892,16 @@ function renderTray() {
     ? `${nMounts} mount${nMounts !== 1 ? 's' : ''} ready (test — resolves immediately)`
     : ['friendly', 'enemy'].map(s => `${fleets[s]?.name || s} ${committed[s] ? '✓ committed' : '…'}`).join('  ·  ');
   const lb = document.getElementById('launchBtn'), af = byId(ui.activeId), wg = working();
-  const canLaunch = getPhase() !== 'energy' && af && isMine(af) && modelFleet === myFleet && wg && wg.targetShipId && dronesLeftOf(af) > 0;
+  const targeted = getPhase() !== 'energy' && af && isMine(af) && modelFleet === myFleet && wg && wg.targetShipId;
+  const canLaunch = targeted && dronesLeftOf(af) > 0;
   lb.style.display = canLaunch ? '' : 'none';
   if (canLaunch) lb.textContent = `🚀 Launch drone (${dronesLeftOf(af)})`;
+  const pb = document.getElementById('launchPlasmaBtn'), canPlasma = targeted && plasmaLeftOf(af) > 0;
+  pb.style.display = canPlasma ? '' : 'none';
+  if (canPlasma) pb.textContent = `☄ Launch plasma (${plasmaLeftOf(af)})`;
 }
 document.getElementById('launchBtn').onclick = () => { const g = working(), af = byId(ui.activeId); if (af && g && g.targetShipId) launchDrone(af, byId(g.targetShipId)); };
+document.getElementById('launchPlasmaBtn').onclick = () => { const g = working(), af = byId(ui.activeId); if (af && g && g.targetShipId) launchPlasma(af, byId(g.targetShipId)); };
 
 // ---------- interactions ----------
 function autoSelectShip(g, shipId) {

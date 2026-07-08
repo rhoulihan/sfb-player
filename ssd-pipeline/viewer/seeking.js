@@ -40,3 +40,13 @@ export function seekerDamage(seeker, hexesTravelled = seeker.travelled || 0) {
 export function seekerExpired(seeker) {
   return (seeker.endurance ?? Infinity) <= 0;
 }
+
+// Build a plasma-torpedo seeker spec from its mount type name (e.g. "Plasma S (LP)"). Warhead scales by
+// size (R > S > G > F) and the torpedo fades as it travels; these are functional sandbox values, not
+// rulebook tables. Endurance = warhead / fade, so the torpedo dissipates at its effective range.
+export function plasmaSpec(type) {
+  const size = (/PLASMA[\s-]*([RSGF])/i.exec(type || '') || [])[1] || 'S';
+  const warhead = { R: 40, S: 20, G: 12, F: 5 }[size.toUpperCase()] ?? 20;
+  const fade = 1;
+  return { type: 'plasma', speed: 32, warhead, fade, endurance: warhead / fade };
+}

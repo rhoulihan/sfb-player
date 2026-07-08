@@ -45,3 +45,12 @@ test('a fast drone reaches a stationary target and impacts within the closing di
   for (let i = 1; i <= 32 && impactImp === null; i++) { s = stepSeeker(s, target, i); if (seekerImpacts(s, target)) impactImp = i; }
   assert.ok(impactImp !== null && impactImp <= 12, `drone should reach the target within ~10 impulses, got ${impactImp}`);
 });
+
+import { plasmaSpec } from '../viewer/seeking.js';
+test('plasmaSpec: bigger plasma carries a bigger warhead, and all plasma fades', () => {
+  const R = plasmaSpec('Plasma R (LP)'), S = plasmaSpec('Plasma S (RP)'), G = plasmaSpec('Plasma G');
+  assert.ok(R.warhead > S.warhead && S.warhead > G.warhead, 'R > S > G warhead');
+  assert.ok(R.fade > 0 && S.fade > 0, 'plasma fades with distance');
+  assert.equal(S.type, 'plasma');
+  assert.ok(S.speed > 0 && S.endurance > 0);
+});
