@@ -167,6 +167,7 @@
     <div class="plan">
       <div class="acts">
         <button class="btn fire" id="fireBtn" disabled>⚡ Commit firing plan</button>
+        <button class="btn" id="launchBtn" style="display:none">🚀 Launch drone</button>
         <span id="planStatus" style="color:#94a3b8"></span>
       </div>
       <div id="planBody" class="hint">Form fire groups to see the combined-damage preview, then Fire (6D).</div>
@@ -252,7 +253,7 @@
   </div>
 </div>
 <script type="module">
-import { hexCenter, headingDeg, GEOM, hexDistance } from './battle-geom.js';
+import { hexCenter, headingDeg, GEOM, hexDistance, exposedShield } from './battle-geom.js';
 import { shipLoadout } from './ship-loadout.js';
 import { buildShipModel } from './ship-model.js';
 import { newPlan, newGroup, assignMount, unassignMount, planEligibility, mountEligibility, combinedPreview } from './fire-plan.js';
@@ -260,6 +261,8 @@ import { resolveAttackPlan } from './direct-fire.js';
 import { makeRng } from './rng.js';
 import { repairBoxes } from './repair.js';
 import { resolveLocks, applyLockGate } from './lock-on.js';
+import { launchSeeker, stepSeeker, seekerImpacts, seekerDamage, seekerExpired } from './seeking.js';
+import { applyVolley, makeDice } from './dac-allocator.js';
 import { movesOnImpulse, neighbor, turnMode } from './movement.js';
 import { shipPower, newEafColumn, validateEaf, foldEaf, sinkMax, specReinfMax } from './energy-model.js';
 import { legalNextHexes, tryStep, impulseTimeline, hexesInPlot, setSpeedChange, speedAt, legalSideslips, trySideslip } from './course-plan.js';
@@ -273,6 +276,35 @@ let ships = [], plan = newPlan(), workingId = null, zoom = 0.5, gridBuilt = fals
 let rev = 0, myCode = '', shipRev = {};   // rev: poll change-detection; shipRev: per-ship version for optimistic locking
 let seed = 0, rngCursor = 0;   // shared deterministic dice (RNG-1 / SEAL-1): every resolution draws from makeRng(seed, rngCursor) and persists the advanced cursor
 let lockOn = {}, lockOnTurn = -1;   // sensor lock-on (LOCK-1, D6): { firerId: Set<targetId> }, rolled once per turn
+let seekers = [], seekerSeq = 0;   // seeking weapons on the map (SEEK-1, C5): drone/plasma tokens
+const DRONE = { type: 'drone', speed: 20, warhead: 12, fade: 0, endurance: 40 };   // standard sandbox drone (speed/warhead are data)
+const droneRacksOf = s => (s._ver.groups || []).filter(g => g.family === 'drone-rack').reduce((n, g) => n + (g.boxIds || []).filter(id => !s.status[id]).length, 0);
+const dronesLeftOf = s => (s.dronesLeft == null ? (s.dronesLeft = droneRacksOf(s)) : s.dronesLeft);
+function launchDrone(firer, target) {   // 6B: an armed rack puts a drone on the map, homing at the target
+  if (!firer || !target || dronesLeftOf(firer) <= 0) return;
+  firer.dronesLeft = dronesLeftOf(firer) - 1;
+  seekers.push(launchSeeker({ id: `dr${++seekerSeq}`, owner: firer.id, q: firer.q, r: firer.r, facing: firer.facing, targetId: target.id, ...DRONE }));
+  saveSoon(firer.id); render();
+}
+function stepSeekers(out) {   // 6A: move every seeker one impulse toward its target; resolve any impact through the DAC
+  if (!seekers.length) return;
+  const rng = makeRng((seed + clock.turn * 1000 + clock.impulse) >>> 0), dice = makeDice(rng.next), impacts = [];
+  seekers = seekers.map(sk => {
+    const target = byId(sk.targetId);
+    if (!target || isDead(target)) return { ...sk, _done: true };   // target gone → the seeker lapses
+    const s2 = stepSeeker(sk, target, clock.impulse);
+    if (seekerImpacts(s2, target)) { impacts.push({ shield: exposedShield(sk, target), points: seekerDamage(s2), t: target, id: s2.id }); s2._done = true; }
+    else if (seekerExpired(s2)) s2._done = true;
+    return s2;
+  });
+  for (const im of impacts) {
+    const t = im.t, model = t.model || (t.model = buildShipModel(t._ver, t._det));
+    const effects = im.points > 0 ? applyVolley(model, { shield: im.shield, points: im.points }, dice) : [];
+    effects.forEach(ef => { if (ef.boxId) t.status[ef.boxId] = 'destroyed'; });
+    (out || []).push({ kind: 'shot', firer: im.id, cls: 'DRONE', target: t.id, points: im.points, struckShield: im.shield, hit: im.points > 0 });
+  }
+  seekers = seekers.filter(sk => !sk._done);
+}
 const netEcmOf = (fr, t) => (fr && t) ? Math.max(0, (t.ecmLevel || 0) - (fr.eccmLevel || 0)) : 0;   // net ECM: target ECM beyond firer ECCM (D6.3) — gates lock-on and shifts effective range
 function ensureLocks() {   // roll phase-4 locks lazily for this turn (deterministic from seed+turn so clients agree; net ECM can deny a lock)
   if (lockOnTurn === clock.turn) return;
@@ -340,7 +372,7 @@ async function startBattle(defs, clk, restore, ph) {
   battleDefs = defs.map(d => ({ ...d }));
   ships = []; plan = newPlan(); shipRev = {}; workingId = null; ui.activeId = null; clock = clk || { turn: 1, impulse: 0 };
   setCoarse(ph || 'energy'); eafDraft = {}; myLockedEnergy = false; ui.eaSelected = null; ui.eaHidden = false;   // turns open in energy allocation
-  ui.ghosts = {}; ui.selectedGhost = null; ui.ghostDrag = null; ui.navPreview = null; ui.plotShipId = null; modelFleet = myFleet; stashedPlan = null; lockOn = {}; lockOnTurn = -1;   // fresh battle → no carried-over what-if / plot / perspective / lock state
+  ui.ghosts = {}; ui.selectedGhost = null; ui.ghostDrag = null; ui.navPreview = null; ui.plotShipId = null; modelFleet = myFleet; stashedPlan = null; lockOn = {}; lockOnTurn = -1; seekers = []; seekerSeq = 0;   // fresh battle → no carried-over what-if / plot / perspective / lock state
   for (const d of defs) {
     const s = await hydrate(d), r = restore && restore[d.id];
     if (r) { (r.destroyed || []).forEach(id => (s.status[id] = 'destroyed')); s.firedAt = r.firedAt || {}; if (r.hexesSinceTurn != null) s.hexesSinceTurn = r.hexesSinceTurn; s.queuedTurn = r.queuedTurn || 0; }
@@ -476,7 +508,9 @@ function stepImpulse() {
     }
     clock.phase = 'energy'; eafDraft = {}; myLockedEnergy = false; ui.eaHidden = false;
   }
-  pruneUnavailable(); render(); save(null, wrapped ? { step: true, phase: 'energy' } : { step: true });   // movement syncs to all commanders
+  const skLog = []; stepSeekers(skLog);   // 6A: seeking weapons advance + impact this impulse
+  if (wrapped) for (const s of ships) s.dronesLeft = droneRacksOf(s);   // reload drone racks each turn
+  pruneUnavailable(); render(); if (skLog.length) renderLog({ log: skLog }, true); save(null, wrapped ? { step: true, phase: 'energy' } : { step: true });   // movement syncs to all commanders
 }
 // a queued turn executes when the ship next moves; applies to the given ship (defaults to the last-clicked one)
 function turnAction(dir, shipId = ui.selectedId) {
@@ -550,6 +584,11 @@ function render() {
       `<line x1="${c.x}" y1="${c.y}" x2="${nx}" y2="${ny}" stroke="${fill}" stroke-width="4"/>` +
       `<circle cx="${c.x}" cy="${c.y}" r="20" fill="${fill}" stroke="#fff" stroke-width="2"/>` +
       `<text x="${c.x}" y="${c.y + 4}" text-anchor="middle" fill="#fff" font-size="12" font-weight="700" style="pointer-events:none">${s.id}</text></g>`;
+  }
+  for (const sk of seekers) {   // seeking-weapon tokens (small homing darts)
+    const c = hexCenter(sk.q, sk.r), owner = byId(sk.owner), fill = owner ? sideFill(owner) : '#C74634';
+    const nx = c.x + 15 * Math.cos(rad(sk.facing)), ny = c.y + 15 * Math.sin(rad(sk.facing));
+    svg += `<g class="seeker" data-seeker="${sk.id}" opacity="0.92"><line x1="${c.x}" y1="${c.y}" x2="${nx}" y2="${ny}" stroke="${fill}" stroke-width="2.5"/><circle cx="${c.x}" cy="${c.y}" r="7" fill="${fill}" stroke="#fff" stroke-width="1.5"/><text x="${c.x}" y="${c.y + 3}" text-anchor="middle" font-size="9" fill="#fff" font-weight="800" style="pointer-events:none">◈</text></g>`;
   }
   if (getPhase() === 'energy') svg += plotOverlaySvg({ ships, isMine, byId, plotBase, ui });
   map.querySelector('#dyn').innerHTML = svg;
@@ -830,7 +869,12 @@ function renderTray() {
   document.getElementById('planStatus').textContent = testMode
     ? `${nMounts} mount${nMounts !== 1 ? 's' : ''} ready (test — resolves immediately)`
     : ['friendly', 'enemy'].map(s => `${fleets[s]?.name || s} ${committed[s] ? '✓ committed' : '…'}`).join('  ·  ');
+  const lb = document.getElementById('launchBtn'), af = byId(ui.activeId), wg = working();
+  const canLaunch = getPhase() !== 'energy' && af && isMine(af) && modelFleet === myFleet && wg && wg.targetShipId && dronesLeftOf(af) > 0;
+  lb.style.display = canLaunch ? '' : 'none';
+  if (canLaunch) lb.textContent = `🚀 Launch drone (${dronesLeftOf(af)})`;
 }
+document.getElementById('launchBtn').onclick = () => { const g = working(), af = byId(ui.activeId); if (af && g && g.targetShipId) launchDrone(af, byId(g.targetShipId)); };
 
 // ---------- interactions ----------
 function autoSelectShip(g, shipId) {
