@@ -75,7 +75,7 @@ tournament-complete · **P2** breadth.
 
 ### P2 — Breadth (rounds out "faithful", optional to first-finish)
 - ✅ **SHUT-1** Suicide shuttle (a slow homing seeker, launched from shuttle bays, interceptable by point-defense) + **wild weasel** (a decoy that diverts incoming drones/plasma away from the ship). Reuses the seeking machinery; synced. Admin shuttle / scatter-pack are follow-ons.
-- ⬜ **MINE-1** Transporter bombs, boarding parties / hit-and-run, self-destruct, transporters (C10 v1 slice).
+- ✅ **MINE-1** Mines (a static token that detonates through the DAC on the nearest enemy in its trigger radius) + boarding / hit-and-run raid (an adjacent enemy loses a random system on 4+). Synced. Transporter bombs + self-destruct are follow-ons.
 - ⬜ **SOP-1** Activate remaining segments (6B activity, 6E post-combat announce, phase-3 self-destruct); 6C dogfight stays deferred (needs C6).
 
 ---
