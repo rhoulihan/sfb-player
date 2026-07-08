@@ -182,6 +182,7 @@
 <div id="ctxMenu" style="display:none;position:fixed;background:#fff;border:1px solid #cbd5e1;border-radius:8px;box-shadow:0 8px 28px rgba(0,0,0,.25);z-index:300;font-size:13px;overflow:hidden;min-width:150px">
   <div class="ctxitem" data-act="ssd" style="padding:8px 14px;cursor:pointer">🖥 View SSD</div>
   <div class="ctxitem" data-act="setspeed" style="padding:8px 14px;cursor:pointer;border-top:1px solid #eef2f6">⏱ Set speed</div>
+  <div class="ctxitem" data-act="cloak" style="padding:8px 14px;cursor:pointer;border-top:1px solid #eef2f6">🌫 Cloak</div>
   <div class="ctxitem" data-act="ea" style="padding:8px 14px;cursor:pointer;border-top:1px solid #eef2f6">⚡ View EA</div>
   <div class="ctxitem" data-act="intel" style="padding:8px 14px;cursor:pointer;border-top:1px solid #eef2f6">🛰 Show Intel</div>
 </div>
@@ -263,6 +264,7 @@ import { repairBoxes } from './repair.js';
 import { resolveLocks, applyLockGate } from './lock-on.js';
 import { launchSeeker, stepSeeker, seekerImpacts, seekerDamage, seekerExpired } from './seeking.js';
 import { applyVolley, makeDice } from './dac-allocator.js';
+import { cloakEcm, applyCloakFireGate } from './cloak.js';
 import { movesOnImpulse, neighbor, turnMode } from './movement.js';
 import { shipPower, newEafColumn, validateEaf, foldEaf, sinkMax, specReinfMax } from './energy-model.js';
 import { legalNextHexes, tryStep, impulseTimeline, hexesInPlot, setSpeedChange, speedAt, legalSideslips, trySideslip } from './course-plan.js';
@@ -305,7 +307,7 @@ function stepSeekers(out) {   // 6A: move every seeker one impulse toward its ta
   }
   seekers = seekers.filter(sk => !sk._done);
 }
-const netEcmOf = (fr, t) => (fr && t) ? Math.max(0, (t.ecmLevel || 0) - (fr.eccmLevel || 0)) : 0;   // net ECM: target ECM beyond firer ECCM (D6.3) — gates lock-on and shifts effective range
+const netEcmOf = (fr, t) => (fr && t) ? Math.max(0, (t.ecmLevel || 0) + cloakEcm(t) - (fr.eccmLevel || 0)) : 0;   // net ECM: target ECM + cloak, beyond firer ECCM (D6.3/G13) — gates lock-on and shifts effective range
 function ensureLocks() {   // roll phase-4 locks lazily for this turn (deterministic from seed+turn so clients agree; net ECM can deny a lock)
   if (lockOnTurn === clock.turn) return;
   lockOn = {}; const lockRng = makeRng((seed ^ (clock.turn * 0x9e3779b9)) >>> 0);
@@ -579,8 +581,9 @@ function render() {
     const g = groupOfShip(s.id);
     const ring = s.id === ui.activeId ? `<circle cx="${c.x}" cy="${c.y}" r="27" fill="none" stroke="#d97706" stroke-width="3"/>`
               : g ? `<circle cx="${c.x}" cy="${c.y}" r="26" fill="none" stroke="${g.color}" stroke-width="2.5"/>` : '';
-    const dead = Object.keys(s.status).length ? 0.4 : 1;
-    svg += `<g class="ship" data-id="${s.id}" style="cursor:grab" opacity="${dead}">${ring}` +
+    const dead = Object.keys(s.status).length ? 0.4 : (s.cloaked ? 0.4 : 1);
+    const cloakRing = s.cloaked ? `<circle cx="${c.x}" cy="${c.y}" r="24" fill="none" stroke="#a855f7" stroke-width="2" stroke-dasharray="3 4"/>` : '';
+    svg += `<g class="ship" data-id="${s.id}" style="cursor:grab" opacity="${dead}">${ring}${cloakRing}` +
       `<line x1="${c.x}" y1="${c.y}" x2="${nx}" y2="${ny}" stroke="${fill}" stroke-width="4"/>` +
       `<circle cx="${c.x}" cy="${c.y}" r="20" fill="${fill}" stroke="#fff" stroke-width="2"/>` +
       `<text x="${c.x}" y="${c.y + 4}" text-anchor="middle" fill="#fff" font-size="12" font-weight="700" style="pointer-events:none">${s.id}</text></g>`;
@@ -1084,11 +1087,11 @@ let ctxShip = null;
 createBattleMap({
   map, ui, getPhase, getShips: () => ships, byId, isMine, isFirer, COLS, ROWS, hasGhosts, groupOfShip,
   plotBase, saveSoon, render, syncMovementEnergy, onShipClick, renderFleet, pruneUnavailable,
-  openCtxMenu: (shipId, e) => { ctxShip = shipId; const mine = isMine(byId(shipId)); document.querySelector('#ctxMenu [data-act="ea"]').style.display = mine ? '' : 'none'; document.querySelector('#ctxMenu [data-act="intel"]').style.display = mine ? 'none' : ''; document.querySelector('#ctxMenu [data-act="setspeed"]').style.display = (mine && getPhase() === 'energy' && !myLockedEnergy) ? '' : 'none'; const m = document.getElementById('ctxMenu'); m.style.display = 'block'; m.style.left = Math.min(e.clientX, innerWidth - 160) + 'px'; m.style.top = e.clientY + 'px'; },
+  openCtxMenu: (shipId, e) => { ctxShip = shipId; const mine = isMine(byId(shipId)); document.querySelector('#ctxMenu [data-act="ea"]').style.display = mine ? '' : 'none'; document.querySelector('#ctxMenu [data-act="intel"]').style.display = mine ? 'none' : ''; document.querySelector('#ctxMenu [data-act="setspeed"]').style.display = (mine && getPhase() === 'energy' && !myLockedEnergy) ? '' : 'none'; const ci = document.querySelector('#ctxMenu [data-act="cloak"]'); const cShip = byId(shipId); ci.style.display = (mine && (testMode || powerOf(cShip).systems.cloak)) ? '' : 'none'; ci.textContent = cShip.cloaked ? '🌫 Decloak' : '🌫 Cloak'; const m = document.getElementById('ctxMenu'); m.style.display = 'block'; m.style.left = Math.min(e.clientX, innerWidth - 160) + 'px'; m.style.top = e.clientY + 'px'; },
   openSpeedMenu: (shipId, idx, e) => { navSpeed = { shipId, idx }; const m = document.getElementById('speedMenu'); m.style.display = 'block'; m.style.left = Math.min(e.clientX, innerWidth - 160) + 'px'; m.style.top = e.clientY + 'px'; },
 });
 document.addEventListener('click', () => { document.getElementById('ctxMenu').style.display = 'none'; });
-document.getElementById('ctxMenu').addEventListener('click', e => { const it = e.target.closest('[data-act]'); if (!it || !ctxShip) return; if (it.dataset.act === 'ssd') openSSD(ctxShip); else if (it.dataset.act === 'ea' && isMine(byId(ctxShip))) { ui.eaSelected = ctxShip; if (getPhase() === 'energy') ui.eaHidden = false; else ui.viewEA = ctxShip; render(); } else if (it.dataset.act === 'intel') openIntel(ctxShip); else if (it.dataset.act === 'setspeed') openSetSpeed(ctxShip); });
+document.getElementById('ctxMenu').addEventListener('click', e => { const it = e.target.closest('[data-act]'); if (!it || !ctxShip) return; if (it.dataset.act === 'ssd') openSSD(ctxShip); else if (it.dataset.act === 'ea' && isMine(byId(ctxShip))) { ui.eaSelected = ctxShip; if (getPhase() === 'energy') ui.eaHidden = false; else ui.viewEA = ctxShip; render(); } else if (it.dataset.act === 'intel') openIntel(ctxShip); else if (it.dataset.act === 'setspeed') openSetSpeed(ctxShip); else if (it.dataset.act === 'cloak') { const s = byId(ctxShip); if (s) { s.cloaked = !s.cloaked; saveSoon(s.id); render(); } } });
 let navSpeed = null;   // nav-hex speed-change target { shipId, idx }
 document.addEventListener('click', () => { document.getElementById('speedMenu').style.display = 'none'; });
 document.getElementById('speedMenu').addEventListener('click', e => {
@@ -1239,7 +1242,7 @@ fetch('weapons.html', { method: 'HEAD' }).then(r => { if (!r.ok) throw 0; }).cat
 // ---------- direct fire (6D of each impulse) — cached target models so damage accumulates across impulses ----------
 // resolve one fleet's plan into shared models/log/affected (cached models keep pre-fire shields for simultaneity)
 function resolvePlanInto(p, models, log, affected) {
-  ensureLocks(); p = applyLockGate(p, lockOn);   // D6.1: a mount may only fire at a target its firer has a lock on
+  ensureLocks(); p = applyLockGate(p, lockOn); p = applyCloakFireGate(p, byId);   // D6.1: must have a lock; G13: a cloaked ship can't fire
   const mk = t => t.model || (t.model = buildShipModel(t._ver, t._det));
   for (const g of (p.groups || [])) { const t = byId(g.targetShipId); if (t) models[t.id] = mk(t); }
   const capLeft = {}; for (const s of ships) capLeft[s.id] = Math.floor(s.capacitor || 0);   // phaser budget for this resolution
