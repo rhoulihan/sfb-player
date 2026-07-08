@@ -109,3 +109,8 @@ test('sinkMax enforces rule-based slider ceilings', () => {
   assert.equal(sinkMax(fed, 'transporter'), fed.systems.transporter);
   assert.equal(specReinfMax(fed, 1), fed.shields[0], 'reinforce a shield up to its box value');
 });
+
+test('shipPower detects a cloaking device from the SSD (ROSTER-1: Romulan cloaks, Federation does not)', () => {
+  assert.equal(load('ROM-KR').systems.cloak, true, 'Romulan King Eagle has a cloaking device');
+  assert.equal(load('FED-CA').systems.cloak, false, 'Federation CA has no cloak');
+});

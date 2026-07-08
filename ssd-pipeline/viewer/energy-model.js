@@ -42,7 +42,7 @@ export function shipPower(code, verified, detection) {
     weapons,
     systems: {
       shuttles: n('shuttle-bay'), tractor: n('tractor'), transporter: n('transporter'),
-      damageControl: n('damage-control'), ecm: true, labs: n('lab'), fireControl: true, cloak: false,
+      damageControl: n('damage-control'), ecm: true, labs: n('lab'), fireControl: true, cloak: n('cloaking-device') > 0,
     },
   };
 }
