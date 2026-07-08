@@ -47,3 +47,16 @@ test('self-destruct damage falls off with distance', () => {
   assert.ok(selfDestructDamage(1, 30) > selfDestructDamage(2, 30), 'closer = more damage');
   assert.ok(selfDestructDamage(1, 30) > 0);
 });
+
+import { NUCLEAR_MINE, transporterTarget, TRANSPORTER_RANGE } from '../viewer/mines.js';
+test('NUCLEAR_MINE hits harder and wider than a standard mine', () => {
+  assert.ok(NUCLEAR_MINE.warhead > MINE.warhead, 'bigger warhead');
+  assert.ok(NUCLEAR_MINE.radius >= MINE.radius, 'at least as wide');
+});
+test('transporterTarget finds an adjacent enemy (transporter bomb), else null', () => {
+  const ship = { q: 5, r: 5, side: 'friendly' };
+  assert.equal(transporterTarget(ship, [{ id: 'E1', side: 'enemy', q: 6, r: 5 }]).id, 'E1');
+  assert.equal(transporterTarget(ship, [{ id: 'E2', side: 'enemy', q: 12, r: 5 }]), null, 'out of transporter range');
+  assert.equal(transporterTarget(ship, [{ id: 'F2', side: 'friendly', q: 6, r: 5 }]), null, 'not an ally');
+  assert.ok(TRANSPORTER_RANGE >= 1);
+});

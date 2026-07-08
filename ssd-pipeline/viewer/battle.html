@@ -170,6 +170,7 @@
         <button class="btn" id="launchBtn" style="display:none">🚀 Launch drone</button>
         <button class="btn" id="launchPlasmaBtn" style="display:none">☄ Launch plasma</button>
         <button class="btn" id="launchShuttleBtn" style="display:none">🛰 Launch shuttle</button>
+        <button class="btn" id="launchScatterBtn" style="display:none">☄ Scatter-pack</button>
         <span id="planStatus" style="color:#94a3b8"></span>
       </div>
       <div id="planBody" class="hint">Form fire groups to see the combined-damage preview, then Fire (6D).</div>
@@ -188,6 +189,9 @@
   <div class="ctxitem" data-act="weasel" style="padding:8px 14px;cursor:pointer;border-top:1px solid #eef2f6">🎣 Wild weasel</div>
   <div class="ctxitem" data-act="mine" style="padding:8px 14px;cursor:pointer;border-top:1px solid #eef2f6">💣 Lay mine</div>
   <div class="ctxitem" data-act="raid" style="padding:8px 14px;cursor:pointer;border-top:1px solid #eef2f6">⚔ Boarding raid</div>
+  <div class="ctxitem" data-act="nukemine" style="padding:8px 14px;cursor:pointer;border-top:1px solid #eef2f6">☢ Nuclear mine</div>
+  <div class="ctxitem" data-act="tbomb" style="padding:8px 14px;cursor:pointer;border-top:1px solid #eef2f6">📦 Transporter bomb</div>
+  <div class="ctxitem" data-act="admin" style="padding:8px 14px;cursor:pointer;border-top:1px solid #eef2f6">🛰 Admin shuttle</div>
   <div class="ctxitem" data-act="selfdestruct" style="padding:8px 14px;cursor:pointer;border-top:1px solid #eef2f6;color:#C74634">💥 Self-destruct</div>
   <div class="ctxitem" data-act="ea" style="padding:8px 14px;cursor:pointer;border-top:1px solid #eef2f6">⚡ View EA</div>
   <div class="ctxitem" data-act="intel" style="padding:8px 14px;cursor:pointer;border-top:1px solid #eef2f6">🛰 Show Intel</div>
@@ -255,7 +259,7 @@
     <div style="padding:10px 16px;border-top:1px solid #e2e8f0;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
       <label style="font-size:13px;display:flex;align-items:center;gap:5px">Map <select id="nbScenario"><option value="open">Open</option><option value="tournament">Tournament (barrier + asteroids)</option></select></label>
       <label style="font-size:13px;display:flex;align-items:center;gap:5px" title="volatile systems can suffer a secondary explosion (DAC-1)"><input type="checkbox" id="nbCriticals" checked> Criticals</label>
-      <label style="font-size:13px;display:flex;align-items:center;gap:5px" title="fix the deterministic dice seed for a reproducible battle (blank = random)">Seed <input id="nbSeed" type="text" inputmode="numeric" placeholder="random" style="width:76px;font:inherit;padding:2px 5px;border:1px solid #cbd5e1;border-radius:4px"></label>
+      <label style="font-size:13px;display:flex;align-items:center;gap:5px" title="fix the deterministic dice seed for a reproducible battle (blank = random)">Seed <input id="nbSeed" type="text" inputmode="numeric" placeholder="random" style="width:76px;font:inherit;padding:2px 5px;border:1px solid #cbd5e1;border-radius:4px"><button class="btn" id="nbGenSeed" type="button" title="use the current system time as the seed" style="padding:2px 6px;margin-left:4px">🎲</button></label>
       <label style="font-size:13px;display:flex;align-items:center;gap:5px">You command
         <select id="nbCommand"><option value="friendly">Fleet 1</option><option value="enemy">Fleet 2</option></select></label>
       <span style="flex:1"></span><button class="btn primary" id="nbStart" disabled>Start Battle</button>
@@ -271,11 +275,11 @@ import { resolveAttackPlan } from './direct-fire.js';
 import { makeRng } from './rng.js';
 import { repairBoxes } from './repair.js';
 import { resolveLocks, applyLockGate } from './lock-on.js';
-import { launchSeeker, stepSeeker, seekerImpacts, seekerDamage, seekerExpired, plasmaSpec, pointDefense, SUICIDE_SHUTTLE, weaselFor } from './seeking.js';
+import { launchSeeker, stepSeeker, seekerImpacts, seekerDamage, seekerExpired, plasmaSpec, pointDefense, SUICIDE_SHUTTLE, weaselFor, ADMIN_SHUTTLE, SCATTER_PACK } from './seeking.js';
 import { applyVolley, makeDice } from './dac-allocator.js';
 import { cloakEcm, applyCloakFireGate } from './cloak.js';
 import { makeScenario, applyLoSGate } from './terrain.js';
-import { MINE, mineTriggeredBy, hitAndRunSucceeds, SELF_DESTRUCT, selfDestructHits, selfDestructDamage } from './mines.js';
+import { MINE, mineTriggeredBy, hitAndRunSucceeds, SELF_DESTRUCT, selfDestructHits, selfDestructDamage, NUCLEAR_MINE, transporterTarget } from './mines.js';
 import { movesOnImpulse, neighbor, turnMode } from './movement.js';
 import { shipPower, newEafColumn, validateEaf, foldEaf, sinkMax, specReinfMax } from './energy-model.js';
 import { legalNextHexes, tryStep, impulseTimeline, hexesInPlot, setSpeedChange, speedAt, legalSideslips, trySideslip } from './course-plan.js';
@@ -313,15 +317,35 @@ function launchShuttle(firer, target) {   // suicide shuttle (C6): a slow homing
   seekers.push(launchSeeker({ id: `sh${++seekerSeq}`, owner: firer.id, q: firer.q, r: firer.r, facing: firer.facing, targetId: target.id, ...SUICIDE_SHUTTLE }));
   saveSoon(firer.id); render();
 }
+function launchScatterPack(firer, target) {   // C6: a shuttle releases a burst of drones at the target
+  if (!firer || !target || shuttlesLeftOf(firer) <= 0) return;
+  firer.shuttlesLeft = shuttlesLeftOf(firer) - 1;
+  for (let i = 0; i < SCATTER_PACK; i++) seekers.push(launchSeeker({ id: `dr${++seekerSeq}`, owner: firer.id, q: firer.q, r: firer.r, facing: firer.facing, targetId: target.id, ...DRONE }));
+  saveSoon(firer.id); render();
+}
+function launchAdminShuttle(ship) {   // C6: a non-combat shuttle (0 warhead) sent toward the nearest enemy as a scout/decoy
+  if (!ship || shuttlesLeftOf(ship) <= 0) return;
+  const tgt = ships.filter(s => s.side !== ship.side && !isDead(s)).sort((a, b) => hexDistance(ship, a) - hexDistance(ship, b))[0];
+  ship.shuttlesLeft = shuttlesLeftOf(ship) - 1;
+  seekers.push(launchSeeker({ id: `as${++seekerSeq}`, owner: ship.id, q: ship.q, r: ship.r, facing: ship.facing, targetId: tgt ? tgt.id : ship.id, ...ADMIN_SHUTTLE }));
+  saveSoon(ship.id); render();
+}
 function launchWeasel(ship) {   // wild weasel (J): a stationary decoy that diverts incoming seekers away from the ship
   if (!ship || shuttlesLeftOf(ship) <= 0 || seekers.some(s => s.type === 'weasel' && s.owner === ship.id)) return;
   ship.shuttlesLeft = shuttlesLeftOf(ship) - 1;
   seekers.push({ id: `ww${++seekerSeq}`, owner: ship.id, type: 'weasel', q: ship.q, r: ship.r, facing: ship.facing, speed: 0, warhead: 0, fade: 0, endurance: 8, travelled: 0 });
   saveSoon(ship.id); render();
 }
-function launchMine(ship) {   // C10: drop a static mine at the ship's hex; it detonates on the first enemy that enters its radius
+function layMine(ship, spec = MINE) {   // C10: drop a static mine at the ship's hex; detonates on the first enemy in radius. Nuclear = bigger/wider.
   if (!ship) return;
-  seekers.push({ id: `mi${++seekerSeq}`, owner: ship.id, side: ship.side, type: 'mine', q: ship.q, r: ship.r, facing: ship.facing, ...MINE });
+  seekers.push({ id: `mi${++seekerSeq}`, owner: ship.id, side: ship.side, type: 'mine', q: ship.q, r: ship.r, facing: ship.facing, nuclear: spec === NUCLEAR_MINE, warhead: spec.warhead, radius: spec.radius });
+  saveSoon(ship.id); render();
+}
+function transporterBomb(ship) {   // D15: beam a bomb onto an adjacent enemy — a mine at its hex that detonates on it next impulse
+  if (!ship) return;
+  const tgt = transporterTarget(ship, ships.filter(s => !isDead(s)));
+  if (!tgt) { renderLog({ log: [{ kind: 'shot', firer: ship.id, cls: 'T-BOMB', target: '\u2014', points: 0, hit: false }] }, true); return; }
+  seekers.push({ id: `tb${++seekerSeq}`, owner: ship.id, side: ship.side, type: 'mine', q: tgt.q, r: tgt.r, facing: ship.facing, warhead: MINE.warhead, radius: 0 });
   saveSoon(ship.id); render();
 }
 function boardingRaid(ship) {   // D15: a transporter hit-and-run raid on an adjacent enemy — on 4+ it knocks out a random enemy system
@@ -678,13 +702,15 @@ function render() {
     const nx = c.x + 15 * Math.cos(rad(sk.facing)), ny = c.y + 15 * Math.sin(rad(sk.facing));
     const line = (sk.type === 'weasel' || sk.type === 'mine') ? '' : `<line x1="${c.x}" y1="${c.y}" x2="${nx}" y2="${ny}" stroke="${sk.type === 'plasma' ? '#16a34a' : fill}" stroke-width="2.5"/>`;
     const body = sk.type === 'mine'
-      ? `<circle cx="${c.x}" cy="${c.y}" r="8" fill="#334155" stroke="#f59e0b" stroke-width="2" stroke-dasharray="3 2"/><text x="${c.x}" y="${c.y + 3}" text-anchor="middle" font-size="9" fill="#f59e0b" font-weight="800" style="pointer-events:none">✸</text>`
+      ? (sk.nuclear
+        ? `<circle cx="${c.x}" cy="${c.y}" r="11" fill="#3f3f46" stroke="#dc2626" stroke-width="2.5" stroke-dasharray="4 3"/><text x="${c.x}" y="${c.y + 4}" text-anchor="middle" font-size="11" fill="#f87171" font-weight="800" style="pointer-events:none">☢</text>`
+        : `<circle cx="${c.x}" cy="${c.y}" r="8" fill="#334155" stroke="#f59e0b" stroke-width="2" stroke-dasharray="3 2"/><text x="${c.x}" y="${c.y + 3}" text-anchor="middle" font-size="9" fill="#f59e0b" font-weight="800" style="pointer-events:none">✸</text>`)
       : sk.type === 'weasel'
       ? `<rect x="${c.x - 8}" y="${c.y - 8}" width="16" height="16" transform="rotate(45 ${c.x} ${c.y})" fill="#eab308" stroke="#fff" stroke-width="1.5" opacity="0.9"/><text x="${c.x}" y="${c.y + 3}" text-anchor="middle" font-size="7" fill="#000" font-weight="800" style="pointer-events:none">WW</text>`
       : sk.type === 'plasma'
       ? `<circle cx="${c.x}" cy="${c.y}" r="10" fill="#22c55e" stroke="#fff" stroke-width="1.5" opacity="0.8"/><circle cx="${c.x}" cy="${c.y}" r="5" fill="#bbf7d0"/>`
       : sk.type === 'shuttle'
-      ? `<rect x="${c.x - 6}" y="${c.y - 5}" width="12" height="10" fill="${fill}" stroke="#fff" stroke-width="1.5"/>`
+      ? `<rect x="${c.x - 6}" y="${c.y - 5}" width="12" height="10" fill="${sk.warhead === 0 ? 'none' : fill}" stroke="${sk.warhead === 0 ? fill : '#fff'}" stroke-width="1.5"/>`
       : `<circle cx="${c.x}" cy="${c.y}" r="7" fill="${fill}" stroke="#fff" stroke-width="1.5"/><text x="${c.x}" y="${c.y + 3}" text-anchor="middle" font-size="9" fill="#fff" font-weight="800" style="pointer-events:none">◈</text>`;
     svg += `<g class="seeker" data-seeker="${sk.id}" opacity="0.92">${line}${body}</g>`;
   }
@@ -979,10 +1005,15 @@ function renderTray() {
   const sb = document.getElementById('launchShuttleBtn'), canShuttle = targeted && shuttlesLeftOf(af) > 0;
   sb.style.display = canShuttle ? '' : 'none';
   if (canShuttle) sb.textContent = `🛰 Launch shuttle (${shuttlesLeftOf(af)})`;
+  const scb = document.getElementById('launchScatterBtn'), canScatter = targeted && shuttlesLeftOf(af) > 0;
+  scb.style.display = canScatter ? '' : 'none';
+  if (canScatter) scb.textContent = `☄ Scatter-pack (${shuttlesLeftOf(af)})`;
 }
 document.getElementById('launchBtn').onclick = () => { const g = working(), af = byId(ui.activeId); if (af && g && g.targetShipId) launchDrone(af, byId(g.targetShipId)); };
 document.getElementById('launchPlasmaBtn').onclick = () => { const g = working(), af = byId(ui.activeId); if (af && g && g.targetShipId) launchPlasma(af, byId(g.targetShipId)); };
 document.getElementById('launchShuttleBtn').onclick = () => { const g = working(), af = byId(ui.activeId); if (af && g && g.targetShipId) launchShuttle(af, byId(g.targetShipId)); };
+document.getElementById('launchScatterBtn').onclick = () => { const g = working(), af = byId(ui.activeId); if (af && g && g.targetShipId) launchScatterPack(af, byId(g.targetShipId)); };
+document.getElementById('nbGenSeed').onclick = () => { document.getElementById('nbSeed').value = Date.now() % 100000000; };   // last 8 digits of system-time millis
 
 // ---------- interactions ----------
 function autoSelectShip(g, shipId) {
@@ -1192,11 +1223,11 @@ let ctxShip = null;
 createBattleMap({
   map, ui, getPhase, getShips: () => ships, byId, isMine, isFirer, COLS, ROWS, hasGhosts, groupOfShip,
   plotBase, saveSoon, render, syncMovementEnergy, onShipClick, renderFleet, pruneUnavailable,
-  openCtxMenu: (shipId, e) => { ctxShip = shipId; const mine = isMine(byId(shipId)); document.querySelector('#ctxMenu [data-act="ea"]').style.display = mine ? '' : 'none'; document.querySelector('#ctxMenu [data-act="intel"]').style.display = mine ? 'none' : ''; document.querySelector('#ctxMenu [data-act="setspeed"]').style.display = (mine && getPhase() === 'energy' && !myLockedEnergy) ? '' : 'none'; const ci = document.querySelector('#ctxMenu [data-act="cloak"]'); const cShip = byId(shipId); ci.style.display = (mine && (testMode || powerOf(cShip).systems.cloak)) ? '' : 'none'; ci.textContent = cShip.cloaked ? '🌫 Decloak' : '🌫 Cloak'; document.querySelector('#ctxMenu [data-act="weasel"]').style.display = ((mine || testMode) && getPhase() !== 'energy' && shuttleBaysOf(cShip) > 0) ? '' : 'none'; document.querySelector('#ctxMenu [data-act="mine"]').style.display = document.querySelector('#ctxMenu [data-act="raid"]').style.display = ((mine || testMode) && getPhase() !== 'energy') ? '' : 'none'; document.querySelector('#ctxMenu [data-act="selfdestruct"]').style.display = (mine || testMode) ? '' : 'none'; const m = document.getElementById('ctxMenu'); m.style.display = 'block'; m.style.left = Math.min(e.clientX, innerWidth - 160) + 'px'; m.style.top = e.clientY + 'px'; },
+  openCtxMenu: (shipId, e) => { ctxShip = shipId; const mine = isMine(byId(shipId)); document.querySelector('#ctxMenu [data-act="ea"]').style.display = mine ? '' : 'none'; document.querySelector('#ctxMenu [data-act="intel"]').style.display = mine ? 'none' : ''; document.querySelector('#ctxMenu [data-act="setspeed"]').style.display = (mine && getPhase() === 'energy' && !myLockedEnergy) ? '' : 'none'; const ci = document.querySelector('#ctxMenu [data-act="cloak"]'); const cShip = byId(shipId); ci.style.display = (mine && (testMode || powerOf(cShip).systems.cloak)) ? '' : 'none'; ci.textContent = cShip.cloaked ? '🌫 Decloak' : '🌫 Cloak'; document.querySelector('#ctxMenu [data-act="weasel"]').style.display = ((mine || testMode) && getPhase() !== 'energy' && shuttleBaysOf(cShip) > 0) ? '' : 'none'; document.querySelector('#ctxMenu [data-act="mine"]').style.display = document.querySelector('#ctxMenu [data-act="raid"]').style.display = document.querySelector('#ctxMenu [data-act="nukemine"]').style.display = document.querySelector('#ctxMenu [data-act="tbomb"]').style.display = ((mine || testMode) && getPhase() !== 'energy') ? '' : 'none'; document.querySelector('#ctxMenu [data-act="admin"]').style.display = ((mine || testMode) && getPhase() !== 'energy' && shuttleBaysOf(cShip) > 0) ? '' : 'none'; document.querySelector('#ctxMenu [data-act="selfdestruct"]').style.display = (mine || testMode) ? '' : 'none'; const m = document.getElementById('ctxMenu'); m.style.display = 'block'; m.style.left = Math.min(e.clientX, innerWidth - 160) + 'px'; m.style.top = e.clientY + 'px'; },
   openSpeedMenu: (shipId, idx, e) => { navSpeed = { shipId, idx }; const m = document.getElementById('speedMenu'); m.style.display = 'block'; m.style.left = Math.min(e.clientX, innerWidth - 160) + 'px'; m.style.top = e.clientY + 'px'; },
 });
 document.addEventListener('click', () => { document.getElementById('ctxMenu').style.display = 'none'; });
-document.getElementById('ctxMenu').addEventListener('click', e => { const it = e.target.closest('[data-act]'); if (!it || !ctxShip) return; if (it.dataset.act === 'ssd') openSSD(ctxShip); else if (it.dataset.act === 'ea' && isMine(byId(ctxShip))) { ui.eaSelected = ctxShip; if (getPhase() === 'energy') ui.eaHidden = false; else ui.viewEA = ctxShip; render(); } else if (it.dataset.act === 'intel') openIntel(ctxShip); else if (it.dataset.act === 'setspeed') openSetSpeed(ctxShip); else if (it.dataset.act === 'cloak') { const s = byId(ctxShip); if (s) { s.cloaked = !s.cloaked; saveSoon(s.id); render(); } } else if (it.dataset.act === 'weasel') launchWeasel(byId(ctxShip)); else if (it.dataset.act === 'mine') launchMine(byId(ctxShip)); else if (it.dataset.act === 'raid') boardingRaid(byId(ctxShip)); else if (it.dataset.act === 'selfdestruct') { if (confirm(`Self-destruct ${ctxShip}?`)) selfDestruct(byId(ctxShip)); } });
+document.getElementById('ctxMenu').addEventListener('click', e => { const it = e.target.closest('[data-act]'); if (!it || !ctxShip) return; if (it.dataset.act === 'ssd') openSSD(ctxShip); else if (it.dataset.act === 'ea' && isMine(byId(ctxShip))) { ui.eaSelected = ctxShip; if (getPhase() === 'energy') ui.eaHidden = false; else ui.viewEA = ctxShip; render(); } else if (it.dataset.act === 'intel') openIntel(ctxShip); else if (it.dataset.act === 'setspeed') openSetSpeed(ctxShip); else if (it.dataset.act === 'cloak') { const s = byId(ctxShip); if (s) { s.cloaked = !s.cloaked; saveSoon(s.id); render(); } } else if (it.dataset.act === 'weasel') launchWeasel(byId(ctxShip)); else if (it.dataset.act === 'mine') layMine(byId(ctxShip), MINE); else if (it.dataset.act === 'nukemine') layMine(byId(ctxShip), NUCLEAR_MINE); else if (it.dataset.act === 'tbomb') transporterBomb(byId(ctxShip)); else if (it.dataset.act === 'admin') launchAdminShuttle(byId(ctxShip)); else if (it.dataset.act === 'raid') boardingRaid(byId(ctxShip)); else if (it.dataset.act === 'selfdestruct') { if (confirm(`Self-destruct ${ctxShip}?`)) selfDestruct(byId(ctxShip)); } });
 let navSpeed = null;   // nav-hex speed-change target { shipId, idx }
 document.addEventListener('click', () => { document.getElementById('speedMenu').style.display = 'none'; });
 document.getElementById('speedMenu').addEventListener('click', e => {

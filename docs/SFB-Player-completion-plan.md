@@ -74,8 +74,8 @@ tournament-complete · **P2** breadth.
 - ✅ **TERR-1** Terrain slice (C9): a New-Battle scenario picker (Open vs Tournament); tournament inserts a barrier ring + asteroid field (rendered), and asteroids block line of sight so a shot through one is dropped. Deterministic (replay-safe), synced. Movement barrier turn-back is a follow-on.
 
 ### P2 — Breadth (rounds out "faithful", optional to first-finish)
-- ✅ **SHUT-1** Suicide shuttle (a slow homing seeker, launched from shuttle bays, interceptable by point-defense) + **wild weasel** (a decoy that diverts incoming drones/plasma away from the ship). Reuses the seeking machinery; synced. Admin shuttle / scatter-pack are follow-ons.
-- ✅ **MINE-1** Mines (a static token that detonates through the DAC on the nearest enemy in its trigger radius) + boarding / hit-and-run raid (an adjacent enemy loses a random system on 4+). Synced. Transporter bombs + self-destruct are follow-ons.
+- ✅ **SHUT-1** Suicide shuttle (a slow homing seeker, launched from shuttle bays, interceptable by point-defense) + **wild weasel** (a decoy that diverts incoming drones/plasma away from the ship). Reuses the seeking machinery; synced. **Plus admin shuttle** (non-combat 0-warhead probe) and **scatter-pack** (a shuttle that releases a burst of drones).
+- ✅ **MINE-1** Mines (a static token that detonates through the DAC on the nearest enemy in its trigger radius) + boarding / hit-and-run raid (an adjacent enemy loses a random system on 4+). Synced. **Plus nuclear space mines** (bigger blast + wider trigger) and **transporter bombs** (a mine beamed onto an adjacent enemy that detonates on it). Self-destruct shipped in SOP-1.
 - ✅ **SOP-1** Sequence-of-play polish: the current segment name shows in the clock (segmentName over the real segment cursor); **self-destruct** (D19) explodes a ship through the DAC across the blast radius; **6E post-combat** announces the fallen (`☠ X destroyed`). 6B seeking activity was already live; 6C dogfight stays deferred (needs C6).
 
 ---

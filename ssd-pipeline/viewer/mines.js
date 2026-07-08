@@ -9,6 +9,14 @@ const dist = (a, b) => {
 };
 
 export const MINE = { warhead: 20, radius: 1 };   // functional sandbox values, not rulebook tables
+export const NUCLEAR_MINE = { warhead: 40, radius: 2 };   // C10: a heavier nuclear space mine — bigger blast, wider trigger
+export const TRANSPORTER_RANGE = 1;   // a transporter bomb / raid reaches an adjacent enemy
+
+// the nearest enemy within transporter range — where a transporter bomb is beamed
+export function transporterTarget(ship, ships, range = TRANSPORTER_RANGE) {
+  const hits = (ships || []).filter(s => s.side !== ship.side && dist(ship, s) <= range);
+  return hits.sort((a, b) => dist(ship, a) - dist(ship, b))[0] || null;
+}
 
 // the nearest enemy ship (side !== mine.side) within the mine's trigger radius, or null
 export function mineTriggeredBy(mine, ships) {

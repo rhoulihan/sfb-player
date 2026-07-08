@@ -75,3 +75,11 @@ test('weaselFor finds a wild-weasel decoy protecting a ship, and only that ship'
   assert.equal(weaselFor('E1', seekers), null);
   assert.equal(weaselFor('F1', []), null);
 });
+
+import { ADMIN_SHUTTLE, SCATTER_PACK } from '../viewer/seeking.js';
+test('ADMIN_SHUTTLE is a non-combat shuttle; SCATTER_PACK releases several drones', () => {
+  assert.equal(ADMIN_SHUTTLE.type, 'shuttle');
+  assert.equal(ADMIN_SHUTTLE.warhead, 0, 'admin shuttle carries no warhead');
+  assert.ok(ADMIN_SHUTTLE.speed > 0);
+  assert.ok(SCATTER_PACK > 1, 'a scatter-pack is a burst of drones');
+});
