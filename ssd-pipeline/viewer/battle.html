@@ -186,6 +186,8 @@
   <div class="ctxitem" data-act="setspeed" style="padding:8px 14px;cursor:pointer;border-top:1px solid #eef2f6">⏱ Set speed</div>
   <div class="ctxitem" data-act="cloak" style="padding:8px 14px;cursor:pointer;border-top:1px solid #eef2f6">🌫 Cloak</div>
   <div class="ctxitem" data-act="weasel" style="padding:8px 14px;cursor:pointer;border-top:1px solid #eef2f6">🎣 Wild weasel</div>
+  <div class="ctxitem" data-act="mine" style="padding:8px 14px;cursor:pointer;border-top:1px solid #eef2f6">💣 Lay mine</div>
+  <div class="ctxitem" data-act="raid" style="padding:8px 14px;cursor:pointer;border-top:1px solid #eef2f6">⚔ Boarding raid</div>
   <div class="ctxitem" data-act="ea" style="padding:8px 14px;cursor:pointer;border-top:1px solid #eef2f6">⚡ View EA</div>
   <div class="ctxitem" data-act="intel" style="padding:8px 14px;cursor:pointer;border-top:1px solid #eef2f6">🛰 Show Intel</div>
 </div>
@@ -270,6 +272,7 @@ import { launchSeeker, stepSeeker, seekerImpacts, seekerDamage, seekerExpired, p
 import { applyVolley, makeDice } from './dac-allocator.js';
 import { cloakEcm, applyCloakFireGate } from './cloak.js';
 import { makeScenario, applyLoSGate } from './terrain.js';
+import { MINE, mineTriggeredBy, hitAndRunSucceeds } from './mines.js';
 import { movesOnImpulse, neighbor, turnMode } from './movement.js';
 import { shipPower, newEafColumn, validateEaf, foldEaf, sinkMax, specReinfMax } from './energy-model.js';
 import { legalNextHexes, tryStep, impulseTimeline, hexesInPlot, setSpeedChange, speedAt, legalSideslips, trySideslip } from './course-plan.js';
@@ -312,6 +315,25 @@ function launchWeasel(ship) {   // wild weasel (J): a stationary decoy that dive
   seekers.push({ id: `ww${++seekerSeq}`, owner: ship.id, type: 'weasel', q: ship.q, r: ship.r, facing: ship.facing, speed: 0, warhead: 0, fade: 0, endurance: 8, travelled: 0 });
   saveSoon(ship.id); render();
 }
+function launchMine(ship) {   // C10: drop a static mine at the ship's hex; it detonates on the first enemy that enters its radius
+  if (!ship) return;
+  seekers.push({ id: `mi${++seekerSeq}`, owner: ship.id, side: ship.side, type: 'mine', q: ship.q, r: ship.r, facing: ship.facing, ...MINE });
+  saveSoon(ship.id); render();
+}
+function boardingRaid(ship) {   // D15: a transporter hit-and-run raid on an adjacent enemy — on 4+ it knocks out a random enemy system
+  if (!ship) return;
+  const enemy = ships.find(s => s.side !== ship.side && !isDead(s) && hexDistance(ship, s) <= 1);
+  const rng = makeRng((seed + rngCursor) >>> 0); rngCursor = rng.cursor();
+  const log = [];
+  if (!enemy) log.push({ kind: 'shot', firer: ship.id, cls: 'RAID', target: '\u2014', points: 0, hit: false });
+  else if (hitAndRunSucceeds(rng.d6())) {
+    const boxes = (enemy._ver.groups || []).filter(g => !['shield', 'excess-damage', 'markers', 'crew', 'rating-track', 'ammo-track', 'hull'].includes(g.family)).flatMap(g => g.boxIds || []).filter(id => !enemy.status[id]);
+    const box = boxes.length ? boxes[Math.floor(rng.next() * boxes.length)] : null;
+    if (box) enemy.status[box] = 'destroyed';
+    log.push({ kind: 'shot', firer: ship.id, cls: 'RAID', target: enemy.id, points: box ? 1 : 0, hit: !!box }); saveSoon(enemy.id);
+  } else log.push({ kind: 'shot', firer: ship.id, cls: 'RAID', target: enemy.id, points: 0, hit: false });
+  saveSoon(ship.id); render(); renderLog({ log }, true);
+}
 function launchPlasma(firer, target) {   // 6B: fire a plasma torpedo — a fading seeker (FP)
   if (!firer || !target || plasmaLeftOf(firer) <= 0) return;
   firer.plasmaLeft = plasmaLeftOf(firer) - 1;
@@ -325,6 +347,7 @@ function stepSeekers(out) {   // 6A: move every seeker one impulse toward its ta
   const hitWeasels = new Set();
   seekers = seekers.map(sk => {
     if (sk.type === 'weasel') { const e = (sk.endurance ?? 8) - 1; return { ...sk, endurance: e, _done: e <= 0 }; }   // decoy ages out over the turn
+    if (sk.type === 'mine') { const victim = mineTriggeredBy(sk, ships.filter(s => !isDead(s))); if (victim) { impacts.push({ shield: exposedShield(sk, victim), points: sk.warhead, t: victim, id: sk.id, cls: 'MINE' }); return { ...sk, _done: true }; } return sk; }   // dormant until an enemy enters the radius
     const target = byId(sk.targetId);
     if (!target || isDead(target)) return { ...sk, _done: true };   // target gone → the seeker lapses
     const weasel = weaselFor(sk.targetId, seekers);                  // divert to a wild weasel the target deployed
@@ -632,8 +655,10 @@ function render() {
   for (const sk of seekers) {   // seeking-weapon tokens: drones, plasma, shuttles, wild-weasel decoys
     const c = hexCenter(sk.q, sk.r), owner = byId(sk.owner), fill = owner ? sideFill(owner) : '#C74634';
     const nx = c.x + 15 * Math.cos(rad(sk.facing)), ny = c.y + 15 * Math.sin(rad(sk.facing));
-    const line = sk.type === 'weasel' ? '' : `<line x1="${c.x}" y1="${c.y}" x2="${nx}" y2="${ny}" stroke="${sk.type === 'plasma' ? '#16a34a' : fill}" stroke-width="2.5"/>`;
-    const body = sk.type === 'weasel'
+    const line = (sk.type === 'weasel' || sk.type === 'mine') ? '' : `<line x1="${c.x}" y1="${c.y}" x2="${nx}" y2="${ny}" stroke="${sk.type === 'plasma' ? '#16a34a' : fill}" stroke-width="2.5"/>`;
+    const body = sk.type === 'mine'
+      ? `<circle cx="${c.x}" cy="${c.y}" r="8" fill="#334155" stroke="#f59e0b" stroke-width="2" stroke-dasharray="3 2"/><text x="${c.x}" y="${c.y + 3}" text-anchor="middle" font-size="9" fill="#f59e0b" font-weight="800" style="pointer-events:none">✸</text>`
+      : sk.type === 'weasel'
       ? `<rect x="${c.x - 8}" y="${c.y - 8}" width="16" height="16" transform="rotate(45 ${c.x} ${c.y})" fill="#eab308" stroke="#fff" stroke-width="1.5" opacity="0.9"/><text x="${c.x}" y="${c.y + 3}" text-anchor="middle" font-size="7" fill="#000" font-weight="800" style="pointer-events:none">WW</text>`
       : sk.type === 'plasma'
       ? `<circle cx="${c.x}" cy="${c.y}" r="10" fill="#22c55e" stroke="#fff" stroke-width="1.5" opacity="0.8"/><circle cx="${c.x}" cy="${c.y}" r="5" fill="#bbf7d0"/>`
@@ -1145,11 +1170,11 @@ let ctxShip = null;
 createBattleMap({
   map, ui, getPhase, getShips: () => ships, byId, isMine, isFirer, COLS, ROWS, hasGhosts, groupOfShip,
   plotBase, saveSoon, render, syncMovementEnergy, onShipClick, renderFleet, pruneUnavailable,
-  openCtxMenu: (shipId, e) => { ctxShip = shipId; const mine = isMine(byId(shipId)); document.querySelector('#ctxMenu [data-act="ea"]').style.display = mine ? '' : 'none'; document.querySelector('#ctxMenu [data-act="intel"]').style.display = mine ? 'none' : ''; document.querySelector('#ctxMenu [data-act="setspeed"]').style.display = (mine && getPhase() === 'energy' && !myLockedEnergy) ? '' : 'none'; const ci = document.querySelector('#ctxMenu [data-act="cloak"]'); const cShip = byId(shipId); ci.style.display = (mine && (testMode || powerOf(cShip).systems.cloak)) ? '' : 'none'; ci.textContent = cShip.cloaked ? '🌫 Decloak' : '🌫 Cloak'; document.querySelector('#ctxMenu [data-act="weasel"]').style.display = ((mine || testMode) && getPhase() !== 'energy' && shuttleBaysOf(cShip) > 0) ? '' : 'none'; const m = document.getElementById('ctxMenu'); m.style.display = 'block'; m.style.left = Math.min(e.clientX, innerWidth - 160) + 'px'; m.style.top = e.clientY + 'px'; },
+  openCtxMenu: (shipId, e) => { ctxShip = shipId; const mine = isMine(byId(shipId)); document.querySelector('#ctxMenu [data-act="ea"]').style.display = mine ? '' : 'none'; document.querySelector('#ctxMenu [data-act="intel"]').style.display = mine ? 'none' : ''; document.querySelector('#ctxMenu [data-act="setspeed"]').style.display = (mine && getPhase() === 'energy' && !myLockedEnergy) ? '' : 'none'; const ci = document.querySelector('#ctxMenu [data-act="cloak"]'); const cShip = byId(shipId); ci.style.display = (mine && (testMode || powerOf(cShip).systems.cloak)) ? '' : 'none'; ci.textContent = cShip.cloaked ? '🌫 Decloak' : '🌫 Cloak'; document.querySelector('#ctxMenu [data-act="weasel"]').style.display = ((mine || testMode) && getPhase() !== 'energy' && shuttleBaysOf(cShip) > 0) ? '' : 'none'; document.querySelector('#ctxMenu [data-act="mine"]').style.display = document.querySelector('#ctxMenu [data-act="raid"]').style.display = ((mine || testMode) && getPhase() !== 'energy') ? '' : 'none'; const m = document.getElementById('ctxMenu'); m.style.display = 'block'; m.style.left = Math.min(e.clientX, innerWidth - 160) + 'px'; m.style.top = e.clientY + 'px'; },
   openSpeedMenu: (shipId, idx, e) => { navSpeed = { shipId, idx }; const m = document.getElementById('speedMenu'); m.style.display = 'block'; m.style.left = Math.min(e.clientX, innerWidth - 160) + 'px'; m.style.top = e.clientY + 'px'; },
 });
 document.addEventListener('click', () => { document.getElementById('ctxMenu').style.display = 'none'; });
-document.getElementById('ctxMenu').addEventListener('click', e => { const it = e.target.closest('[data-act]'); if (!it || !ctxShip) return; if (it.dataset.act === 'ssd') openSSD(ctxShip); else if (it.dataset.act === 'ea' && isMine(byId(ctxShip))) { ui.eaSelected = ctxShip; if (getPhase() === 'energy') ui.eaHidden = false; else ui.viewEA = ctxShip; render(); } else if (it.dataset.act === 'intel') openIntel(ctxShip); else if (it.dataset.act === 'setspeed') openSetSpeed(ctxShip); else if (it.dataset.act === 'cloak') { const s = byId(ctxShip); if (s) { s.cloaked = !s.cloaked; saveSoon(s.id); render(); } } else if (it.dataset.act === 'weasel') launchWeasel(byId(ctxShip)); });
+document.getElementById('ctxMenu').addEventListener('click', e => { const it = e.target.closest('[data-act]'); if (!it || !ctxShip) return; if (it.dataset.act === 'ssd') openSSD(ctxShip); else if (it.dataset.act === 'ea' && isMine(byId(ctxShip))) { ui.eaSelected = ctxShip; if (getPhase() === 'energy') ui.eaHidden = false; else ui.viewEA = ctxShip; render(); } else if (it.dataset.act === 'intel') openIntel(ctxShip); else if (it.dataset.act === 'setspeed') openSetSpeed(ctxShip); else if (it.dataset.act === 'cloak') { const s = byId(ctxShip); if (s) { s.cloaked = !s.cloaked; saveSoon(s.id); render(); } } else if (it.dataset.act === 'weasel') launchWeasel(byId(ctxShip)); else if (it.dataset.act === 'mine') launchMine(byId(ctxShip)); else if (it.dataset.act === 'raid') boardingRaid(byId(ctxShip)); });
 let navSpeed = null;   // nav-hex speed-change target { shipId, idx }
 document.addEventListener('click', () => { document.getElementById('speedMenu').style.display = 'none'; });
 document.getElementById('speedMenu').addEventListener('click', e => {
