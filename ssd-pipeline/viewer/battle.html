@@ -264,7 +264,7 @@ import { resolveAttackPlan } from './direct-fire.js';
 import { makeRng } from './rng.js';
 import { repairBoxes } from './repair.js';
 import { resolveLocks, applyLockGate } from './lock-on.js';
-import { launchSeeker, stepSeeker, seekerImpacts, seekerDamage, seekerExpired, plasmaSpec } from './seeking.js';
+import { launchSeeker, stepSeeker, seekerImpacts, seekerDamage, seekerExpired, plasmaSpec, pointDefense } from './seeking.js';
 import { applyVolley, makeDice } from './dac-allocator.js';
 import { cloakEcm, applyCloakFireGate } from './cloak.js';
 import { makeScenario, applyLoSGate } from './terrain.js';
@@ -295,6 +295,7 @@ function launchDrone(firer, target) {   // 6B: an armed rack puts a drone on the
 const plasmaGroupsOf = s => (s._ver.groups || []).filter(g => g.family === 'heavy-weapon' && /plasma/i.test(g.type || ''));
 const plasmaLoaded = s => plasmaGroupsOf(s).filter(g => (g.boxIds || []).some(id => !s.status[id])).length;   // undamaged plasma launchers
 const plasmaLeftOf = s => (s.plasmaLeft == null ? (s.plasmaLeft = plasmaLoaded(s)) : s.plasmaLeft);
+const pdRatingOf = s => (s.mounts || []).filter(m => m.cls === 'PH-3').length + (s._ver.groups || []).filter(g => g.family === 'anti-drone').reduce((n, g) => n + (g.boxIds || []).filter(id => !s.status[id]).length, 0);   // point-defense: PH-3 + ADD
 function launchPlasma(firer, target) {   // 6B: fire a plasma torpedo — a fading seeker (FP)
   if (!firer || !target || plasmaLeftOf(firer) <= 0) return;
   firer.plasmaLeft = plasmaLeftOf(firer) - 1;
@@ -309,6 +310,7 @@ function stepSeekers(out) {   // 6A: move every seeker one impulse toward its ta
     const target = byId(sk.targetId);
     if (!target || isDead(target)) return { ...sk, _done: true };   // target gone → the seeker lapses
     const s2 = stepSeeker(sk, target, clock.impulse);
+    if (!seekerImpacts(s2, target) && pointDefense(pdRatingOf(target), rng, hexDistance(s2, target))) { out.push({ kind: 'shot', firer: target.id, cls: 'PD', target: s2.id, points: 0, hit: false }); return { ...s2, _done: true }; }   // point-defense shoots it down
     if (seekerImpacts(s2, target)) { impacts.push({ shield: exposedShield(sk, target), points: seekerDamage(s2), t: target, id: s2.id, cls: s2.type === 'plasma' ? 'PLASMA' : 'DRONE' }); s2._done = true; }
     else if (seekerExpired(s2)) s2._done = true;
     return s2;

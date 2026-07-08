@@ -69,7 +69,7 @@ tournament-complete · **P2** breadth.
 ### P1 — Tournament-complete mechanics
 - ✅ **LOCK-1** Phase-4 lock-on: roll per turn (deterministic from seed+turn), net ECM can deny a lock, enforced in fire resolution.
 - ✅ **EW-1** ECM/ECCM combat effect (C8): net ECM shifts effective range in both fire resolution and the targeting preview.
-- 🟡 **SEEK-1** Seeking weapons (C5): **drones done** — launch from armed racks, homing on the Impulse Chart, impact → DAC, map tokens, per-turn rack reload, multiplayer-synced. Follow-ons: **plasma launcher done** (Romulan/Gorn plasma-S launches as a fading green seeker → DAC, per-turn reload, distinct token); point-defense (shoot down drones/plasma) remains.
+- ✅ **SEEK-1** Seeking weapons (C5): **drones done** — launch from armed racks, homing on the Impulse Chart, impact → DAC, map tokens, per-turn rack reload, multiplayer-synced. **Fully complete**: drones, plasma launcher (fading green torpedoes), and point-defense (a target's PH-3/ADD shoots down close-in seekers before impact).
 - ✅ **ROSTER-1** Roster complete: **Kzinti KZIN-CS** (disruptors + drones + phasers) and **Romulan ROM-KR** (phasers + cloak; plasma pending the SEEK-1 plasma launcher) verified with clean audits and in the picker. Cloak is now detected from the SSD `cloaking-device` family.
 - ✅ **TERR-1** Terrain slice (C9): a New-Battle scenario picker (Open vs Tournament); tournament inserts a barrier ring + asteroid field (rendered), and asteroids block line of sight so a shot through one is dropped. Deterministic (replay-safe), synced. Movement barrier turn-back is a follow-on.
 

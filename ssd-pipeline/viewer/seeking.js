@@ -41,6 +41,16 @@ export function seekerExpired(seeker) {
   return (seeker.endurance ?? Infinity) <= 0;
 }
 
+export const PD_RANGE = 3;   // point-defense only engages seekers this close
+
+// Point-defense / anti-drone: a defender rolls each of its PD systems (phaser-3 / ADD count) at a close-in
+// seeker; any 4+ shoots it down. Returns true if the seeker is destroyed. Sandbox values, not rulebook.
+export function pointDefense(pdRating, rng, range) {
+  if (range > PD_RANGE || pdRating <= 0) return false;
+  for (let i = 0; i < pdRating; i++) if (rng.d6() >= 4) return true;
+  return false;
+}
+
 // Build a plasma-torpedo seeker spec from its mount type name (e.g. "Plasma S (LP)"). Warhead scales by
 // size (R > S > G > F) and the torpedo fades as it travels; these are functional sandbox values, not
 // rulebook tables. Endurance = warhead / fade, so the torpedo dissipates at its effective range.

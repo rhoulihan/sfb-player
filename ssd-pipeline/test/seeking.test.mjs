@@ -54,3 +54,12 @@ test('plasmaSpec: bigger plasma carries a bigger warhead, and all plasma fades',
   assert.equal(S.type, 'plasma');
   assert.ok(S.speed > 0 && S.endurance > 0);
 });
+
+import { pointDefense, PD_RANGE } from '../viewer/seeking.js';
+test('point-defense: a close seeker is shot down on a good roll, spared on a bad one, safe out of range', () => {
+  assert.ok(PD_RANGE >= 1);
+  assert.equal(pointDefense(2, { d6: () => 6 }, 1), true, 'high roll in range → killed');
+  assert.equal(pointDefense(2, { d6: () => 1 }, 1), false, 'low roll → survives');
+  assert.equal(pointDefense(3, { d6: () => 6 }, PD_RANGE + 1), false, 'beyond PD range → safe');
+  assert.equal(pointDefense(0, { d6: () => 6 }, 1), false, 'no PD systems → no defense');
+});
