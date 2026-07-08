@@ -68,7 +68,7 @@ tournament-complete · **P2** breadth.
 
 ### P1 — Tournament-complete mechanics
 - ✅ **LOCK-1** Phase-4 lock-on: roll per turn (deterministic from seed+turn), net ECM can deny a lock, enforced in fire resolution.
-- ⬜ **EW-1** ECM/ECCM combat effect (C8): net shift → effective range in fire & targeting preview.
+- ✅ **EW-1** ECM/ECCM combat effect (C8): net ECM shifts effective range in both fire resolution and the targeting preview.
 - ⬜ **SEEK-1** Seeking weapons (C5): drone/plasma launch (6B), seeking movement on the Impulse Chart (6A), tracking/lock, impact resolution → DAC. Racks, reloads, plasma bolt/enveloping.
 - 🟡 **ROSTER-1** Complete the four-empire v1 roster (verify **Kzinti** CA; finish/annotate all weapon arcs; confirm clean audits).
 - ⬜ **TERR-1** Terrain slice (C9): tournament-map barrier edge (P17) + asteroid fields (P3); movement/LoS effects.

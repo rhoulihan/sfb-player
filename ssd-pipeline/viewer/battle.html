@@ -273,13 +273,13 @@ let ships = [], plan = newPlan(), workingId = null, zoom = 0.5, gridBuilt = fals
 let rev = 0, myCode = '', shipRev = {};   // rev: poll change-detection; shipRev: per-ship version for optimistic locking
 let seed = 0, rngCursor = 0;   // shared deterministic dice (RNG-1 / SEAL-1): every resolution draws from makeRng(seed, rngCursor) and persists the advanced cursor
 let lockOn = {}, lockOnTurn = -1;   // sensor lock-on (LOCK-1, D6): { firerId: Set<targetId> }, rolled once per turn
+const netEcmOf = (fr, t) => (fr && t) ? Math.max(0, (t.ecmLevel || 0) - (fr.eccmLevel || 0)) : 0;   // net ECM: target ECM beyond firer ECCM (D6.3) — gates lock-on and shifts effective range
 function ensureLocks() {   // roll phase-4 locks lazily for this turn (deterministic from seed+turn so clients agree; net ECM can deny a lock)
   if (lockOnTurn === clock.turn) return;
   lockOn = {}; const lockRng = makeRng((seed ^ (clock.turn * 0x9e3779b9)) >>> 0);
-  const netEcm = (fr, t) => Math.max(0, (t.ecmLevel || 0) - (fr.eccmLevel || 0));
   for (const side of ['friendly', 'enemy']) {
     const firers = ships.filter(s => s.side === side && !isDead(s)), targets = ships.filter(s => s.side !== side && !isDead(s));
-    Object.assign(lockOn, resolveLocks(firers, targets, lockRng, netEcm));
+    Object.assign(lockOn, resolveLocks(firers, targets, lockRng, netEcmOf));
   }
   lockOnTurn = clock.turn;
 }
@@ -570,7 +570,7 @@ function renderFireSummary() {
   const pt = map.createSVGPoint(); pt.x = tc.x; pt.y = tc.y; const sp = pt.matrixTransform(map.getScreenCTM());
   const lbl = (k, v) => `<div style="display:flex;justify-content:space-between;gap:14px"><span style="color:#94a3b8">${k}</span><span style="color:#e2e8f0;font-weight:600">${v}</span></div>`;
   const cards = groups.filter(x => x.targetShipId === t.id).map(gr => {
-    const pv = combinedPreview(gr, ships.map(ghostOf), shipMountsMap());
+    const pv = combinedPreview(gr, ships.map(ghostOf), shipMountsMap(), netEcmOf);
     const firers = gr.members.filter(m => m.mountIds.length && byId(m.shipId));
     const rs = firers.map(m => hexDistance(ghostOf(byId(m.shipId)), gt));
     const rng = rs.length ? (Math.min(...rs) === Math.max(...rs) ? `${rs[0]}` : `${Math.min(...rs)}–${Math.max(...rs)}`) : '—';
@@ -818,7 +818,7 @@ function renderTray() {
   else {
     body.className = '';
     body.innerHTML = withTarget.map(g => {
-      const pv = combinedPreview(g, ships.map(ghostOf), shipMountsMap()); const t = byId(g.targetShipId);   // ghost what-if positions feed the nominal damage
+      const pv = combinedPreview(g, ships.map(ghostOf), shipMountsMap(), netEcmOf); const t = byId(g.targetShipId);   // ghost what-if positions feed the nominal damage
       const rows = pv.perShield.map(r => `shield #${r.shield}: <b>${r.nominal.toFixed(1)}</b> exp <span style="color:#94a3b8">(${r.firers.join('+')} vs ${t.shields[r.shield - 1]} boxes)</span>`).join(' · ');
       return `<div class="prev"><span style="color:${g.color};font-weight:700">${g.id}</span> → ${t.id}: ${rows} <span style="color:#94a3b8">— expected damage (hit-weighted)</span></div>`;
     }).join('');
@@ -1216,7 +1216,7 @@ function resolvePlanInto(p, models, log, affected) {
     return used;
   };
   const rng = makeRng(seed, rngCursor);   // deterministic shared dice — both clients agree, replayable
-  const res = resolveAttackPlan(clean, ships, shipMountsMap(), models, rng.next, modeFn, reinforceOf);
+  const res = resolveAttackPlan(clean, ships, shipMountsMap(), models, rng.next, modeFn, reinforceOf, netEcmOf);
   rngCursor = rng.cursor();
   res.log.filter(l => l.kind === 'shot').forEach(l => { const s = byId(l.firer); if (s) { s.firedAt[l.mount] = { turn: clock.turn, impulse: clock.impulse }; if (isPhaser(l.cls)) s.capacitor = Math.max(0, (s.capacitor || 0) - PHASER_FIRE_COST); } affected.add(l.firer); affected.add(l.target); });
   res.volleys.forEach(v => { const s = byId(v.targetShipId); v.effects.forEach(ef => { if (ef.boxId) s.status[ef.boxId] = 'destroyed'; }); affected.add(v.targetShipId); });

@@ -4,19 +4,22 @@ import { exposedShield, hexDistance } from './battle-geom.js';
 import { WEAPONS, damageFor } from './weapon-charts.js';
 import { applyVolley, makeDice } from './dac-allocator.js';
 
-// dieFn() returns a d6 (1..6). Returns { hit, points, struckShield, die }.
-export function resolveMount(firer, mount, target, dieFn, mode = false) {
+// dieFn() returns a d6 (1..6). netEcm (target ECM beyond firer ECCM, D6.3) is added to the range the weapon
+// chart is read at, so jamming lowers damage or pushes a shot out of range. Returns { hit, points,
+// struckShield, die, trueRange, effRange }.
+export function resolveMount(firer, mount, target, dieFn, mode = false, netEcm = 0) {
   const def = WEAPONS[mount.cls];
   const trueRange = hexDistance(firer, target);
+  const effRange = trueRange + Math.max(0, netEcm | 0);            // ECM shifts the effective range up
   const struckShield = exposedShield(firer, target);
   const die = dieFn();
-  const points = def ? damageFor(def, trueRange, die, mode) : 0;   // mode: false | 'overload' | 'prox'
-  return { hit: points > 0, points, struckShield, die };
+  const points = def ? damageFor(def, effRange, die, mode) : 0;    // mode: false | 'overload' | 'prox'
+  return { hit: points > 0, points, struckShield, die, trueRange, effRange };
 }
 
 // models[shipId] is that ship's buildShipModel() result. Rolls every committed mount, buckets hits by
 // (target, struck shield), and calls applyVolley once per bucket. Returns { volleys, log }.
-export function resolveAttackPlan(plan, ships, shipMounts, models, rand = Math.random, modeFn = null, reinforceOf = null) {
+export function resolveAttackPlan(plan, ships, shipMounts, models, rand = Math.random, modeFn = null, reinforceOf = null, netEcmFn = null) {
   const byId = Object.fromEntries(ships.map(s => [s.id, s]));
   const d6 = () => 1 + Math.floor(rand() * 6);
   const dice2d6 = makeDice(rand);
@@ -29,7 +32,7 @@ export function resolveAttackPlan(plan, ships, shipMounts, models, rand = Math.r
       const firer = byId[m.shipId]; if (!firer) continue;
       for (const id of m.mountIds) {
         const mount = (shipMounts[m.shipId] || []).find(x => x.id === id); if (!mount) continue;
-        const r = resolveMount(firer, mount, target, d6, modeFn ? modeFn(m.shipId, id) : false);
+        const r = resolveMount(firer, mount, target, d6, modeFn ? modeFn(m.shipId, id) : false, netEcmFn ? netEcmFn(firer, target) : 0);
         log.push({ kind: 'shot', firer: m.shipId, mount: id, cls: mount.cls, target: g.targetShipId, ...r });
         if (r.points <= 0) continue;
         const key = `${g.targetShipId}|${r.struckShield}`;

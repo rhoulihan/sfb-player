@@ -68,12 +68,13 @@ function nominal(cls, trueRange) {
   return ((hb[1] - hb[0] + 1) / 6) * (def.fixedDamage[bi] || 0);
 }
 
-export function combinedPreview(group, ships, shipMounts) {
+export function combinedPreview(group, ships, shipMounts, netEcm = () => 0) {
   const target = ships.find(s => s.id === group.targetShipId); if (!target) return null;
   const perShield = {};
   for (const m of group.members) {
     const firer = ships.find(s => s.id === m.shipId); if (!firer) continue;
-    const shield = exposedShield(firer, target); const range = hexDistance(firer, target);
+    const shield = exposedShield(firer, target);
+    const range = hexDistance(firer, target) + Math.max(0, netEcm(firer, target) | 0);   // effective range under EW (D6.3)
     for (const id of m.mountIds) {
       const mount = (shipMounts[m.shipId] || []).find(x => x.id === id); if (!mount) continue;
       const slot = perShield[shield] || (perShield[shield] = { shield, nominal: 0, firers: new Set() });
