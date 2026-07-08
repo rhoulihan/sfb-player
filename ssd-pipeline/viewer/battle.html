@@ -247,6 +247,7 @@
         <div class="nblist" data-list="enemy"></div></div>
     </div>
     <div style="padding:10px 16px;border-top:1px solid #e2e8f0;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+      <label style="font-size:13px;display:flex;align-items:center;gap:5px">Map <select id="nbScenario"><option value="open">Open</option><option value="tournament">Tournament (barrier + asteroids)</option></select></label>
       <label style="font-size:13px;display:flex;align-items:center;gap:5px">You command
         <select id="nbCommand"><option value="friendly">Fleet 1</option><option value="enemy">Fleet 2</option></select></label>
       <span style="flex:1"></span><button class="btn primary" id="nbStart" disabled>Start Battle</button>
@@ -265,6 +266,7 @@ import { resolveLocks, applyLockGate } from './lock-on.js';
 import { launchSeeker, stepSeeker, seekerImpacts, seekerDamage, seekerExpired } from './seeking.js';
 import { applyVolley, makeDice } from './dac-allocator.js';
 import { cloakEcm, applyCloakFireGate } from './cloak.js';
+import { makeScenario, applyLoSGate } from './terrain.js';
 import { movesOnImpulse, neighbor, turnMode } from './movement.js';
 import { shipPower, newEafColumn, validateEaf, foldEaf, sinkMax, specReinfMax } from './energy-model.js';
 import { legalNextHexes, tryStep, impulseTimeline, hexesInPlot, setSpeedChange, speedAt, legalSideslips, trySideslip } from './course-plan.js';
@@ -279,6 +281,7 @@ let rev = 0, myCode = '', shipRev = {};   // rev: poll change-detection; shipRev
 let seed = 0, rngCursor = 0;   // shared deterministic dice (RNG-1 / SEAL-1): every resolution draws from makeRng(seed, rngCursor) and persists the advanced cursor
 let lockOn = {}, lockOnTurn = -1;   // sensor lock-on (LOCK-1, D6): { firerId: Set<targetId> }, rolled once per turn
 let seekers = [], seekerSeq = 0;   // seeking weapons on the map (SEEK-1, C5): drone/plasma tokens
+let terrain = { barrier: null, asteroids: [] };   // scenario terrain (TERR-1, C9)
 const DRONE = { type: 'drone', speed: 20, warhead: 12, fade: 0, endurance: 40 };   // standard sandbox drone (speed/warhead are data)
 const droneRacksOf = s => (s._ver.groups || []).filter(g => g.family === 'drone-rack').reduce((n, g) => n + (g.boxIds || []).filter(id => !s.status[id]).length, 0);
 const dronesLeftOf = s => (s.dronesLeft == null ? (s.dronesLeft = droneRacksOf(s)) : s.dronesLeft);
@@ -374,7 +377,7 @@ async function startBattle(defs, clk, restore, ph) {
   battleDefs = defs.map(d => ({ ...d }));
   ships = []; plan = newPlan(); shipRev = {}; workingId = null; ui.activeId = null; clock = clk || { turn: 1, impulse: 0 };
   setCoarse(ph || 'energy'); eafDraft = {}; myLockedEnergy = false; ui.eaSelected = null; ui.eaHidden = false;   // turns open in energy allocation
-  ui.ghosts = {}; ui.selectedGhost = null; ui.ghostDrag = null; ui.navPreview = null; ui.plotShipId = null; modelFleet = myFleet; stashedPlan = null; lockOn = {}; lockOnTurn = -1; seekers = []; seekerSeq = 0;   // fresh battle → no carried-over what-if / plot / perspective / lock state
+  ui.ghosts = {}; ui.selectedGhost = null; ui.ghostDrag = null; ui.navPreview = null; ui.plotShipId = null; modelFleet = myFleet; stashedPlan = null; lockOn = {}; lockOnTurn = -1; seekers = []; seekerSeq = 0; terrain = { barrier: null, asteroids: [] };   // fresh battle → no carried-over what-if / plot / perspective / lock state
   for (const d of defs) {
     const s = await hydrate(d), r = restore && restore[d.id];
     if (r) { (r.destroyed || []).forEach(id => (s.status[id] = 'destroyed')); s.firedAt = r.firedAt || {}; if (r.hexesSinceTurn != null) s.hexesSinceTurn = r.hexesSinceTurn; s.queuedTurn = r.queuedTurn || 0; }
@@ -395,7 +398,7 @@ async function resumeSaved(saved) {
   myLockedEnergy = !!committed[myFleet];
   shipRev = {}; for (const s of saved.ships) shipRev[s.id] = s.rev ?? 0;
   rev = saved.rev || 0;
-  seed = saved.seed ?? 0; rngCursor = saved.rngCursor ?? 0;
+  seed = saved.seed ?? 0; rngCursor = saved.rngCursor ?? 0; terrain = saved.terrain || { barrier: null, asteroids: [] }; seekers = saved.seekers || [];
   render();
 }
 let savedBattle = null;
@@ -418,7 +421,7 @@ async function save(touched, opts = {}) {
   const step = !!opts.step;
   const list = step ? ships : [...new Set(touched)].filter(Boolean).map(byId).filter(Boolean);
   if (!step && !list.length) return;
-  const body = { code: myCode, kind: step ? 'step' : 'edit', turn: clock.turn, impulse: clock.impulse, plan, rngCursor, seekers,
+  const body = { code: myCode, kind: step ? 'step' : 'edit', turn: clock.turn, impulse: clock.impulse, plan, rngCursor, seekers, terrain,
     ships: list.map(s => ({ ...serializeShip(s), rev: shipRev[s.id] ?? 0 })) };
   if (opts.phase) body.phase = opts.phase;
   saving = true;
@@ -461,7 +464,7 @@ function applyRemote(data) {
     s.model = null;
   }
   rev = data.rev || rev;
-  if (data.seed) seed = data.seed; if (data.rngCursor != null) rngCursor = data.rngCursor; if (data.seekers) seekers = data.seekers;
+  if (data.seed) seed = data.seed; if (data.rngCursor != null) rngCursor = data.rngCursor; if (data.seekers) seekers = data.seekers; if (data.terrain) terrain = data.terrain;
   if (data.lastFire && data.lastFire.id && data.lastFire.id !== lastFireShown) { lastFireShown = data.lastFire.id; renderLog({ log: data.lastFire.log || [] }, true); }   // show the resolver's fire result
   render(); applying = false;
 }
@@ -575,6 +578,8 @@ function render() {
       `<circle cx="${c.x}" cy="${c.y}" r="20" fill="none" stroke="${fill}" stroke-width="2.5" stroke-dasharray="4 3"/>` +
       `<text x="${c.x}" y="${c.y + 4}" text-anchor="middle" fill="${fill}" font-size="12" font-weight="700" style="pointer-events:none">${s.id}</text></g>`;
   }
+  if (terrain.barrier) { const b = terrain.barrier, tl = hexCenter(b.minQ, b.minR), br = hexCenter(b.maxQ, b.maxR); svg += `<rect x="${tl.x - 22}" y="${tl.y - 22}" width="${br.x - tl.x + 44}" height="${br.y - tl.y + 44}" fill="none" stroke="#dc2626" stroke-width="3" stroke-dasharray="11 7" opacity="0.45" rx="16"/>`; }
+  for (const a of terrain.asteroids) { const c = hexCenter(a.q, a.r); svg += `<circle cx="${c.x}" cy="${c.y}" r="12" fill="#57534e" stroke="#292524" stroke-width="1.5" opacity="0.9"/><circle cx="${c.x - 3}" cy="${c.y - 3}" r="3.5" fill="#78716c"/><circle cx="${c.x + 4}" cy="${c.y + 2}" r="2.5" fill="#44403c"/>`; }
   for (const s of ships) {
     const c = hexCenter(s.q, s.r), fill = sideFill(s);
     const nx = c.x + 27 * Math.cos(rad(s.facing)), ny = c.y + 27 * Math.sin(rad(s.facing));
@@ -1050,7 +1055,7 @@ const serializeShip = s => ({
 });
 // full snapshot for creating a new battle (both fire plans empty at creation)
 function serializeBattle() {
-  return { turn: clock.turn, impulse: clock.impulse, fleets, seed, rngCursor, seekers,
+  return { turn: clock.turn, impulse: clock.impulse, fleets, seed, rngCursor, seekers, terrain,
     plans: { friendly: myFleet === 'friendly' ? plan : newPlan(), enemy: myFleet === 'enemy' ? plan : newPlan() },
     ships: ships.map(serializeShip) };
 }
@@ -1242,7 +1247,7 @@ fetch('weapons.html', { method: 'HEAD' }).then(r => { if (!r.ok) throw 0; }).cat
 // ---------- direct fire (6D of each impulse) — cached target models so damage accumulates across impulses ----------
 // resolve one fleet's plan into shared models/log/affected (cached models keep pre-fire shields for simultaneity)
 function resolvePlanInto(p, models, log, affected) {
-  ensureLocks(); p = applyLockGate(p, lockOn); p = applyCloakFireGate(p, byId);   // D6.1: must have a lock; G13: a cloaked ship can't fire
+  ensureLocks(); p = applyLockGate(p, lockOn); p = applyCloakFireGate(p, byId); p = applyLoSGate(p, byId, terrain);   // D6.1 lock; G13 cloak holds fire; P3 asteroids block LoS
   const mk = t => t.model || (t.model = buildShipModel(t._ver, t._det));
   for (const g of (p.groups || [])) { const t = byId(g.targetShipId); if (t) models[t.id] = mk(t); }
   const capLeft = {}; for (const s of ships) capLeft[s.id] = Math.floor(s.capacitor || 0);   // phaser budget for this resolution
@@ -1371,6 +1376,7 @@ document.getElementById('nbStart').onclick = async () => {
   myCode = fleets[myFleet].code;
   document.getElementById('nbModal').style.display = 'none';
   await startBattle(defs, { turn: 1, impulse: 0 });
+  terrain = makeScenario(document.getElementById('nbScenario').value, COLS, ROWS); render();
   try { const j = await (await fetch('/api/battle', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...serializeBattle(), kind: 'new', code: myCode }) })).json(); rev = j.rev || 1; if (j.seed) seed = j.seed; rngCursor = 0; for (const [id, nr] of Object.entries(j.ships || {})) shipRev[id] = nr; } catch {}
   showCodes();
 };

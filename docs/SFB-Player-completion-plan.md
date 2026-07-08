@@ -71,7 +71,7 @@ tournament-complete · **P2** breadth.
 - ✅ **EW-1** ECM/ECCM combat effect (C8): net ECM shifts effective range in both fire resolution and the targeting preview.
 - 🟡 **SEEK-1** Seeking weapons (C5): **drones done** — launch from armed racks, homing on the Impulse Chart, impact → DAC, map tokens, per-turn rack reload, multiplayer-synced. Follow-ons: plasma launcher UI (module already supports fade), point-defense (shoot down drones).
 - ✅ **ROSTER-1** Roster complete: **Kzinti KZIN-CS** (disruptors + drones + phasers) and **Romulan ROM-KR** (phasers + cloak; plasma pending the SEEK-1 plasma launcher) verified with clean audits and in the picker. Cloak is now detected from the SSD `cloaking-device` family.
-- ⬜ **TERR-1** Terrain slice (C9): tournament-map barrier edge (P17) + asteroid fields (P3); movement/LoS effects.
+- ✅ **TERR-1** Terrain slice (C9): a New-Battle scenario picker (Open vs Tournament); tournament inserts a barrier ring + asteroid field (rendered), and asteroids block line of sight so a shot through one is dropped. Deterministic (replay-safe), synced. Movement barrier turn-back is a follow-on.
 
 ### P2 — Breadth (rounds out "faithful", optional to first-finish)
 - ⬜ **SHUT-1** Admin/suicide shuttles, wild weasel, scatter-packs (C6 v1 slice).
