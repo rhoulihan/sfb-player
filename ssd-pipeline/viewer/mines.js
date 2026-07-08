@@ -21,3 +21,13 @@ export function mineTriggeredBy(mine, ships) {
 export function hitAndRunSucceeds(roll) {
   return roll >= 4;
 }
+
+// Self-destruct (D19) — the ship explodes, hitting every other ship in the blast radius; damage falls off
+// with distance. The host applies the hits through the DAC and removes the exploding ship.
+export const SELF_DESTRUCT = { radius: 2, warhead: 30 };
+export function selfDestructHits(ship, ships, radius = SELF_DESTRUCT.radius) {
+  return (ships || []).filter(s => s.id !== ship.id && dist(ship, s) <= radius);
+}
+export function selfDestructDamage(distance, warhead = SELF_DESTRUCT.warhead) {
+  return Math.max(0, Math.round(warhead / Math.max(1, distance)));
+}

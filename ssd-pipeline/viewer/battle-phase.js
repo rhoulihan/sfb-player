@@ -18,6 +18,20 @@ const ENERGY_FAMILY = new Set(PRE);
 // coarse fork for the existing energy/impulse UI branches
 export function family(phase) { return ENERGY_FAMILY.has(phase) ? 'energy' : 'impulse'; }
 
+// human-readable label for the current segment, for the sequence-of-play indicator in the UI
+const SEG_NAMES = {
+  energy: 'Energy Allocation', speed: 'Speed Determination', 'self-destruct': 'Self-Destruct',
+  lockon: 'Sensor Lock-On', initial: 'Initial', '6A1': 'Speed Change', '6A2': 'Movement',
+  '6A3': 'Sideslip', '6A4': 'Turn Mode', '6C': 'Dogfight', '6E': 'Post-Combat',
+  final: 'End of Turn', record: 'Record',
+};
+export function segmentName(phase) {
+  if (SEG_NAMES[phase]) return SEG_NAMES[phase];
+  if (/^6B/.test(phase)) return 'Seeking Weapons';
+  if (/^6D/.test(phase)) return 'Direct Fire';
+  return phase;
+}
+
 // one segment forward, honoring the pre → 32×impulse-loop → post → next-turn structure
 export function nextCursor(clock) {
   const { turn, impulse, phase } = clock;

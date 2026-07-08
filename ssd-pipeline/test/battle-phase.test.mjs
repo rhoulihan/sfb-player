@@ -101,3 +101,13 @@ test('hasLockOn — fire eligibility gate (true = all, or a Set of target ids)',
   assert.equal(hasLockOn({ a: new Set(['y']) }, 'a', 'x'), false);
   assert.equal(hasLockOn({}, 'a', 'x'), false);
 });
+
+import { segmentName } from '../viewer/battle-phase.js';
+test('segmentName gives a readable label for each sequence-of-play segment', () => {
+  assert.equal(segmentName('energy'), 'Energy Allocation');
+  assert.equal(segmentName('6A2'), 'Movement');
+  assert.equal(segmentName('6D1'), 'Direct Fire');
+  assert.equal(segmentName('6B3'), 'Seeking Weapons');
+  assert.equal(segmentName('self-destruct'), 'Self-Destruct');
+  assert.equal(segmentName('6E'), 'Post-Combat');
+});

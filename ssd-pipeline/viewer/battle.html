@@ -188,6 +188,7 @@
   <div class="ctxitem" data-act="weasel" style="padding:8px 14px;cursor:pointer;border-top:1px solid #eef2f6">🎣 Wild weasel</div>
   <div class="ctxitem" data-act="mine" style="padding:8px 14px;cursor:pointer;border-top:1px solid #eef2f6">💣 Lay mine</div>
   <div class="ctxitem" data-act="raid" style="padding:8px 14px;cursor:pointer;border-top:1px solid #eef2f6">⚔ Boarding raid</div>
+  <div class="ctxitem" data-act="selfdestruct" style="padding:8px 14px;cursor:pointer;border-top:1px solid #eef2f6;color:#C74634">💥 Self-destruct</div>
   <div class="ctxitem" data-act="ea" style="padding:8px 14px;cursor:pointer;border-top:1px solid #eef2f6">⚡ View EA</div>
   <div class="ctxitem" data-act="intel" style="padding:8px 14px;cursor:pointer;border-top:1px solid #eef2f6">🛰 Show Intel</div>
 </div>
@@ -272,11 +273,11 @@ import { launchSeeker, stepSeeker, seekerImpacts, seekerDamage, seekerExpired, p
 import { applyVolley, makeDice } from './dac-allocator.js';
 import { cloakEcm, applyCloakFireGate } from './cloak.js';
 import { makeScenario, applyLoSGate } from './terrain.js';
-import { MINE, mineTriggeredBy, hitAndRunSucceeds } from './mines.js';
+import { MINE, mineTriggeredBy, hitAndRunSucceeds, SELF_DESTRUCT, selfDestructHits, selfDestructDamage } from './mines.js';
 import { movesOnImpulse, neighbor, turnMode } from './movement.js';
 import { shipPower, newEafColumn, validateEaf, foldEaf, sinkMax, specReinfMax } from './energy-model.js';
 import { legalNextHexes, tryStep, impulseTimeline, hexesInPlot, setSpeedChange, speedAt, legalSideslips, trySideslip } from './course-plan.js';
-import { family } from './battle-phase.js';   // SFB Sequence-of-Play segment cursor
+import { family, segmentName } from './battle-phase.js';   // SFB Sequence-of-Play segment cursor
 import { hexPath, rad, plotOverlaySvg, createBattleMap } from './battle-map.js';
 import { SCENARIO } from './scenario.js';
 
@@ -332,6 +333,21 @@ function boardingRaid(ship) {   // D15: a transporter hit-and-run raid on an adj
     if (box) enemy.status[box] = 'destroyed';
     log.push({ kind: 'shot', firer: ship.id, cls: 'RAID', target: enemy.id, points: box ? 1 : 0, hit: !!box }); saveSoon(enemy.id);
   } else log.push({ kind: 'shot', firer: ship.id, cls: 'RAID', target: enemy.id, points: 0, hit: false });
+  saveSoon(ship.id); render(); renderLog({ log }, true);
+}
+function selfDestruct(ship) {   // D19 (SOP phase-3): the ship explodes, hitting every ship in the blast radius through the DAC, then is lost
+  if (!ship || isDead(ship)) return;
+  const rng = makeRng((seed + rngCursor) >>> 0); rngCursor = rng.cursor();
+  const dice = makeDice(rng.next), log = [];
+  for (const victim of selfDestructHits(ship, ships.filter(s => !isDead(s)))) {
+    const dmg = selfDestructDamage(hexDistance(ship, victim)), shield = exposedShield(ship, victim);
+    const model = victim.model || (victim.model = buildShipModel(victim._ver, victim._det));
+    const effects = dmg > 0 ? applyVolley(model, { shield, points: dmg }, dice) : [];
+    effects.forEach(ef => { if (ef.boxId) victim.status[ef.boxId] = 'destroyed'; });
+    log.push({ target: victim.id, shield, points: dmg, effects }); saveSoon(victim.id);
+  }
+  (ship._ver.groups || []).forEach(g => (g.boxIds || []).forEach(id => ship.status[id] = 'destroyed'));   // the exploding ship is gone
+  log.push({ kind: 'death', ship: ship.id });
   saveSoon(ship.id); render(); renderLog({ log }, true);
 }
 function launchPlasma(firer, target) {   // 6B: fire a plasma torpedo — a fading seeker (FP)
@@ -545,6 +561,7 @@ function startPolling() {
 const isDead = s => shipHealth(s) <= 0;
 function stepImpulse() {
   if (getPhase() !== 'impulse') return;
+  const aliveBefore = new Set(ships.filter(s => !isDead(s)).map(s => s.id));   // 6E: announce ships lost this impulse
   clock.impulse++;
   myCommitted = false; committed = {};                            // new impulse → fresh firing commits
   let wrapped = false;
@@ -573,6 +590,7 @@ function stepImpulse() {
     clock.phase = 'energy'; eafDraft = {}; myLockedEnergy = false; ui.eaHidden = false;
   }
   const skLog = []; stepSeekers(skLog);   // 6A: seeking weapons advance + impact this impulse
+  for (const s of ships) if (aliveBefore.has(s.id) && isDead(s)) skLog.push({ kind: 'death', ship: s.id });   // 6E post-combat: announce the fallen
   if (wrapped) for (const s of ships) { s.dronesLeft = droneRacksOf(s); s.plasmaLeft = plasmaLoaded(s); s.shuttlesLeft = shuttleBaysOf(s); }   // reload racks + plasma + shuttle bays each turn
   pruneUnavailable(); render(); if (skLog.length) renderLog({ log: skLog }, true); save(null, wrapped ? { step: true, phase: 'energy' } : { step: true });   // movement syncs to all commanders
 }
@@ -887,7 +905,8 @@ function turnCtl(s) {
     <button data-turn="1" data-ship="${s.id}" class="${s.queuedTurn === 1 ? 'lit' : ''}">turn ↻</button><span class="tmc">${cd}</span></div>`;
 }
 function renderClock() {
-  const phase = getPhase() === 'energy' ? '⚡ Energy Allocation' : `Impulse ${clock.impulse}/32`;
+  const seg = segmentName(clock.phase);   // SOP: the current sequence-of-play segment
+  const phase = getPhase() === 'energy' ? `⚡ ${seg}` : `Impulse ${clock.impulse}/32 · ${seg}`;
   document.getElementById('clock').textContent = `Turn ${clock.turn} · ${phase}`;
 }
 
@@ -1170,11 +1189,11 @@ let ctxShip = null;
 createBattleMap({
   map, ui, getPhase, getShips: () => ships, byId, isMine, isFirer, COLS, ROWS, hasGhosts, groupOfShip,
   plotBase, saveSoon, render, syncMovementEnergy, onShipClick, renderFleet, pruneUnavailable,
-  openCtxMenu: (shipId, e) => { ctxShip = shipId; const mine = isMine(byId(shipId)); document.querySelector('#ctxMenu [data-act="ea"]').style.display = mine ? '' : 'none'; document.querySelector('#ctxMenu [data-act="intel"]').style.display = mine ? 'none' : ''; document.querySelector('#ctxMenu [data-act="setspeed"]').style.display = (mine && getPhase() === 'energy' && !myLockedEnergy) ? '' : 'none'; const ci = document.querySelector('#ctxMenu [data-act="cloak"]'); const cShip = byId(shipId); ci.style.display = (mine && (testMode || powerOf(cShip).systems.cloak)) ? '' : 'none'; ci.textContent = cShip.cloaked ? '🌫 Decloak' : '🌫 Cloak'; document.querySelector('#ctxMenu [data-act="weasel"]').style.display = ((mine || testMode) && getPhase() !== 'energy' && shuttleBaysOf(cShip) > 0) ? '' : 'none'; document.querySelector('#ctxMenu [data-act="mine"]').style.display = document.querySelector('#ctxMenu [data-act="raid"]').style.display = ((mine || testMode) && getPhase() !== 'energy') ? '' : 'none'; const m = document.getElementById('ctxMenu'); m.style.display = 'block'; m.style.left = Math.min(e.clientX, innerWidth - 160) + 'px'; m.style.top = e.clientY + 'px'; },
+  openCtxMenu: (shipId, e) => { ctxShip = shipId; const mine = isMine(byId(shipId)); document.querySelector('#ctxMenu [data-act="ea"]').style.display = mine ? '' : 'none'; document.querySelector('#ctxMenu [data-act="intel"]').style.display = mine ? 'none' : ''; document.querySelector('#ctxMenu [data-act="setspeed"]').style.display = (mine && getPhase() === 'energy' && !myLockedEnergy) ? '' : 'none'; const ci = document.querySelector('#ctxMenu [data-act="cloak"]'); const cShip = byId(shipId); ci.style.display = (mine && (testMode || powerOf(cShip).systems.cloak)) ? '' : 'none'; ci.textContent = cShip.cloaked ? '🌫 Decloak' : '🌫 Cloak'; document.querySelector('#ctxMenu [data-act="weasel"]').style.display = ((mine || testMode) && getPhase() !== 'energy' && shuttleBaysOf(cShip) > 0) ? '' : 'none'; document.querySelector('#ctxMenu [data-act="mine"]').style.display = document.querySelector('#ctxMenu [data-act="raid"]').style.display = ((mine || testMode) && getPhase() !== 'energy') ? '' : 'none'; document.querySelector('#ctxMenu [data-act="selfdestruct"]').style.display = (mine || testMode) ? '' : 'none'; const m = document.getElementById('ctxMenu'); m.style.display = 'block'; m.style.left = Math.min(e.clientX, innerWidth - 160) + 'px'; m.style.top = e.clientY + 'px'; },
   openSpeedMenu: (shipId, idx, e) => { navSpeed = { shipId, idx }; const m = document.getElementById('speedMenu'); m.style.display = 'block'; m.style.left = Math.min(e.clientX, innerWidth - 160) + 'px'; m.style.top = e.clientY + 'px'; },
 });
 document.addEventListener('click', () => { document.getElementById('ctxMenu').style.display = 'none'; });
-document.getElementById('ctxMenu').addEventListener('click', e => { const it = e.target.closest('[data-act]'); if (!it || !ctxShip) return; if (it.dataset.act === 'ssd') openSSD(ctxShip); else if (it.dataset.act === 'ea' && isMine(byId(ctxShip))) { ui.eaSelected = ctxShip; if (getPhase() === 'energy') ui.eaHidden = false; else ui.viewEA = ctxShip; render(); } else if (it.dataset.act === 'intel') openIntel(ctxShip); else if (it.dataset.act === 'setspeed') openSetSpeed(ctxShip); else if (it.dataset.act === 'cloak') { const s = byId(ctxShip); if (s) { s.cloaked = !s.cloaked; saveSoon(s.id); render(); } } else if (it.dataset.act === 'weasel') launchWeasel(byId(ctxShip)); else if (it.dataset.act === 'mine') launchMine(byId(ctxShip)); else if (it.dataset.act === 'raid') boardingRaid(byId(ctxShip)); });
+document.getElementById('ctxMenu').addEventListener('click', e => { const it = e.target.closest('[data-act]'); if (!it || !ctxShip) return; if (it.dataset.act === 'ssd') openSSD(ctxShip); else if (it.dataset.act === 'ea' && isMine(byId(ctxShip))) { ui.eaSelected = ctxShip; if (getPhase() === 'energy') ui.eaHidden = false; else ui.viewEA = ctxShip; render(); } else if (it.dataset.act === 'intel') openIntel(ctxShip); else if (it.dataset.act === 'setspeed') openSetSpeed(ctxShip); else if (it.dataset.act === 'cloak') { const s = byId(ctxShip); if (s) { s.cloaked = !s.cloaked; saveSoon(s.id); render(); } } else if (it.dataset.act === 'weasel') launchWeasel(byId(ctxShip)); else if (it.dataset.act === 'mine') launchMine(byId(ctxShip)); else if (it.dataset.act === 'raid') boardingRaid(byId(ctxShip)); else if (it.dataset.act === 'selfdestruct') { if (confirm(`Self-destruct ${ctxShip}?`)) selfDestruct(byId(ctxShip)); } });
 let navSpeed = null;   // nav-hex speed-change target { shipId, idx }
 document.addEventListener('click', () => { document.getElementById('speedMenu').style.display = 'none'; });
 document.getElementById('speedMenu').addEventListener('click', e => {
@@ -1386,6 +1405,8 @@ function renderLog(res, append) {
   const L = document.getElementById('log');
   const lines = res.log.map(l => l.kind === 'shot'
     ? `<div class="${l.hit ? 'hit' : 'miss'}">${l.firer} ${l.cls} → ${l.target}: die ${l.die}, ${l.hit ? l.points + ' pts → shield #' + l.struckShield : 'miss'}</div>`
+    : l.kind === 'death'
+    ? `<div class="vol"><span class="kill">☠ ${l.ship} destroyed</span></div>`
     : `<div class="vol">${l.target} shield #${l.shield}: ${l.points} pts → ${l.effects.filter(e => e.type === 'destroy').length} internal${l.effects.some(e => e.type === 'shipDestroyed') ? ' <span class="kill">◈ DESTROYED</span>' : ''}</div>`);
   const block = `<div style="font-weight:700;color:#0f172a;margin:2px 0">▶ Turn ${clock.turn} · Impulse ${clock.impulse}</div>` + (lines.join('') || '<div class="miss">no shots</div>');
   if (append) L.insertAdjacentHTML('afterbegin', block); else L.innerHTML = block;

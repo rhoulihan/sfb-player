@@ -32,3 +32,18 @@ test('hit-and-run raid succeeds on 4+', () => {
   assert.equal(hitAndRunSucceeds(4), true);
   assert.equal(hitAndRunSucceeds(3), false);
 });
+
+import { SELF_DESTRUCT, selfDestructHits, selfDestructDamage } from '../viewer/mines.js';
+test('self-destruct hits every ship in the blast radius except the exploding ship', () => {
+  const ship = { id: 'F1', q: 5, r: 5 };
+  const ships = [ship, { id: 'E1', q: 5, r: 5 }, { id: 'F2', q: 6, r: 5 }, { id: 'E2', q: 15, r: 5 }];
+  const hits = selfDestructHits(ship, ships, 2).map(s => s.id);
+  assert.ok(hits.includes('E1') && hits.includes('F2'), 'nearby ships (friend + foe) are caught');
+  assert.ok(!hits.includes('F1'), 'not the exploding ship itself');
+  assert.ok(!hits.includes('E2'), 'not a distant ship');
+});
+test('self-destruct damage falls off with distance', () => {
+  assert.ok(SELF_DESTRUCT.warhead > 0 && SELF_DESTRUCT.radius >= 1);
+  assert.ok(selfDestructDamage(1, 30) > selfDestructDamage(2, 30), 'closer = more damage');
+  assert.ok(selfDestructDamage(1, 30) > 0);
+});
