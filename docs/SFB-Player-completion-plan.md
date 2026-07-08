@@ -70,7 +70,7 @@ tournament-complete · **P2** breadth.
 - ✅ **LOCK-1** Phase-4 lock-on: roll per turn (deterministic from seed+turn), net ECM can deny a lock, enforced in fire resolution.
 - ✅ **EW-1** ECM/ECCM combat effect (C8): net ECM shifts effective range in both fire resolution and the targeting preview.
 - ✅ **SEEK-1** Seeking weapons (C5): **drones done** — launch from armed racks, homing on the Impulse Chart, impact → DAC, map tokens, per-turn rack reload, multiplayer-synced. **Fully complete**: drones, plasma launcher (fading green torpedoes), and point-defense (a target's PH-3/ADD shoots down close-in seekers before impact).
-- ✅ **ROSTER-1** Roster complete: **Kzinti KZIN-CS** (disruptors + drones + phasers) and **Romulan ROM-KR** (phasers + cloak; plasma pending the SEEK-1 plasma launcher) verified with clean audits and in the picker. Cloak is now detected from the SSD `cloaking-device` family.
+- 🟡 **ROSTER-1** **Kzinti KZIN-CS** (disruptors + drones + phasers) and **Romulan ROM-KR** (phasers + plasma + cloak) verified with clean audits and in the picker; cloak detected from the SSD `cloaking-device` family. **GOR-CA (Gorn) is NOT fully verified** — first-pass, old generic taxonomy (weapon/system), 32/57 groups unverified, 0 shuttle bays; needs a manual re-verify pass (fine families + arcs → clean audit) before it's a valid v1 ship. FED/KLI/KZI/ROM are ready; GORN slot is the gap.
 - ✅ **TERR-1** Terrain slice (C9): a New-Battle scenario picker (Open vs Tournament); tournament inserts a barrier ring + asteroid field (rendered), and asteroids block line of sight so a shot through one is dropped. Deterministic (replay-safe), synced. Movement barrier turn-back is a follow-on.
 
 ### P2 — Breadth (rounds out "faithful", optional to first-finish)
