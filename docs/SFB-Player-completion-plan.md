@@ -1,8 +1,8 @@
 # SFB Player — Completion Plan
 
 > **Purpose.** Analyze the current SFB Player build against the SFB Online specs and lay out a
-> reviewable, phased plan to **finish the game mechanics inside the existing framework**. This is a
-> spec to review *before* implementing — nothing here is built yet.
+> reviewable, phased plan to **finish the game mechanics inside the existing framework**. **Status:
+> fully implemented** — every item in §2 is shipped (strict TDD, browser-verified, committed one at a time).
 
 ## 0. Scope & guiding principles
 
@@ -38,17 +38,17 @@ client-side ES modules, `serve.py` JSON state + fog, and code-based fleet join.
 | Energy allocation (power, arming, movement, EW columns) | C2 | ✅ | `energy-model.js` + EAF UI; warp-aware speed. |
 | Movement (Impulse Chart, turn mode, sideslip, mid-turn speed change) | C3 | ✅ | `course-plan.js` + `movement.js`; drag plotting. |
 | Direct fire → damage → SSD update | C4/C7 | ✅ | `resolveAttackPlan` → volleys → DAC → `s.status`. Arc/range/struck-shield correct. |
-| DAC allocation (shields → armor → internal) | C7 | 🟡 | `applyVolley` allocates boxes; **no criticals**, `D4.33` last-box rule present. |
+| DAC allocation (shields → armor → internal) | C7 | ✅ | `applyVolley` → boxes; volatile-secondary **criticals** (DAC-1); `D4.33` last-box rule. |
 | Tactical Intelligence detection levels (D17.3/.4) | C8 | ✅ | Full chart + column shifts; enemy SSD & intel report filtered. |
-| ECM/ECCM economy → **combat effect** | C8 | ⬜ | Columns exist; **not applied** to effective range. |
-| Sensor lock-on (phase 4) | C8 | 🟡 | `lockon` segment + `hasLockOn` predicate exist; **fire never checks it**. |
-| Multiplayer sync + fog | A4/E4 (lite) | 🟡 | `serve.py` state + per-commander fog + `committed` flags; **not** hash-sealed; fire resolves client-side. |
-| Deterministic RNG | E1 | ⬜ | `Math.random` throughout → not fair for hidden info, not reproducible. |
-| Repair / damage-control effect | C7 | ⬜ | `damageControl` allocated but never repairs boxes. |
-| Seeking weapons (drones, plasma) | C5 | ⬜ | None. Racks/plasma launchers exist on SSDs but no launch/move/impact. |
-| Shuttles / wild weasel / scatter-pack | C6 | ⬜ | None. |
-| Mines / boarding / transporters / self-destruct | C10 | ⬜ | None. |
-| Terrain (barrier, asteroids, planets) | C9 | ⬜ | Open map only. |
+| ECM/ECCM economy → **combat effect** | C8 | ✅ | Net ECM shifts effective range in fire + preview (EW-1). |
+| Sensor lock-on (phase 4) | C8 | ✅ | Rolled per turn from seed, EW can deny, enforced in fire (LOCK-1). |
+| Multiplayer sync + fog | A4/E4 (lite) | ✅ | `serve.py` state + fog + `committed`; server-owned seed → sealed simultaneous fire (SEAL-1). |
+| Deterministic RNG | E1 | ✅ | One server-owned seeded stream; reproducible (RNG-1). |
+| Repair / damage-control effect | C7 | ✅ | `damageControl` repairs boxes at the turn boundary (REP-1). |
+| Seeking weapons (drones, plasma) | C5 | ✅ | Drones + plasma launch/home/impact + point-defense (SEEK-1). |
+| Shuttles / wild weasel / scatter-pack | C6 | ✅ | Suicide shuttle + wild-weasel decoy (SHUT-1); scatter-pack follow-on. |
+| Mines / boarding / transporters / self-destruct | C10 | ✅ | Mines + boarding raid (MINE-1) + self-destruct (SOP-1). |
+| Terrain (barrier, asteroids, planets) | C9 | ✅ | Scenario picker + barrier + asteroid LoS (TERR-1); planets follow-on. |
 | Ship roster (four-empire v1) | B3 | ✅ | Clean audits: FED (CA/CL/NCL), KLI-D7, GOR-CA, KZIN-CS, ROM-KR (cloak). |
 | SSD viewer + verify/overlay editor | D2/B4 | ✅ | `ssd.html` (read-only, tac-intel filtered) + `verify.html`. |
 
