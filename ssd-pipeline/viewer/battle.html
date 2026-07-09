@@ -169,6 +169,7 @@
         <button class="btn fire" id="fireBtn" disabled>⚡ Commit firing plan</button>
         <button class="btn" id="launchBtn" style="display:none">🚀 Launch drone</button>
         <button class="btn" id="launchPlasmaBtn" style="display:none">☄ Launch plasma</button>
+        <button class="btn" id="completePlasmaBtn" style="display:none">⚡ Complete plasma (reserve)</button>
         <button class="btn" id="launchShuttleBtn" style="display:none">🛰 Launch shuttle</button>
         <button class="btn" id="launchScatterBtn" style="display:none">☄ Scatter-pack</button>
         <span id="planStatus" style="color:#94a3b8"></span>
@@ -339,6 +340,15 @@ const launcherAlive = (s, g) => (g.boxIds || []).some(id => !s.status[id]);
 // Phase B: a launcher may fire only when undamaged AND fully armed through its 3-turn cycle (FP1.21). Its group
 // id is the arming key in s.armProgress (seeded by shipPower into power.weapons).
 const plasmaReadyOf = s => plasmaGroupsOf(s).filter(g => launcherAlive(s, g) && isArmed(plasmaClsOf(g.type), (s.armProgress && s.armProgress[g.id]) || 0));
+// FP1.222: a rolled launcher (one arming turn short) can be completed mid-turn with RESERVE WARP (H7.48 — warp only)
+const plasmaCompletableOf = s => plasmaGroupsOf(s).filter(g => launcherAlive(s, g) && ((s.armProgress && s.armProgress[g.id]) || 0) === armTurns(plasmaClsOf(g.type)) - 1);
+function completePlasmaReserve(firer) {
+  const g = plasmaCompletableOf(firer)[0]; if (!g) return;
+  const cost = reserveCompletionCost(plasmaClsOf(g.type));
+  if ((firer.reserveWarp || 0) < cost) return;                        // reserve warp only, must be able to afford the difference
+  firer.reserveWarp -= cost; firer.armProgress[g.id] = armTurns(plasmaClsOf(g.type));   // → fully armed, launchable this turn (FP1.222)
+  saveSoon(firer.id); render();
+}
 const pdRatingOf = s => (s.mounts || []).filter(m => m.cls === 'PH-3').length + (s._ver.groups || []).filter(g => g.family === 'anti-drone').reduce((n, g) => n + (g.boxIds || []).filter(id => !s.status[id]).length, 0);   // point-defense: PH-3 + ADD
 const shuttleBaysOf = s => (s._ver.groups || []).filter(g => g.family === 'shuttle-bay').reduce((n, g) => n + (g.boxIds || []).filter(id => !s.status[id]).length, 0);
 const shuttlesLeftOf = s => (s.shuttlesLeft == null ? (s.shuttlesLeft = shuttleBaysOf(s)) : s.shuttlesLeft);
@@ -760,7 +770,7 @@ function render() {
   renderClock();   // both phases — the energy phase must reflect a turn wrap too
   document.getElementById('ghostBanner').style.display = hasGhosts() ? 'flex' : 'none';   // clear-to-continue prompt
   renderFireSummary();
-  if (getPhase() === 'energy') { renderEnergy(); if (working() && working().targetShipId) renderPanel(); for (const id of ['launchBtn', 'launchPlasmaBtn', 'launchShuttleBtn', 'launchScatterBtn']) document.getElementById(id).style.display = 'none'; }   // energy: seeking-weapon launch is movement-phase only
+  if (getPhase() === 'energy') { renderEnergy(); if (working() && working().targetShipId) renderPanel(); for (const id of ['launchBtn', 'launchPlasmaBtn', 'completePlasmaBtn', 'launchShuttleBtn', 'launchScatterBtn']) document.getElementById(id).style.display = 'none'; }   // energy: seeking-weapon launch is movement-phase only
   else { renderFleet(); renderGroups(); renderPanel(); renderTray(); if (ui.viewEA) renderEnergy(); }   // read-only EA console in battle
 }
 // floating combined-damage summary anchored beside the target on the map (both phases; ghost-aware)
@@ -1088,6 +1098,9 @@ function renderTray() {
   const pb = document.getElementById('launchPlasmaBtn'), ready = targeted ? plasmaReadyOf(af).length : 0;
   pb.style.display = ready > 0 ? '' : 'none';
   if (ready > 0) pb.textContent = `☄ Launch plasma (${ready})`;
+  const cpb = document.getElementById('completePlasmaBtn'), comp = af ? plasmaCompletableOf(af).filter(g => (af.reserveWarp || 0) >= reserveCompletionCost(plasmaClsOf(g.type))) : [];
+  cpb.style.display = comp.length ? '' : 'none';
+  if (comp.length) cpb.textContent = `⚡ Complete plasma — reserve ${reserveCompletionCost(plasmaClsOf(comp[0].type))} (${comp.length})`;
   const sb = document.getElementById('launchShuttleBtn'), canShuttle = targeted && shuttlesLeftOf(af) > 0;
   sb.style.display = canShuttle ? '' : 'none';
   if (canShuttle) sb.textContent = `🛰 Launch shuttle (${shuttlesLeftOf(af)})`;
@@ -1097,6 +1110,7 @@ function renderTray() {
 }
 document.getElementById('launchBtn').onclick = () => { const g = working(), af = byId(ui.activeId); if (af && g && g.targetShipId) launchDrone(af, byId(g.targetShipId)); };
 document.getElementById('launchPlasmaBtn').onclick = () => { const g = working(), af = byId(ui.activeId); if (af && g && g.targetShipId) launchPlasma(af, byId(g.targetShipId)); };
+document.getElementById('completePlasmaBtn').onclick = () => { const af = byId(ui.activeId); if (af) completePlasmaReserve(af); };
 document.getElementById('launchShuttleBtn').onclick = () => { const g = working(), af = byId(ui.activeId); if (af && g && g.targetShipId) launchShuttle(af, byId(g.targetShipId)); };
 document.getElementById('launchScatterBtn').onclick = () => { const g = working(), af = byId(ui.activeId); if (af && g && g.targetShipId) launchScatterPack(af, byId(g.targetShipId)); };
 document.getElementById('nbGenSeed').onclick = () => { document.getElementById('nbSeed').value = Date.now() % 100000000; };   // last 8 digits of system-time millis
