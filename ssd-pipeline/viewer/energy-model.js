@@ -53,6 +53,7 @@ export function shipPower(code, verified, detection) {
     batteries: n('battery'),
     capacitorCap,
     sizeClass: prof.sizeClass, moveCost: prof.moveCost,
+    cloakCost: prof.cloakCost || 0,   // G13.21: per-ship cloak energy cost from the SSD (verified stats)
     shields: (shields || []).slice(),
     weapons,
     systems: {
@@ -125,7 +126,7 @@ export function validateEaf(power, column, carried = 0, batteryCharge = power.ba
     + column.movement + column.impulseMove + (column.het ? HET_COST : 0)
     + column.damageControl + column.recharge + (column.reserveWarp || 0) + column.tractor + column.transporter
     + column.ecm + column.eccm + column.labs
-    + (column.wildWeasel ? WW_COST : 0) + (column.suicide ? SUICIDE_COST : 0) + (column.cloak ? CLOAK_COST : 0);
+    + (column.wildWeasel ? WW_COST : 0) + (column.suicide ? SUICIDE_COST : 0) + (column.cloak ? (power.cloakCost || CLOAK_COST) : 0);   // G13.21: per-ship cloak cost
   const produced = power.total + batteryCharge;            // only the current battery charge is available
   const free = produced - used;
   const batteryUsed = Math.max(0, used - power.total);

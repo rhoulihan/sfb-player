@@ -176,6 +176,14 @@ test('HET costs 5 hexes of warp energy (C6.21)', () => {
   assert.equal(HET_COST, 5);
 });
 
+test('cloak costs the ship\'s per-ship SSD energy (G13.21) — Romulan KR = 20, was free', () => {
+  const p = load('ROM-KR');
+  assert.equal(p.cloakCost, 20, 'KR cloak cost comes from verified stats');
+  const base = validateEaf(p, newEafColumn(p, 0, 0)).used;
+  const col = newEafColumn(p, 0, 0); col.cloak = true;
+  assert.equal(validateEaf(p, col).used - base, 20, 'activating the cloak adds 20 energy');
+});
+
 test('foldEaf holds allocated reserve warp for reactive use (H7.4/H7.36)', () => {
   const p = load('FED-CA');
   const col = newEafColumn(p, 0, 0);

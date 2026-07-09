@@ -1613,6 +1613,7 @@
   "turnCategory": "B",
   "turnCategorySource": "MSC C3.3",
   "sizeClass": 3,
-  "moveCost": 1
+  "moveCost": 1,
+  "cloakCost": 20
  }
 }

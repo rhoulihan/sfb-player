@@ -83,6 +83,7 @@
     <div class="prog"><span id="ptxt">0/0</span><span class="pbar"><i id="pbar"></i></span></div>
     <label style="font-size:12px;color:#64748b;display:flex;align-items:center;gap:4px" title="Turn-mode category from the Master Ship Chart (C3.3) — saved into verified.json">Turn cat <select id="turnCatSel" style="padding:3px;border:1px solid #cbd5e1;border-radius:6px"><option value="">–</option><option>AA</option><option>A</option><option>B</option><option>C</option><option>D</option><option>E</option></select></label>
     <label style="font-size:12px;color:#64748b;display:flex;align-items:center;gap:4px" title="Size class from the Master Ship Chart (B3.3) — saved into verified.json">Size <input id="sizeClassInp" type="number" min="1" max="6" style="width:44px;padding:3px;border:1px solid #cbd5e1;border-radius:6px"></label>
+    <label style="font-size:12px;color:#64748b;display:flex;align-items:center;gap:4px" title="Cloak energy cost/turn from the SSD (G13.21), 0 if none — saved into verified.json">Cloak <input id="cloakCostInp" type="number" min="0" style="width:44px;padding:3px;border:1px solid #cbd5e1;border-radius:6px"></label>
     <button class="btn" id="auditBtn">Audit</button>
     <button class="btn primary" id="saveBtn">Save</button>
   </header>
@@ -475,10 +476,11 @@ async function runAudit(){await save();const r=await fetch(`/api/audit/${ship}`,
   el.innerHTML=h;}
 document.getElementById("saveBtn").onclick=save;
 document.getElementById("auditBtn").onclick=runAudit;
-const turnCatSel=document.getElementById("turnCatSel"),sizeClassInp=document.getElementById("sizeClassInp");
+const turnCatSel=document.getElementById("turnCatSel"),sizeClassInp=document.getElementById("sizeClassInp"),cloakCostInp=document.getElementById("cloakCostInp");
 turnCatSel.onchange=()=>{ if(turnCatSel.value) stats.turnCategory=turnCatSel.value; else delete stats.turnCategory; };
 sizeClassInp.onchange=()=>{ const v=+sizeClassInp.value; if(v) stats.sizeClass=v; else delete stats.sizeClass; };
-function syncStatsUI(){ turnCatSel.value=stats.turnCategory||""; sizeClassInp.value=stats.sizeClass||""; }
+cloakCostInp.onchange=()=>{ const v=+cloakCostInp.value; if(v) stats.cloakCost=v; else delete stats.cloakCost; };
+function syncStatsUI(){ turnCatSel.value=stats.turnCategory||""; sizeClassInp.value=stats.sizeClass||""; cloakCostInp.value=stats.cloakCost||""; }
 document.getElementById("modes").querySelectorAll("button").forEach(b=>b.onclick=()=>{mode=b.dataset.m;document.querySelectorAll("#modes button").forEach(x=>x.classList.toggle("on",x===b));sel=new Set();document.getElementById("ovl").style.cursor=mode==="select"?"default":"crosshair";renderAll();});
 document.getElementById("ovlOp").oninput=e=>{overlayOpacity=e.target.value/100;renderOverlay();};
 document.getElementById("uniCells").onchange=e=>{uniformCells=e.target.checked;renderOverlay();};
