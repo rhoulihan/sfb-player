@@ -409,6 +409,7 @@ function layMine(ship, spec = MINE) {   // C10: drop a static mine at the ship's
 }
 function transporterBomb(ship) {   // D15: beam a bomb onto an adjacent enemy — a mine at its hex that detonates on it next impulse
   if (!ship) return;
+  if (hasCrit(ship.criticals, 'transporter')) { alert('Transporters disabled by a critical hit (D8.2).'); return; }
   const tgt = transporterTarget(ship, ships.filter(s => !isDead(s)));
   if (!tgt) { renderLog({ log: [{ kind: 'shot', firer: ship.id, cls: 'T-BOMB', target: '\u2014', points: 0, hit: false }] }, true); return; }
   seekers.push({ id: `tb${++seekerSeq}`, owner: ship.id, side: ship.side, type: 'mine', q: tgt.q, r: tgt.r, facing: ship.facing, warhead: TBOMB_WARHEAD, radius: 0 });
@@ -416,6 +417,7 @@ function transporterBomb(ship) {   // D15: beam a bomb onto an adjacent enemy �
 }
 function boardingRaid(ship) {   // D15: a transporter hit-and-run raid on an adjacent enemy — on 4+ it knocks out a random enemy system
   if (!ship) return;
+  if (hasCrit(ship.criticals, 'transporter')) { alert('Transporters disabled by a critical hit (D8.2).'); return; }
   const enemy = ships.find(s => s.side !== ship.side && !isDead(s) && hexDistance(ship, s) <= 1);
   const rng = makeRng((seed + rngCursor) >>> 0); rngCursor = rng.cursor();
   const log = [];
@@ -1062,7 +1064,8 @@ function renderEnergy() {
   // D8-era controls: erratic maneuvers (C10), passive fire control (D19), emergency damage repair (D14)
   if (L.em) h += toggleCtl(L.em[0], L.em[1], 'ERRATIC', 'em', col.em);              // EM: 6 hexes of movement energy, +2 shift both ways (C10.41)
   if (L.fcMode) h += toggleCtl(L.fcMode[0], L.fcMode[1], 'FC PASSIVE', 'fcPassive', col.fcPassive);   // active↔passive fire control (D6.63/D19)
-  if (L.edr && p.systems.labs) h += stackCtl(L.edr[0], L.edr[1], 'EDR (labs)', 'edr', col.edr, sinkMax(p, 'edr'));   // D14: 3 power per lab
+  if (hasCrit(s.criticals, 'labs')) col.edr = 0;   // D8.2 #5: labs crit → emergency damage repair impossible (in-progress lost)
+  if (L.edr && p.systems.labs && !hasCrit(s.criticals, 'labs')) h += stackCtl(L.edr[0], L.edr[1], 'EDR (labs)', 'edr', col.edr, sinkMax(p, 'edr'));   // D14: 3 power per lab
   if (s.course && s.course.steps.length) h += ctl(5, 5, `<button class="${s.autopilot ? 'on' : ''}" id="epAuto">🅰 AUTO</button>`);
   ov.innerHTML = (theme === 'fed' ? fedShieldSvg(s, p) : '') + h;   // status SVG first → behind the shield controls
 }
