@@ -160,6 +160,18 @@ test('foldEaf advances arming progress one turn per armed turn, resets when un-a
   assert.equal(dropped.armProgress[photon.id], 0, 'skipping a turn discharges the weapon');
 });
 
+test('foldEaf: a rolling plasma holds at the final arming turn instead of completing (FP1.221)', () => {
+  const p = load('GOR-CA');
+  const plasma = p.weapons.find(w => w.cls === 'PLASMA-S');
+  const col = newEafColumn(p, 0, 0);
+  let prog = foldEaf(p, col, 0, {}).armProgress;         // turn 1 → 1
+  prog = foldEaf(p, col, 0, prog).armProgress;           // turn 2 → 2 (= N-1, ready for the final turn)
+  assert.equal(prog[plasma.id], 2);
+  const rollCol = { ...col, weapons: { ...col.weapons, [plasma.id]: { ...col.weapons[plasma.id], roll: true } } };
+  assert.equal(foldEaf(p, rollCol, 0, prog).armProgress[plasma.id], 2, 'rolling holds at the final arming turn');
+  assert.equal(foldEaf(p, col, 0, prog).armProgress[plasma.id], 3, 'completing (no roll) advances to fully armed');
+});
+
 test('foldEaf holds allocated reserve warp for reactive use (H7.4/H7.36)', () => {
   const p = load('FED-CA');
   const col = newEafColumn(p, 0, 0);

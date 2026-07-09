@@ -298,7 +298,7 @@ import { shuttleMaxHp, damageShuttle, shuttleDestroyed } from './shuttle-invento
 const PD_SHUTTLE_DMG = 2;   // point-defense damage per hit vs a shuttle (shuttles soak, drones one-shot)
 import { movesOnImpulse, neighbor, turnMode } from './movement.js';
 import { shipPower, newEafColumn, validateEaf, foldEaf, sinkMax, specReinfMax, plasmaClsOf } from './energy-model.js';
-import { armLabel, isArmed, canHold } from './weapon-arming.js';   // multi-turn arming: EA label + fire-gate + holdability (E4.21/E3.24/FP1.311)
+import { armLabel, isArmed, canHold, canRoll, armTurns, rollCost, reserveCompletionCost } from './weapon-arming.js';   // multi-turn arming: label, fire-gate, holdability, rolling delay (E4.21/E3.24/FP1.311/FP1.221)
 import { reservePool as reservePoolOf, spendReserve, reserveCost } from './reserve-power.js';   // reactive power (H5/H7)
 import { legalNextHexes, tryStep, impulseTimeline, hexesInPlot, setSpeedChange, speedAt, legalSideslips, trySideslip } from './course-plan.js';
 import { family, segmentName } from './battle-phase.js';   // SFB Sequence-of-Play segment cursor
@@ -907,7 +907,7 @@ function shieldCtl(n, x, y, strength, reinf, max) {
 }
 function weaponCtl(x, y, w, st) {
   const name = w.cls === 'DISR' ? 'DISRUPTOR' : w.cls;   // full weapon name + SSD box label (A–D)
-  return ctl(x, y, `<div class="lab">${name} ${w.label || ''}</div><div class="row"><button class="${st.armed ? 'on' : ''}" data-ea="weap" data-wid="${w.id}" data-what="armed" title="multi-turn arming (E4.21/FP1.21) — fires only when fully armed or held">${armLabel(w.cls, st.progress || 0)}</button>${w.plasma ? '' : `<button class="${st.overload ? 'on' : ''}" data-ea="weap" data-wid="${w.id}" data-what="overload">OL</button>`}${w.cls === 'PHOTON' ? `<button class="${st.prox ? 'on' : ''}" data-ea="weap" data-wid="${w.id}" data-what="prox">PX</button>` : ''}</div>`);
+  return ctl(x, y, `<div class="lab">${name} ${w.label || ''}</div><div class="row"><button class="${st.armed ? 'on' : ''}" data-ea="weap" data-wid="${w.id}" data-what="armed" title="multi-turn arming (E4.21/FP1.21) — fires only when fully armed or held">${st.roll ? 'ROLL' : armLabel(w.cls, st.progress || 0)}</button>${w.plasma ? '' : `<button class="${st.overload ? 'on' : ''}" data-ea="weap" data-wid="${w.id}" data-what="overload">OL</button>`}${w.cls === 'PHOTON' ? `<button class="${st.prox ? 'on' : ''}" data-ea="weap" data-wid="${w.id}" data-what="prox">PX</button>` : ''}${canRoll(w.cls) && (st.progress || 0) === armTurns(w.cls) - 1 ? `<button class="${st.roll ? 'on' : ''}" data-ea="weap" data-wid="${w.id}" data-what="roll" title="rolling delay — stall one turn short of completion for ${rollCost(w.cls)} (FP1.221)">ROLL</button>` : ''}</div>`);
 }
 // phaser capacitor: spell it out, show existing (carried) charge, and never allow overcharging past capacity
 function capCtl(x, y, carried, charging, cap) {

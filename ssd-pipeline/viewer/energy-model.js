@@ -3,7 +3,7 @@
 // (SFB B3 / H sections); the per-box output, life-support, capacitor, and weapon-arm values are
 // verified by unit tests and calibrated against known ship totals.
 import { shipLoadout } from './ship-loadout.js';
-import { armStepCost, armTurns } from './weapon-arming.js';   // multi-turn arming (E4.21/E4.22, FP1.21/FP2.51)
+import { armStepCost, armTurns, canRoll, rollCost } from './weapon-arming.js';   // multi-turn arming (E4.21/E4.22, FP1.21/FP2.51/FP1.221)
 
 export const PER_BOX_OUTPUT = { 'warp-engine': 1, 'impulse-engine': 1, 'apr': 1 };   // power per undestroyed box
 export const LIFE_SUPPORT = { 1: 3, 2: 1.5, 3: 1, 4: 0.5, 5: 0 };                    // by size class (B3.3)
@@ -87,7 +87,7 @@ export function lifeSupportCost(power) { return LIFE_SUPPORT[power.sizeClass] ??
 // topping up to full, so default fill = capacitorCap - carried.
 export function newEafColumn(power, prevSpeed = 0, carried = 0, progress = {}) {
   const weapons = {};                                    // progress[id] = arming turns already completed (drives cost + label)
-  for (const w of power.weapons) weapons[w.id] = { armed: true, overload: false, prox: false, progress: progress[w.id] || 0 };
+  for (const w of power.weapons) weapons[w.id] = { armed: true, overload: false, prox: false, progress: progress[w.id] || 0, roll: false };
   return {
     lifeSupport: lifeSupportCost(power),
     fireControl: power.systems.fireControl ? 1 : 0,
@@ -113,8 +113,10 @@ export function validateEaf(power, column, carried = 0, batteryCharge = power.ba
   for (const w of power.weapons) {
     const st = column.weapons[w.id];
     if (st && st.armed) {   // overload doubles the arming energy (E4.411) but NOT the hold (E4.22)
-      const arming = (st.progress || 0) < armTurns(w.cls);
-      weaponCost += (st.overload && arming ? 2 : 1) * armStepCost(w.cls, st.progress || 0);
+      const prog = st.progress || 0, n = armTurns(w.cls), arming = prog < n;
+      const rolling = st.roll && canRoll(w.cls) && prog >= n - 1;   // FP1.221 rolling delay: pay the reduced roll cost, not the full final step
+      const step = rolling ? rollCost(w.cls) : armStepCost(w.cls, prog);
+      weaponCost += (st.overload && arming && !rolling ? 2 : 1) * step;
     }
   }
   const spec = Object.values(column.specReinf || {}).reduce((a, v) => a + (v || 0), 0);
@@ -146,7 +148,9 @@ export function foldEaf(power, column, carried = 0, progress = {}) {
     const st = column.weapons[w.id];
     if (st && st.armed) {
       armed[w.id] = { overload: !!st.overload, prox: !!st.prox };
-      armProgress[w.id] = Math.min(armTurns(w.cls), (progress[w.id] || 0) + 1);   // one armed turn advances the cycle (caps at fully armed)
+      const n = armTurns(w.cls), prev = progress[w.id] || 0;
+      if (st.roll && canRoll(w.cls) && prev >= n - 1) armProgress[w.id] = n - 1;    // FP1.221 rolling delay: stall one turn short of completion
+      else armProgress[w.id] = Math.min(n, prev + 1);                              // otherwise advance the cycle (caps at fully armed)
     } else armProgress[w.id] = 0;                                                  // skipped a turn → discharged (E4.21 consecutive)
   }
   return {

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ARM_SCHEDULE, armSchedule, armTurns, isArmed, armStepCost, armLabel, canHold } from '../viewer/weapon-arming.js';
+import { ARM_SCHEDULE, armSchedule, armTurns, isArmed, armStepCost, armLabel, canHold, rollCost, canRoll, reserveCompletionCost } from '../viewer/weapon-arming.js';
 
 test('arming schedules match the rulebook (E4.21 photon 2+2, FP2.51 plasma 3-turn)', () => {
   assert.deepEqual(ARM_SCHEDULE.PHOTON.turns, [2, 2]);
@@ -20,6 +20,20 @@ test('holdability: disruptors and plasma-R cannot be held (E3.24, FP1.311)', () 
   assert.equal(canHold('PLASMA-F'), true);    // holds for free
   assert.equal(canHold('PLASMA-R'), false);   // FP1.311: type-R armed by a ship cannot be held
   assert.equal(canHold('DISR'), false);       // E3.24: armed disruptors cannot be held
+});
+
+test('rolling delay costs 2 (1 for plasma-F); reserve completion pays the difference (FP1.221/222)', () => {
+  assert.equal(rollCost('PLASMA-R'), 2);
+  assert.equal(rollCost('PLASMA-S'), 2);
+  assert.equal(rollCost('PLASMA-G'), 2);
+  assert.equal(rollCost('PLASMA-F'), 1);      // one point for a plasma-F
+  assert.equal(canRoll('PLASMA-R'), true);
+  assert.equal(canRoll('PHOTON'), false);     // photons do not roll-delay
+  assert.equal(canRoll('DISR'), false);
+  assert.equal(reserveCompletionCost('PLASMA-R'), 3);   // full 3rd-turn 5 − roll 2
+  assert.equal(reserveCompletionCost('PLASMA-S'), 2);   // 4 − 2
+  assert.equal(reserveCompletionCost('PLASMA-G'), 1);   // 3 − 2
+  assert.equal(reserveCompletionCost('PLASMA-F'), 2);   // 3 − 1
 });
 
 test('armStepCost: pay the schedule while arming, the hold price once armed', () => {

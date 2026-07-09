@@ -19,6 +19,16 @@ export function armTurns(cls) { return armSchedule(cls).turns.length; }
 export function isArmed(cls, progress) { return progress >= armTurns(cls); }   // full schedule done → may fire
 export function canHold(cls) { return armSchedule(cls).hold != null; }         // false → fire-or-lose the turn it arms
 
+// Rolling delay (FP1.221): a plasma may stall on its final arming turn by paying only 2 (1 for a plasma-F)
+// instead of the full final step, sitting one turn short of completion. Reserve warp can then complete it
+// mid-turn (FP1.222) by paying the difference; the torpedo must be fired that turn.
+export function canRoll(cls) { return /^PLASMA-/.test(cls) && armSchedule(cls).turns.length >= 3; }
+export function rollCost(cls) { return cls === 'PLASMA-F' ? 1 : 2; }
+export function reserveCompletionCost(cls) {
+  const sch = armSchedule(cls);
+  return sch.turns[sch.turns.length - 1] - rollCost(cls);
+}
+
 // energy to spend this turn: still arming → this turn's schedule cost; fully armed & holdable → the hold price.
 // A non-holdable weapon should never sit fully armed across turns (it discharges); fall back to its final arm step.
 export function armStepCost(cls, progress) {
