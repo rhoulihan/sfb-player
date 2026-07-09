@@ -383,8 +383,8 @@ const ADD_PER_RACK = 6, ADD_RELOAD_RATE = 4, ADD_RELOAD_SETS = 2;
 const addRacksOf = s => (s._ver.groups || []).filter(g => g.family === 'anti-drone').reduce((n, g) => n + (g.boxIds || []).filter(id => !s.status[id]).length, 0);
 const addCapOf = s => ADD_PER_RACK * addRacksOf(s);
 const addAmmoOf = s => (s.addAmmo == null ? (s.addAmmo = addCapOf(s)) : s.addAmmo);
-const shuttleBaysOf = s => (s._ver.groups || []).filter(g => g.family === 'shuttle-bay').reduce((n, g) => n + (g.boxIds || []).filter(id => !s.status[id]).length, 0);
-const shuttlesLeftOf = s => (s.shuttlesLeft == null ? (s.shuttlesLeft = shuttleBaysOf(s)) : s.shuttlesLeft);
+const shuttleBaysOf = s => Math.max(0, (s._ver.groups || []).filter(g => g.family === 'shuttle-bay').reduce((n, g) => n + (g.boxIds || []).filter(id => !s.status[id]).length, 0) - (s.criticals || []).filter(c => c.type === 'shuttleBay').length);   // D8.2 #10: each shuttle-bay crit jams one bay (D8.24)
+const shuttlesLeftOf = s => Math.min(shuttleBaysOf(s), s.shuttlesLeft == null ? (s.shuttlesLeft = shuttleBaysOf(s)) : s.shuttlesLeft);   // a mid-turn bay crit immediately caps the launches still available
 function launchShuttle(firer, target) {   // suicide shuttle (C6): a slow homing seeker at the target
   if (!firer || !target || shuttlesLeftOf(firer) <= 0 || !canControlMore(firer)) return;   // F3.21 control limit
   firer.shuttlesLeft = shuttlesLeftOf(firer) - 1;
