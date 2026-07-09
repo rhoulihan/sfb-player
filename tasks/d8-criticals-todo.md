@@ -28,8 +28,10 @@ reinforcement functionality, **general reinforcement highlights all 6 shield fie
 - [ ] 5 Labs: block D14 EDR + lab use
 - [ ] 9 Tractor: release all links (needs `tractor.js`)
 - [ ] 10 Shuttle bay jammed (one bay): needs bay identity (verify.html capture)
-- [ ] 11 Maneuver restricted: speed ≤ 8, no HET, no EM, TM +1
+- [x] 11 Maneuver restricted: speed ≤ 8 (maxBaseSpeed) + TM +1 (turnModeOf). Browser-verified: D7 max 23→8. [no-HET/no-EM once those are executable]
 - [ ] 12 Warp: halt, no warp-move, ½ output lost (D22 simplified per D8.23)
+
+**Also fixed:** auto-resume on reload (localStorage commander code) + crit state carried across resume — `32199b7`.
 
 ## Phase 3 — Absent subsystems (make outcomes fully bite)
 - [ ] `tractor.js` (TDD): G7 link model (attach/hold/release/negative-tractor break) + map interaction
