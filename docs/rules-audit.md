@@ -12,7 +12,8 @@ the cruisers actually in the game (Fed CA/CL/NCL, Klingon D7, Gorn CA, Romulan K
 - ✅ **Tier 0 quick fixes + feedback damage** — disruptor overload doubled (E3.52), overloaded photon R0-1 hit 1-6 (E4.43), photon proximity auto-miss <9 → 1-4/1-3 (E4.32/33), overload **feedback damage** to the firer (E4.431/E3.54), HET 5 (C6.21), scatter-pack 6 (FD7), T-bomb 10 (M3.0). `d7284e2`
 - ⏳ **Reactive power remaining:** proactive impulse allocation + queued-at-segment; on-hit modal showing queued allocations w/ adjust-override; reactive ECCM (H7.33); reactive weapon overload/capacitor (H7.54/E2.33); multiplayer defender sync.
 - ✅ **Tier 1 plasma damage** — FP1.53 warhead + stepwise aging table + 32-impulse endurance (`404e8b1`); FP1.611 phaser-weakening — PD weakens, never one-shots, ADDs excluded per E5.32 (`f27de1f`).
-- ⏳ **Tier 1 remaining:** drone fire-rate/warhead-by-type/endurance/reload; turn-mode-by-ship-class; acceleration limit; cloak cost; control channels; ADD-as-ammo; general-reinforcement cost/order.
+- ✅ **Tier 1 drone mechanics** — one drone/rack/turn (FD3.1), warhead-by-loaded-type (FD2.1), endurance-in-turns (FD1.4) `bc2082f`; reload 2 spaces/turn only if not fired (FD2.421) `8327f57`.
+- ⏳ **Tier 1 remaining:** control channels (F3.21); ADD-as-ammo (E5.1); turn-mode-by-ship-class (C3.3); acceleration limit (C2.21); cloak cost (G13.21); general-reinforcement cost/order (D3.341).
 
 ## Headline
 
