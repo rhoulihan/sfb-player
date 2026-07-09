@@ -156,5 +156,6 @@ export function foldEaf(power, column, carried = 0, progress = {}) {
     reinforce: { gen: column.genReinf, spec: { ...column.specReinf } },
     ecmLevel: column.ecm, eccmLevel: column.eccm,
     wildWeasel: column.wildWeasel, suicide: column.suicide,
+    reserveWarp: column.reserveWarp || 0,   // held for reactive use during the turn (H7.4); unused → batteries (H7.36)
   };
 }

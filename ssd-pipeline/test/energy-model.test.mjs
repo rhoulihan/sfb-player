@@ -160,6 +160,14 @@ test('foldEaf advances arming progress one turn per armed turn, resets when un-a
   assert.equal(dropped.armProgress[photon.id], 0, 'skipping a turn discharges the weapon');
 });
 
+test('foldEaf holds allocated reserve warp for reactive use (H7.4/H7.36)', () => {
+  const p = load('FED-CA');
+  const col = newEafColumn(p, 0, 0);
+  col.reserveWarp = 3;
+  const ts = foldEaf(p, col, 0, {});
+  assert.equal(ts.reserveWarp, 3, 'reserve warp is held for the turn, not merely paid for');
+});
+
 test('plasmaClsOf maps launcher type strings to arming classes (FP2.51)', () => {
   assert.equal(plasmaClsOf('Plasma F'), 'PLASMA-F');
   assert.equal(plasmaClsOf('Plasma S'), 'PLASMA-S');

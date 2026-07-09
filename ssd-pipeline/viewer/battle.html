@@ -585,7 +585,7 @@ function applyRemote(data) {
     s.speed = m.speed ?? s.speed; s.hexesSinceTurn = m.hexesSinceTurn ?? s.hexesSinceTurn; s.queuedTurn = m.queuedTurn || 0;
     s.status = {}; (sd.status?.destroyed || []).forEach(id => (s.status[id] = 'destroyed'));
     s.firedAt = {}; for (const [mid, w] of Object.entries(sd.weapons || {})) if (w && w.firedAt) s.firedAt[mid] = w.firedAt;
-    if (sd.armed !== undefined) s.armed = sd.armed; if (sd.armProgress !== undefined) s.armProgress = sd.armProgress; if (sd.capacitor !== undefined) s.capacitor = sd.capacitor; if (sd.batteryCharge !== undefined) s.batteryCharge = sd.batteryCharge; if (sd.reinforce !== undefined) { s.reinforce = sd.reinforce; s.reinfLeft = null; }
+    if (sd.armed !== undefined) s.armed = sd.armed; if (sd.armProgress !== undefined) s.armProgress = sd.armProgress; if (sd.capacitor !== undefined) s.capacitor = sd.capacitor; if (sd.batteryCharge !== undefined) s.batteryCharge = sd.batteryCharge; if (sd.reserveWarp !== undefined) s.reserveWarp = sd.reserveWarp; if (sd.reinforce !== undefined) { s.reinforce = sd.reinforce; s.reinfLeft = null; }
     if (sd.course !== undefined) s.course = sd.course; if (sd.speedPlot !== undefined) s.speedPlot = sd.speedPlot; if (sd.autopilot !== undefined) s.autopilot = sd.autopilot;
     s.model = null;
   }
@@ -645,6 +645,7 @@ function stepImpulse() {
   if (wrapped) for (const s of ships) {
     if (s.drones) s.drones.racks = s.drones.racks.map(r => (loadoutSpaces(r.loaded) < r.capacity && r.reloadsLeft > 0) ? reloadRack(r) : r); s.shuttlesLeft = shuttleBaysOf(s);   // reload shuttles + drone racks (finitely, from cargo); plasma re-arms through the EAF (FP1.21), no free reload
     for (const w of powerOf(s).weapons) if (!canHold(w.cls) && s.armProgress && isArmed(w.cls, s.armProgress[w.id] || 0)) s.armProgress[w.id] = 0;   // non-holdable weapon armed but not fired → discharge (E3.24 disruptor, FP1.311 plasma-R)
+    if (s.reserveWarp) { s.batteryCharge = Math.min(powerOf(s).batteries, batteryOf(s) + s.reserveWarp); s.reserveWarp = 0; }   // H7.36: unused reserve warp drains into the batteries at end of turn
   }
   pruneUnavailable(); render(); if (skLog.length) renderLog({ log: skLog }, true); save(null, wrapped ? { step: true, phase: 'energy' } : { step: true });   // movement syncs to all commanders
 }
@@ -1191,7 +1192,7 @@ async function resolveEnergy(allEaf) {                        // fold each locke
     const ts = foldEaf(powerOf(s), col, s.capacitor || 0, s.armProgress || {});   // carried capacitor + arming progress fold in
     const pw = powerOf(s), bv = validateEaf(pw, col, s.capacitor || 0, batteryOf(s));   // battery charge: refill by recharge, deplete by draw
     s.batteryCharge = Math.max(0, Math.min(pw.batteries, batteryOf(s) - bv.batteryUsed + (col.recharge || 0)));
-    s.armed = ts.armed; s.armProgress = ts.armProgress; s.capacitor = ts.capacitor; s.reinforce = ts.reinforce; s.reinfLeft = null;
+    s.armed = ts.armed; s.armProgress = ts.armProgress; s.capacitor = ts.capacitor; s.reinforce = ts.reinforce; s.reinfLeft = null; s.reserveWarp = ts.reserveWarp || 0;   // held reserve warp, spendable reactively this turn (H7.4)
     s.ecmLevel = ts.ecmLevel; s.eccmLevel = ts.eccmLevel; s.queuedTurn = 0;
     // movement: the plotted speed schedule (base + mid-turn changes) drives execution; no plot → constant speed
     s.speedPlot = s.speedPlot ? { base: s.speedPlot.base, changes: s.speedPlot.changes } : { base: ts.speed, changes: [] };
@@ -1216,7 +1217,7 @@ const serializeShip = s => ({
   id: s.id, code: s.code, name: s.name, side: s.side,
   map: { q: s.q, r: s.r, facing: s.facing, speed: s.speed, hexesSinceTurn: s.hexesSinceTurn, queuedTurn: s.queuedTurn, turnMode: turnMode(s.speed) },
   status: { destroyed: Object.keys(s.status), shields: shieldsNow(s) },
-  armed: s.armed || {}, armProgress: s.armProgress || {}, capacitor: s.capacitor ?? 0, batteryCharge: s.batteryCharge, reinforce: s.reinforce || null,   // folded energy-allocation state
+  armed: s.armed || {}, armProgress: s.armProgress || {}, capacitor: s.capacitor ?? 0, batteryCharge: s.batteryCharge, reserveWarp: s.reserveWarp || 0, reinforce: s.reinforce || null,   // folded energy-allocation state
   course: s.course || null, speedPlot: s.speedPlot || null, autopilot: !!s.autopilot,   // tactical course plot
   weapons: Object.fromEntries(s.mounts.map(m => [m.id, { cls: m.cls, arc: (m.arc.arcs || []), charged: isCharged(s, m.id, m.cls), firedAt: s.firedAt[m.id] || null }])),
 });
