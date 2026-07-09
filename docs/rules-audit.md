@@ -8,7 +8,8 @@ the cruisers actually in the game (Fed CA/CL/NCL, Klingon D7, Gorn CA, Romulan K
 - ✅ **Holdability** — disruptor (E3.24) & plasma-R (FP1.311) non-holdable; discharge-if-not-fired; plasma-F `[1,1,3]`; held overload = 1/turn (E4.22). `839c7be`
 - ✅ **Reactive power foundation** — reserve warp held pool + carry to batteries (H7.36) `9e19880`; async fire resolution `7a1ffcf`; reserve-power spend/cost module `cc13aa2`.
 - ✅ **On-hit reactive shield reinforcement** — H7.134/342/344 modal (spec 1/pt, gen 2/pt, source toggle, reinforce-not-raise). `9bb07bf`
-- ⏳ **Reactive power remaining:** proactive impulse allocation + queued-at-segment; on-hit modal showing queued allocations w/ adjust-override; plasma rolling delay (FP1.221) + reserve-warp completion (FP1.222); reactive ECCM (H7.33); reactive weapon overload/capacitor (H7.54/E2.33); multiplayer defender sync.
+- ✅ **Plasma rolling delay + reserve completion** — FP1.221 roll (2, 1 for F) to stall on the final arming turn `8472b80`; FP1.222 reserve-warp completion mid-turn (R3/S2/G1/F2, warp only) `7149811`.
+- ⏳ **Reactive power remaining:** proactive impulse allocation + queued-at-segment; on-hit modal showing queued allocations w/ adjust-override; reactive ECCM (H7.33); reactive weapon overload/capacitor (H7.54/E2.33); multiplayer defender sync.
 
 ## Headline
 
