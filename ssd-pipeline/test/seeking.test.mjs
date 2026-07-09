@@ -46,13 +46,32 @@ test('a fast drone reaches a stationary target and impacts within the closing di
   assert.ok(impactImp !== null && impactImp <= 12, `drone should reach the target within ~10 impulses, got ${impactImp}`);
 });
 
-import { plasmaSpec } from '../viewer/seeking.js';
-test('plasmaSpec: bigger plasma carries a bigger warhead, and all plasma fades', () => {
-  const R = plasmaSpec('Plasma R (LP)'), S = plasmaSpec('Plasma S (RP)'), G = plasmaSpec('Plasma G');
-  assert.ok(R.warhead > S.warhead && S.warhead > G.warhead, 'R > S > G warhead');
-  assert.ok(R.fade > 0 && S.fade > 0, 'plasma fades with distance');
-  assert.equal(S.type, 'plasma');
-  assert.ok(S.speed > 0 && S.endurance > 0);
+import { plasmaSpec, plasmaWarheadAt } from '../viewer/seeking.js';
+test('plasmaSpec: table-driven warhead by type, speed 32, 32-impulse endurance (FP1.42/FP1.53)', () => {
+  const R = plasmaSpec('Plasma R (LP)'), S = plasmaSpec('Plasma S (RP)'), F = plasmaSpec('Plasma F');
+  assert.equal(R.cls, 'PLASMA-R'); assert.equal(S.cls, 'PLASMA-S');
+  assert.equal(R.warhead, 50, 'R peak warhead 50'); assert.equal(S.warhead, 30); assert.equal(F.warhead, 20);
+  assert.equal(S.type, 'plasma'); assert.equal(S.speed, 32); assert.equal(S.endurance, 32);
+});
+
+test('plasmaWarheadAt ages the warhead by hexes travelled per the FP1.53 table', () => {
+  assert.equal(plasmaWarheadAt('PLASMA-R', 0), 50);
+  assert.equal(plasmaWarheadAt('PLASMA-R', 10), 50);
+  assert.equal(plasmaWarheadAt('PLASMA-R', 13), 35, 'R at 13 hexes = 35 (FP2.52)');
+  assert.equal(plasmaWarheadAt('PLASMA-R', 20), 20);
+  assert.equal(plasmaWarheadAt('PLASMA-R', 29), 1);
+  assert.equal(plasmaWarheadAt('PLASMA-R', 31), 0, 'past 30 hexes = 0');
+  assert.equal(plasmaWarheadAt('PLASMA-S', 24), 5);
+  assert.equal(plasmaWarheadAt('PLASMA-F', 0), 20);
+  assert.equal(plasmaWarheadAt('PLASMA-F', 6), 15);
+  assert.equal(plasmaWarheadAt('PLASMA-F', 15), 1);
+});
+
+test('seekerDamage: a plasma torpedo delivers its aged warhead (FP1.53)', () => {
+  const sk = launchSeeker({ id: 'p', owner: 'F1', targetId: 'E1', q: 0, r: 0, ...plasmaSpec('Plasma R') });
+  assert.equal(seekerDamage({ ...sk, travelled: 0 }), 50);
+  assert.equal(seekerDamage({ ...sk, travelled: 13 }), 35);
+  assert.equal(seekerExpired({ ...sk, travelled: 31 }), true, 'plasma removed once the warhead ages to 0 (FP1.51)');
 });
 
 import { pointDefense, PD_RANGE } from '../viewer/seeking.js';

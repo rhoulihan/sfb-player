@@ -17,8 +17,22 @@ function bearingToward(from, to) {
   return best;
 }
 
-export function launchSeeker({ id, owner, type = 'drone', q, r, facing = 0, targetId, speed, warhead, fade = 0, endurance = 40 }) {
-  return { id, owner, type, q, r, facing, targetId, speed, warhead, fade, endurance, travelled: 0 };
+// FP1.53 PLASMA TORPEDO TABLE — warhead strength by hexes travelled (it ages as it flies), per type.
+const PLASMA_BANDS = [5, 10, 12, 14, 15, 18, 19, 20, 23, 24, 25, 28, 29, 30];   // upper hex bound of each column
+export const PLASMA_WARHEAD = {
+  'PLASMA-R': [50, 50, 35, 35, 25, 25, 25, 20, 20, 20, 10, 5, 1, 0],
+  'PLASMA-S': [30, 30, 22, 22, 22, 15, 15, 15, 10, 5, 1, 0, 0, 0],
+  'PLASMA-G': [20, 20, 15, 15, 15, 10, 5, 1, 0, 0, 0, 0, 0, 0],
+  'PLASMA-F': [20, 15, 10, 5, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+};
+export function plasmaWarheadAt(cls, hexes) {
+  const row = PLASMA_WARHEAD[cls]; if (!row) return 0;
+  for (let i = 0; i < PLASMA_BANDS.length; i++) if (hexes <= PLASMA_BANDS[i]) return row[i];
+  return 0;   // past 30 hexes the warhead has aged to nothing (FP1.51)
+}
+
+export function launchSeeker({ id, owner, type = 'drone', q, r, facing = 0, targetId, speed, warhead, fade = 0, endurance = 40, cls = null }) {
+  return { id, owner, type, q, r, facing, targetId, speed, warhead, fade, endurance, cls, phaserHits: 0, travelled: 0 };
 }
 
 // advance one impulse: move + home only if this impulse is one the seeker's speed schedules (C3 Impulse Chart)
@@ -32,12 +46,16 @@ export function seekerImpacts(seeker, target) {
   return seeker.q === target.q && seeker.r === target.r;   // co-located = impact (hexDistance floors at 1, so compare hexes)
 }
 
-// impact damage: drones deliver a flat warhead; plasma fades `fade` points per hex travelled (FP1), floored at 0
+// impact damage: a plasma torpedo delivers its aged warhead from the FP1.53 table, reduced 1 per 2 points of
+// phaser damage taken in flight (FP1.611); drones and shuttles deliver a flat warhead.
 export function seekerDamage(seeker, hexesTravelled = seeker.travelled || 0) {
+  if (seeker.cls && PLASMA_WARHEAD[seeker.cls])
+    return Math.max(0, plasmaWarheadAt(seeker.cls, hexesTravelled) - Math.floor((seeker.phaserHits || 0) / 2));
   return Math.max(0, (seeker.warhead || 0) - (seeker.fade || 0) * hexesTravelled);
 }
 
 export function seekerExpired(seeker) {
+  if (seeker.cls && PLASMA_WARHEAD[seeker.cls] && plasmaWarheadAt(seeker.cls, seeker.travelled || 0) <= 0) return true;   // plasma aged to zero (FP1.51)
   return (seeker.endurance ?? Infinity) <= 0;
 }
 
@@ -64,12 +82,10 @@ export function pointDefense(pdRating, rng, range) {
   return false;
 }
 
-// Build a plasma-torpedo seeker spec from its mount type name (e.g. "Plasma S (LP)"). Warhead scales by
-// size (R > S > G > F) and the torpedo fades as it travels; these are functional sandbox values, not
-// rulebook tables. Endurance = warhead / fade, so the torpedo dissipates at its effective range.
+// Build a plasma-torpedo seeker spec from its mount type name (e.g. "Plasma S (LP)"). The warhead ages per the
+// FP1.53 table (plasmaWarheadAt); all plasma move at speed 32 with a 32-impulse endurance (FP1.42/FP1.43).
 export function plasmaSpec(type) {
   const size = (/PLASMA[\s-]*([RSGF])/i.exec(type || '') || [])[1] || 'S';
-  const warhead = { R: 40, S: 20, G: 12, F: 5 }[size.toUpperCase()] ?? 20;
-  const fade = 1;
-  return { type: 'plasma', speed: 32, warhead, fade, endurance: warhead / fade };
+  const cls = 'PLASMA-' + size.toUpperCase();
+  return { type: 'plasma', cls, speed: 32, warhead: (PLASMA_WARHEAD[cls] || PLASMA_WARHEAD['PLASMA-S'])[0], endurance: 32 };
 }
