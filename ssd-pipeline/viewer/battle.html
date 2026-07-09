@@ -260,6 +260,7 @@
       <label style="font-size:13px;display:flex;align-items:center;gap:5px">Map <select id="nbScenario"><option value="open">Open</option><option value="tournament">Tournament (barrier + asteroids)</option></select></label>
       <label style="font-size:13px;display:flex;align-items:center;gap:5px" title="volatile systems can suffer a secondary explosion (DAC-1)"><input type="checkbox" id="nbCriticals" checked> Criticals</label>
       <label style="font-size:13px;display:flex;align-items:center;gap:5px" title="advanced shuttles have +2 hit points (J17)"><input type="checkbox" id="nbAdvShuttles"> Advanced shuttles</label>
+      <label style="font-size:13px;display:flex;align-items:center;gap:5px" title="fast-drone rules — drones move at speed 32"><input type="checkbox" id="nbFastDrones"> Fast drones</label>
       <label style="font-size:13px;display:flex;align-items:center;gap:5px" title="fix the deterministic dice seed for a reproducible battle (blank = random)">Seed <input id="nbSeed" type="text" inputmode="numeric" placeholder="random" style="width:76px;font:inherit;padding:2px 5px;border:1px solid #cbd5e1;border-radius:4px"><button class="btn" id="nbGenSeed" type="button" title="use the current system time as the seed" style="padding:2px 6px;margin-left:4px">🎲</button></label>
       <label style="font-size:13px;display:flex;align-items:center;gap:5px">You command
         <select id="nbCommand"><option value="friendly">Fleet 1</option><option value="enemy">Fleet 2</option></select></label>
@@ -299,8 +300,9 @@ let seed = 0, rngCursor = 0;   // shared deterministic dice (RNG-1 / SEAL-1): ev
 let lockOn = {}, lockOnTurn = -1;   // sensor lock-on (LOCK-1, D6): { firerId: Set<targetId> }, rolled once per turn
 let seekers = [], seekerSeq = 0;   // seeking weapons on the map (SEEK-1, C5): drone/plasma tokens
 let terrain = { barrier: null, asteroids: [] };   // scenario terrain (TERR-1, C9)
-let settings = { criticals: true, advancedShuttles: false };   // per-battle game settings — the creator sets them, synced to joiners
+let settings = { criticals: true, advancedShuttles: false, fastDrones: false };   // per-battle game settings — the creator sets them, synced to joiners
 const DRONE = { type: 'drone', speed: 20, warhead: 12, fade: 0, endurance: 40 };   // standard sandbox drone (speed/warhead are data)
+const droneSpec = () => ({ ...DRONE, speed: settings.fastDrones ? 32 : DRONE.speed });   // fast-drone rules (FD) → speed 32
 const droneRacksOf = s => (s._ver.groups || []).filter(g => g.family === 'drone-rack').reduce((n, g) => n + (g.boxIds || []).filter(id => !s.status[id]).length, 0);
 const DRONE_RELOADS = 2;   // default reload sets per rack (Fed 2-3, Klingon 1-2; tunable)
 function initDrones(s) {   // Phase 2: real rack inventory — capacity in spaces (box count → type), reloads
@@ -316,7 +318,7 @@ function launchDrone(firer, target) {   // 6B: an armed rack puts a drone on the
   const rack = dronesOf(firer).racks.find(r => r.loaded.length);
   if (!rack) return;
   rack.loaded.shift();   // consume a loaded drone (space accounting via the rack)
-  seekers.push(launchSeeker({ id: `dr${++seekerSeq}`, owner: firer.id, q: firer.q, r: firer.r, facing: firer.facing, targetId: target.id, ...DRONE }));
+  seekers.push(launchSeeker({ id: `dr${++seekerSeq}`, owner: firer.id, q: firer.q, r: firer.r, facing: firer.facing, targetId: target.id, ...droneSpec() }));
   saveSoon(firer.id); render();
 }
 const plasmaGroupsOf = s => (s._ver.groups || []).filter(g => g.family === 'heavy-weapon' && /plasma/i.test(g.type || ''));
@@ -335,7 +337,7 @@ function launchShuttle(firer, target) {   // suicide shuttle (C6): a slow homing
 function launchScatterPack(firer, target) {   // C6: a shuttle releases a burst of drones at the target
   if (!firer || !target || shuttlesLeftOf(firer) <= 0) return;
   firer.shuttlesLeft = shuttlesLeftOf(firer) - 1;
-  for (let i = 0; i < SCATTER_PACK; i++) seekers.push(launchSeeker({ id: `dr${++seekerSeq}`, owner: firer.id, q: firer.q, r: firer.r, facing: firer.facing, targetId: target.id, ...DRONE }));
+  for (let i = 0; i < SCATTER_PACK; i++) seekers.push(launchSeeker({ id: `dr${++seekerSeq}`, owner: firer.id, q: firer.q, r: firer.r, facing: firer.facing, targetId: target.id, ...droneSpec() }));
   saveSoon(firer.id); render();
 }
 function launchAdminShuttle(ship) {   // C6: a non-combat shuttle (0 warhead) sent toward the nearest enemy as a scout/decoy
@@ -498,7 +500,7 @@ async function startBattle(defs, clk, restore, ph) {
   battleDefs = defs.map(d => ({ ...d }));
   ships = []; plan = newPlan(); shipRev = {}; workingId = null; ui.activeId = null; clock = clk || { turn: 1, impulse: 0 };
   setCoarse(ph || 'energy'); eafDraft = {}; myLockedEnergy = false; ui.eaSelected = null; ui.eaHidden = false;   // turns open in energy allocation
-  ui.ghosts = {}; ui.selectedGhost = null; ui.ghostDrag = null; ui.navPreview = null; ui.plotShipId = null; modelFleet = myFleet; stashedPlan = null; lockOn = {}; lockOnTurn = -1; seekers = []; seekerSeq = 0; terrain = { barrier: null, asteroids: [] }; settings = { criticals: true, advancedShuttles: false };   // fresh battle → no carried-over what-if / plot / perspective / lock state
+  ui.ghosts = {}; ui.selectedGhost = null; ui.ghostDrag = null; ui.navPreview = null; ui.plotShipId = null; modelFleet = myFleet; stashedPlan = null; lockOn = {}; lockOnTurn = -1; seekers = []; seekerSeq = 0; terrain = { barrier: null, asteroids: [] }; settings = { criticals: true, advancedShuttles: false, fastDrones: false };   // fresh battle → no carried-over what-if / plot / perspective / lock state
   for (const d of defs) {
     const s = await hydrate(d), r = restore && restore[d.id];
     if (r) { (r.destroyed || []).forEach(id => (s.status[id] = 'destroyed')); s.firedAt = r.firedAt || {}; if (r.hexesSinceTurn != null) s.hexesSinceTurn = r.hexesSinceTurn; s.queuedTurn = r.queuedTurn || 0; }
@@ -1528,7 +1530,7 @@ document.getElementById('nbStart').onclick = async () => {
   myCode = fleets[myFleet].code;
   document.getElementById('nbModal').style.display = 'none';
   await startBattle(defs, { turn: 1, impulse: 0 });
-  settings = { criticals: document.getElementById('nbCriticals').checked, advancedShuttles: document.getElementById('nbAdvShuttles').checked };
+  settings = { criticals: document.getElementById('nbCriticals').checked, advancedShuttles: document.getElementById('nbAdvShuttles').checked, fastDrones: document.getElementById('nbFastDrones').checked };
   const seedInput = document.getElementById('nbSeed').value.trim(); if (/^\d+$/.test(seedInput)) seed = (parseInt(seedInput, 10) >>> 0) || 1;   // fixed seed → reproducible battle; blank → server randomises
   terrain = makeScenario(document.getElementById('nbScenario').value, COLS, ROWS); render();
   try { const j = await (await fetch('/api/battle', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...serializeBattle(), kind: 'new', code: myCode }) })).json(); rev = j.rev || 1; if (j.seed) seed = j.seed; rngCursor = 0; for (const [id, nr] of Object.entries(j.ships || {})) shipRev[id] = nr; } catch {}
