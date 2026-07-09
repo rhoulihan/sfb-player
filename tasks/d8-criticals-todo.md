@@ -27,18 +27,23 @@ reinforcement functionality, **general reinforcement highlights all 6 shield fie
 - [x] 3 Battery failure: batteryOf → 0 (verified 42→39) — `643f02e`
 - [x] 4 Transporter: raid + T-bomb blocked (verified) — `5ef5c18`
 - [x] 5 Labs: EDR hidden/zeroed (verified) — `5ef5c18`
-- [ ] 9 Tractor: release all links (needs `tractor.js` — G7 subsystem; last outcome)
+- [x] 9 Tractor: full G7 subsystem (establish/hold/release/map/persist) + crit releases the ship's beams (verified) — `b4f232a`
 - [x] 10 Shuttle bay jammed: each crit removes a bay from shuttleBaysOf; launches gate on it (verified) — `49469da`
 - [x] 11 Maneuver restricted: speed ≤ 8 + TM +1 (verified 23→8) — `32199b7` [no-HET/no-EM once executable]
 - [x] 12 Warp: halt + no warp-move (verified max→0) — `643f02e` [½-output loss = deferred D22]
 
 **Also fixed:** auto-resume on reload (localStorage commander code) + crit state carried across resume — `32199b7`.
 
-## Phase 3 — Absent subsystems (make outcomes fully bite)
-- [ ] `tractor.js` (TDD): G7 link model (attach/hold/release/negative-tractor break) + map interaction
-- [ ] EM erratic maneuvers (C10): cost 6 move-hexes; ±2 shift to weapons fired at AND by the EM unit; negates passive FC
-- [ ] D14 emergency damage repair: mark DC box + 3 power/lab + target systems; end-of-turn roll ≤ DC rating
-- [ ] Bay identity in verify.html + verified.json (which racks/shuttles per bay) + DC-track rating capture
+## Phase 3 — Absent subsystems (make outcomes fully bite) — 🎉 ALL 9 OUTCOMES WIRED
+- [x] `tractor.js` (TDD) + full G7 integration (establish/hold/release/map/persist, crit-release) — `d6cd329`/`b4f232a`
+- [x] EM erratic maneuvers (C10): cost 6 move-hexes (`18c9e2a`) + ±4 ECM at & by the EM unit (`b0021e8`)
+- [ ] D14 emergency damage repair: mark DC box + 3 power/lab; end-of-turn roll ≤ DC rating (EDR control exists but is inert — the last "plus" item)
+- [ ] Bay identity in verify.html + verified.json (specific bay by die roll, drone racks inside a bay — refinement)
+- [ ] Refinements: negative-tractor break auction UI (currently auto/pruned); proper towing movement; passive-FC voluntary-toggle deeper effects
+
+## Deferred TODO (Rick-flagged)
+- [ ] **Full D22 energy-balance engine** — incremental/instantaneous/continuous power-loss reallocation (D22.1–D22.6).
+      Until then the warp crit uses D8.23's own allowance (cancel movement energy).
 
 ## Deferred TODO (Rick-flagged)
 - [ ] **Full D22 energy-balance engine** — incremental/instantaneous/continuous power-loss reallocation (D22.1–D22.6).
