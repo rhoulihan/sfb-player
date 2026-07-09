@@ -704,7 +704,7 @@ function stepImpulse() {
   if (clock.impulse > 32) { clock.impulse = 1; clock.turn++; wrapped = true; }   // new turn → back to energy allocation
   ships.forEach(s => s._shieldDmg = {});   // D8.1: shield-damage tally is per-impulse (direct fire + seekers combine within an impulse)
   for (const s of ships) {
-    s.speed = speedAt(s.speedPlot || { base: s.speed, changes: [] }, clock.impulse);   // plotted speed changes fire on their locked impulses (C12.36)
+    s.speed = hasCrit(s.criticals, 'warp') ? 0 : speedAt(s.speedPlot || { base: s.speed, changes: [] }, clock.impulse);   // plotted speed changes fire on their locked impulses (C12.36); warp crit halts the ship (D8.23)
     if (isDead(s) || !movesOnImpulse(s.speed, clock.impulse)) continue;
     const auto = s.autopilot && s.course && s.course.steps[s._autoIdx || 0];
     if (auto) { const st = s.course.steps[s._autoIdx || 0], turned = st.facing !== s.facing;   // follow the plotted course
@@ -889,7 +889,7 @@ function applyPhaseUI() {
 }
 // ---------- energy allocation panel ----------
 const carriedOf = s => Math.floor(s.capacitor || 0);   // phaser charge carried over from last turn (H6.21)
-const batteryOf = s => s.batteryCharge ?? powerOf(s).batteries;   // current battery charge (starts full)
+const batteryOf = s => hasCrit(s.criticals, 'battery') ? 0 : (s.batteryCharge ?? powerOf(s).batteries);   // current battery charge (starts full); D8.2 #3 battery failure → no power, can't hold
 const reservePoolS = s => reservePoolOf(s.reserveWarp || 0, batteryOf(s));   // reactive power available this turn (H7.4 + H5)
 
 // Reactive reinforcement (H7.134/342/344): after damage is scored on a shield and before it applies, let the
@@ -1441,6 +1441,7 @@ function moveBudget(s) {
   return Math.max(0, Math.min(sinkMax(p, 'movement'), forMove));
 }
 const maxBaseSpeed = s => {
+  if (hasCrit(s.criticals, 'warp')) return 0;   // D8.2 #12 / D8.23: warp control damaged — ship stops, no warp for movement
   const energyMax = Math.floor(moveBudget(s) / powerOf(s).moveCost);
   // C2.21 acceleration limit: from turn 2 on, next turn's speed can't exceed the previous turn's + max(prev, 10).
   // Turn 1 is the scenario entry speed (a given, not an allocation); mid-turn plotting (impulse phase) is energy-bound only.
