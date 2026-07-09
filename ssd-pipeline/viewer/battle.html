@@ -289,7 +289,7 @@ import { resolveAttackPlan } from './direct-fire.js';
 import { makeRng } from './rng.js';
 import { repairBoxes } from './repair.js';
 import { resolveLocks, applyLockGate } from './lock-on.js';
-import { launchSeeker, stepSeeker, seekerImpacts, seekerDamage, seekerExpired, plasmaSpec, pointDefense, pointDefenseHits, PD_PLASMA_DMG, controlLimit, controlledCount, SUICIDE_SHUTTLE, weaselFor, ADMIN_SHUTTLE, SCATTER_PACK } from './seeking.js';
+import { launchSeeker, stepSeeker, seekerImpacts, seekerDamage, seekerExpired, plasmaSpec, pointDefense, pointDefenseHits, PD_PLASMA_DMG, PD_RANGE, controlLimit, controlledCount, SUICIDE_SHUTTLE, weaselFor, ADMIN_SHUTTLE, SCATTER_PACK } from './seeking.js';
 import { makeRack, reloadStep, loadoutSpaces, droneWarhead } from './drone-inventory.js';
 import { applyVolley, makeDice } from './dac-allocator.js';
 import { cloakEcm, applyCloakFireGate } from './cloak.js';
@@ -358,6 +358,12 @@ function completePlasmaReserve(firer) {
 }
 const pdRatingOf = s => (s.mounts || []).filter(m => m.cls === 'PH-3').length + (s._ver.groups || []).filter(g => g.family === 'anti-drone').reduce((n, g) => n + (g.boxIds || []).filter(id => !s.status[id]).length, 0);   // point-defense: PH-3 + ADD
 const phaserPdOf = s => (s.mounts || []).filter(m => m.cls === 'PH-3').length;   // only phasers weaken a plasma (FP1.611); ADDs cannot (E5.32)
+// Anti-drone ammunition (E5.1): each ADD box is a rack holding 6 anti-drones (E5.12), firing one per rack per
+// impulse (E5.13); reload up to 4/turn (E5.74) from 2 reload sets (E5.71). ADDs are consumable, not a static rating.
+const ADD_PER_RACK = 6, ADD_RELOAD_RATE = 4, ADD_RELOAD_SETS = 2;
+const addRacksOf = s => (s._ver.groups || []).filter(g => g.family === 'anti-drone').reduce((n, g) => n + (g.boxIds || []).filter(id => !s.status[id]).length, 0);
+const addCapOf = s => ADD_PER_RACK * addRacksOf(s);
+const addAmmoOf = s => (s.addAmmo == null ? (s.addAmmo = addCapOf(s)) : s.addAmmo);
 const shuttleBaysOf = s => (s._ver.groups || []).filter(g => g.family === 'shuttle-bay').reduce((n, g) => n + (g.boxIds || []).filter(id => !s.status[id]).length, 0);
 const shuttlesLeftOf = s => (s.shuttlesLeft == null ? (s.shuttlesLeft = shuttleBaysOf(s)) : s.shuttlesLeft);
 function launchShuttle(firer, target) {   // suicide shuttle (C6): a slow homing seeker at the target
@@ -452,9 +458,14 @@ function stepSeekers(out) {   // 6A: move every seeker one impulse toward its ta
         const hits = pointDefenseHits(phaserPdOf(target), rng, pdRange);
         if (hits > 0) { s2.phaserHits = (s2.phaserHits || 0) + hits * PD_PLASMA_DMG; out.push({ kind: 'shot', firer: target.id, cls: 'PD', target: s2.id, points: hits * PD_PLASMA_DMG, hit: true }); }
         if (seekerDamage(s2) <= 0) return { ...s2, _done: true };     // whittled down to no warhead
-      } else if (pointDefense(pdRatingOf(target), rng, pdRange)) {     // drones / shuttles are shot down
-        if (s2.hp != null) { const d = damageShuttle(s2, PD_SHUTTLE_DMG); out.push({ kind: 'shot', firer: target.id, cls: 'PD', target: s2.id, points: PD_SHUTTLE_DMG, hit: true }); return shuttleDestroyed(d) ? { ...d, _done: true } : d; }   // a shuttle soaks it
-        out.push({ kind: 'shot', firer: target.id, cls: 'PD', target: s2.id, points: 0, hit: false }); return { ...s2, _done: true };
+      } else if (pdRange <= PD_RANGE) {                               // drones / shuttles in point-defense range
+        const adds = Math.min(addRacksOf(target), addAmmoOf(target));  // one ADD per rack per impulse (E5.13), limited by loaded ammo
+        const killed = pointDefense(phaserPdOf(target) + adds, rng, pdRange);   // PH-3 (unlimited) + ADDs
+        if (adds > 0) target.addAmmo = addAmmoOf(target) - adds;       // anti-drones are expended whether they hit or miss (E5.13)
+        if (killed) {
+          if (s2.hp != null) { const d = damageShuttle(s2, PD_SHUTTLE_DMG); out.push({ kind: 'shot', firer: target.id, cls: 'PD', target: s2.id, points: PD_SHUTTLE_DMG, hit: true }); return shuttleDestroyed(d) ? { ...d, _done: true } : d; }   // a shuttle soaks it
+          out.push({ kind: 'shot', firer: target.id, cls: 'PD', target: s2.id, points: 0, hit: false }); return { ...s2, _done: true };
+        }
       }
     }
     if (seekerImpacts(s2, home)) {
@@ -621,7 +632,7 @@ function applyRemote(data) {
     s.speed = m.speed ?? s.speed; s.hexesSinceTurn = m.hexesSinceTurn ?? s.hexesSinceTurn; s.queuedTurn = m.queuedTurn || 0;
     s.status = {}; (sd.status?.destroyed || []).forEach(id => (s.status[id] = 'destroyed'));
     s.firedAt = {}; for (const [mid, w] of Object.entries(sd.weapons || {})) if (w && w.firedAt) s.firedAt[mid] = w.firedAt;
-    if (sd.armed !== undefined) s.armed = sd.armed; if (sd.armProgress !== undefined) s.armProgress = sd.armProgress; if (sd.capacitor !== undefined) s.capacitor = sd.capacitor; if (sd.batteryCharge !== undefined) s.batteryCharge = sd.batteryCharge; if (sd.reserveWarp !== undefined) s.reserveWarp = sd.reserveWarp; if (sd.reinforce !== undefined) { s.reinforce = sd.reinforce; s.reinfLeft = null; }
+    if (sd.armed !== undefined) s.armed = sd.armed; if (sd.armProgress !== undefined) s.armProgress = sd.armProgress; if (sd.capacitor !== undefined) s.capacitor = sd.capacitor; if (sd.batteryCharge !== undefined) s.batteryCharge = sd.batteryCharge; if (sd.reserveWarp !== undefined) s.reserveWarp = sd.reserveWarp; if (sd.addAmmo !== undefined) s.addAmmo = sd.addAmmo; if (sd.addMag !== undefined) s.addMag = sd.addMag; if (sd.reinforce !== undefined) { s.reinforce = sd.reinforce; s.reinfLeft = null; }
     if (sd.course !== undefined) s.course = sd.course; if (sd.speedPlot !== undefined) s.speedPlot = sd.speedPlot; if (sd.autopilot !== undefined) s.autopilot = sd.autopilot;
     s.model = null;
   }
@@ -682,6 +693,7 @@ function stepImpulse() {
     if (s.drones) s.drones.racks = s.drones.racks.map(r => (loadoutSpaces(r.loaded) < r.capacity && r.reloadsLeft > 0 && r.firedTurn !== clock.turn - 1) ? reloadStep(r) : r); s.shuttlesLeft = shuttleBaysOf(s);   // FD2.421: reload 2 spaces/turn from the magazine, only if the rack did not fire the turn just ended; plasma re-arms through the EAF (FP1.21)
     for (const w of powerOf(s).weapons) if (!canHold(w.cls) && s.armProgress && isArmed(w.cls, s.armProgress[w.id] || 0)) s.armProgress[w.id] = 0;   // non-holdable weapon armed but not fired → discharge (E3.24 disruptor, FP1.311 plasma-R)
     if (s.reserveWarp) { s.batteryCharge = Math.min(powerOf(s).batteries, batteryOf(s) + s.reserveWarp); s.reserveWarp = 0; }   // H7.36: unused reserve warp drains into the batteries at end of turn
+    if (addRacksOf(s) > 0 && addAmmoOf(s) < addCapOf(s)) { const mag = s.addMag ?? (s.addMag = ADD_RELOAD_SETS * addCapOf(s)); const add = Math.min(ADD_RELOAD_RATE, addCapOf(s) - s.addAmmo, mag); s.addAmmo += add; s.addMag = mag - add; }   // E5.74/E5.71: reload ≤4 anti-drones/turn from two reload sets
   }
   pruneUnavailable(); render(); if (skLog.length) renderLog({ log: skLog }, true); save(null, wrapped ? { step: true, phase: 'energy' } : { step: true });   // movement syncs to all commanders
 }
@@ -1302,7 +1314,7 @@ const serializeShip = s => ({
   id: s.id, code: s.code, name: s.name, side: s.side,
   map: { q: s.q, r: s.r, facing: s.facing, speed: s.speed, hexesSinceTurn: s.hexesSinceTurn, queuedTurn: s.queuedTurn, turnMode: turnMode(s.speed) },
   status: { destroyed: Object.keys(s.status), shields: shieldsNow(s) },
-  armed: s.armed || {}, armProgress: s.armProgress || {}, capacitor: s.capacitor ?? 0, batteryCharge: s.batteryCharge, reserveWarp: s.reserveWarp || 0, reinforce: s.reinforce || null,   // folded energy-allocation state
+  armed: s.armed || {}, armProgress: s.armProgress || {}, capacitor: s.capacitor ?? 0, batteryCharge: s.batteryCharge, reserveWarp: s.reserveWarp || 0, addAmmo: s.addAmmo, addMag: s.addMag, reinforce: s.reinforce || null,   // folded energy-allocation + ammo state
   course: s.course || null, speedPlot: s.speedPlot || null, autopilot: !!s.autopilot,   // tactical course plot
   weapons: Object.fromEntries(s.mounts.map(m => [m.id, { cls: m.cls, arc: (m.arc.arcs || []), charged: isCharged(s, m.id, m.cls), firedAt: s.firedAt[m.id] || null }])),
 });
