@@ -62,17 +62,7 @@
       "verified": true
     },
     {
-      "family": "ammo-track",
-      "arc": "",
-      "arcDef": {
-        "arcs": [],
-        "paintAdd": [],
-        "paintRemove": [],
-        "note": ""
-      },
-      "verified": true,
       "id": "g1_s1",
-      "type": "Shuttle 1",
       "boxIds": [
         "box21",
         "box22",
@@ -82,10 +72,9 @@
         "box26",
         "box27",
         "box28"
-      ]
-    },
-    {
+      ],
       "family": "ammo-track",
+      "type": "Shuttle 1",
       "arc": "",
       "arcDef": {
         "arcs": [],
@@ -93,9 +82,10 @@
         "paintRemove": [],
         "note": ""
       },
-      "verified": true,
+      "verified": true
+    },
+    {
       "id": "g1_s2",
-      "type": "Shuttle 2",
       "boxIds": [
         "box39",
         "box40",
@@ -105,7 +95,17 @@
         "box44",
         "box45",
         "box46"
-      ]
+      ],
+      "family": "ammo-track",
+      "type": "Shuttle 2",
+      "arc": "",
+      "arcDef": {
+        "arcs": [],
+        "paintAdd": [],
+        "paintRemove": [],
+        "note": ""
+      },
+      "verified": true
     },
     {
       "id": "g2",
@@ -374,23 +374,6 @@
       "verified": true
     },
     {
-      "id": "g15",
-      "boxIds": [
-        "box156",
-        "box240"
-      ],
-      "family": "security-station",
-      "type": "Security",
-      "arc": "",
-      "arcDef": {
-        "arcs": [],
-        "paintAdd": [],
-        "paintRemove": [],
-        "note": ""
-      },
-      "verified": true
-    },
-    {
       "id": "g16",
       "boxIds": [
         "box157"
@@ -635,29 +618,6 @@
           "RR",
           "LF",
           "L"
-        ],
-        "paintAdd": [],
-        "paintRemove": [],
-        "note": ""
-      },
-      "verified": true
-    },
-    {
-      "id": "g41",
-      "boxIds": [
-        "box239"
-      ],
-      "family": "anti-drone",
-      "type": "ADD",
-      "arc": "LF",
-      "arcDef": {
-        "arcs": [
-          "LF",
-          "L",
-          "LR",
-          "RF",
-          "R",
-          "RR"
         ],
         "paintAdd": [],
         "paintRemove": [],
@@ -1114,6 +1074,39 @@
       ],
       "family": "ammo-track",
       "type": "Drone Rack 1",
+      "arc": "",
+      "arcDef": {
+        "arcs": [],
+        "paintAdd": [],
+        "paintRemove": [],
+        "note": ""
+      },
+      "verified": true
+    },
+    {
+      "id": "g1783561603336",
+      "boxIds": [
+        "box240",
+        "box156"
+      ],
+      "family": "security-station",
+      "type": "Security",
+      "arc": "",
+      "arcDef": {
+        "arcs": [],
+        "paintAdd": [],
+        "paintRemove": [],
+        "note": ""
+      },
+      "verified": true
+    },
+    {
+      "id": "g1783561659782",
+      "boxIds": [
+        "box239"
+      ],
+      "family": "anti-drone",
+      "type": "ADD",
       "arc": "",
       "arcDef": {
         "arcs": [],
@@ -1712,7 +1705,9 @@
     "box173",
     "box181",
     "box221",
-    "box345"
+    "box345",
+    "box163",
+    "box178"
   ],
   "pass": "b4-verify"
 }
