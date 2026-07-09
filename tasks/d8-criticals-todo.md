@@ -14,12 +14,13 @@ reinforcement functionality, **general reinforcement highlights all 6 shield fie
 - [x] Add new D8 controls to the EA panel: **ERRATIC** (EM), **FC PASSIVE**, **EDR (labs)** — model fields + costs (C10.11/D14.12) TDD'd; rendered on both themes; browser-verified (EM toggle adds 6 to used)
 - [ ] Rick to adjust control placement (Fed cluster is a rough first pass; Klingon uses top-row panels + free right slot)
 
-## Phase 1 — Crit framework (foundation)
-- [ ] `criticals.js` (TDD): D8.2 2d6→effect table, `rollCritical`, per-ship active-crit occurrences, `hasCrit`
+## Phase 1 — Crit framework (foundation) — ✅ COMPLETE
+- [x] `criticals.js` (TDD): D8.2 2d6→effect table, `rollCritical`, per-ship active-crit occurrences, `hasCrit`
 - [x] Trigger: per-shield/impulse damage accumulator (`accrueShieldDamage`) at all 3 damage sites (direct fire, seekers, self-destruct); one deterministic 2d6 roll per ship per turn (D8.1); crit logged + persisted. End-to-end firing verification deferred to Phase 2 (first effect).
-- [ ] `repair-stage.js` (TDD): end-of-turn crit repair (D8.31) + D14 EDR + shield repair (D9.21)
-- [ ] UI: relabel "Criticals"→"Secondary explosions"; add optional default-off "D8 Critical hits" toggle
-- [ ] UI: on-ship crit badges; crit-roll modal; end-of-turn repair panel
+- [x] Repair stage: end-of-turn crit repair (D8.31) in stepImpulse — verified (d6=6 → still disabled) `17b8c32` [D14 EDR + D9.21 shield repair = Phase 3]
+- [x] UI: relabel "Criticals"→"Secondary explosions"; add optional default-off "D8 Critical hits" toggle `e53b81c`
+- [x] UI: on-ship crit badges (`17b8c32`) + crit-roll modal (`b01b9e4`) — both verified end-to-end (real self-destruct → Shuttle Bay crit)
+- [x] **Bonus fix:** mid-turn auto-resume now restores the exact SFB segment (was resetting to energy) `17b8c32`
 
 ## Phase 2 — Effect wiring (6 of 9 bite)
 - [x] 2 Fire control → passive FC (D19): eff.range 2× + 5-hex cap (TDD), no ECCM, no seeking launch — `47b0a81`
