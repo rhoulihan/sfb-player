@@ -87,7 +87,43 @@ Mostly 1–3 line changes; each closes a verified rule mismatch.
 - [ ] **Seeker control maintenance (F3.31)** — a controlled seeker needs active FC + lock-on + ≤35 hexes; currently seekers home forever even if the firer dies/loses lock.
 - [ ] **Seeker warhead degradation vs EW/cloak (D6.36)** — impacts always deal full warhead regardless of target ECM/cloak.
 - [ ] **ECM/ECCM model** — combined ECM+ECCM cap ≤ sensor rating (D6.310); ECM should **degrade** lock quality, not break it (D6.112); magnitude uses a sqrt shift chart, not linear +hex (D6.34). **Meta-note:** power-bought ECM/ECCM is itself a *Commander's-level* rule — at Basic/Standard level EW comes only from weasels/terrain/small-target, so consider whether the ECM sliders belong at this tier at all.
-- [ ] **Criticals** — the default-on `criticals` toggle is a home-brew that **contradicts D8.21** (real criticals never destroy a system, only disable it until repaired). Either implement real D8.0 or relabel/default-off the home-brew.
+### D8.0 Critical hits (optional) — full systems map
+
+The default-on `criticals` toggle is a home-brew **secondary-explosion** mechanic (DAC-1: destroys extra warp/torp
+boxes on 2d6 ≥11) — it must be **relabelled** ("Secondary explosions") so it stops masquerading as criticals, which
+it **contradicts** (D8.21: real criticals *never* destroy). Real D8.0 is a separate optional system.
+
+**Trigger (D8.1):** ≥20 damage to a *given shield* in a *single impulse* (shield + reinforcement + penetrating) →
+one **2d6** roll, **once per turn** per ship (6–8 = no crit still consumes the turn's roll).
+
+**2d6 effect table (D8.2)** and the system each hits, with current code status:
+
+| Roll | Effect | System | Status |
+|---|---|---|---|
+| 2 | Active FC fails → **passive fire control** (D19) | fire control | ⚠ partial — lock-on/range exist; passive-FC effect unbuilt |
+| 3 | **Battery failure** — lose all power, can't hold | batteries | ✓ modeled — wire the gate |
+| 4 | **Transporter failure** | transporter | ⚠ partial — alloc + `mines.js` raid exist; gate + confirm usage path |
+| 5 | **Labs** unusable; **D14 emergency repair** impossible, in-progress lost | labs, D14 | ✗ missing — no lab combat function, no D14 |
+| 6–8 | No critical hit | — | — |
+| 9 | **Tractor breakdown** — links released | tractor beams (G7) | ✗ missing — alloc only, no beam mechanic |
+| 10 | **Shuttle-bay jammed** (one bay, pick by die) — no launch/recovery (D8.24) | shuttle/drone bays | ⚠ partial — launches exist; no per-bay identity |
+| 11 | **Maneuver restricted** — speed ≤ 8, no HET, no EM, TM +1 | movement | ✓ modeled except EM — wire cap/HET/TM |
+| 12 | **Warp control** — stop, no warp for movement, ½ output lost (D8.23) | warp/movement/energy, D22 | ⚠ partial — stop/warp-loss wireable; D22 realloc missing |
+
+**Repair (D8.31):** end-of-turn **1d6**, 1–4 repairs, **one per turn**, cumulative −1/−2 on repeat attempts of the
+same occurrence. No repair stage exists today.
+
+**Missing underlying systems — checklist (added for the "full simulation" build):**
+- [ ] **Crit trigger infra** — per-shield/impulse damage accumulator + one-roll-per-turn ship state (damage is applied per-volley today with no accumulation).
+- [ ] **`criticals.js` module** — D8.2 table (2d6 → type), `rollCritical`, per-ship active-crit occurrences, `hasCrit(state,type)` predicates.
+- [ ] **Passive fire control (D19)** — effective range = 2× true (D19.11), direct-fire cap 5 hex true (D19.23), no ECCM (D19.12), no seeking-weapon guidance (D19.22); driven by the fire-control crit.
+- [ ] **End-of-turn repair stage (D8.31)** — 1d6 repair rolls, one/turn, cumulative penalty; shared stage also unlocks **shield repair (D9.21)**.
+- [ ] **Shuttle/drone bay identity** — so a bay crit jams exactly one bay's launch/recovery (D8.24).
+- [ ] **EM erratic maneuvers (C10.52)** — referenced by the maneuver crit ("no EM") and passive FC; entirely absent today.
+- [ ] **Tractor beams (G7)** — tractor links to release on a tractor crit; currently allocation-only.
+- [ ] **D14 emergency damage repair** + lab combat functions — absent; the labs crit is authoritative-flag-only until built.
+- [ ] **D22 power-loss reallocation** — mid-turn EAF adjust for the warp crit; simplify (cancel movement energy) or defer.
+- [ ] **Relabel the DAC-1 toggle** to "Secondary explosions" and add a separate **optional, default-off** "D8 Critical hits" toggle (D8.0 is optional).
 - [ ] **Cloak ×2 no-lock range** (G13.301) — the +5 is modeled, the range-doubling when there's no lock is not.
 - [ ] **Enveloping plasma (FP5), pseudo-plasma bluff (FP6), plasma shotgun (FP7), rolling delay (FP1.221)** — advanced plasma options, unimplemented.
 - [ ] **Mid-turn speed-change restrictions (C12.31)** — max 4/turn, ≥8-impulse spacing, not before imp4/after imp28, decel ≤ ½ speed; **HET as an executable snap-turn** (C6.1) with mode reset.
