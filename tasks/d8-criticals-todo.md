@@ -21,15 +21,15 @@ reinforcement functionality, **general reinforcement highlights all 6 shield fie
 - [ ] UI: relabel "Criticals"→"Secondary explosions"; add optional default-off "D8 Critical hits" toggle
 - [ ] UI: on-ship crit badges; crit-roll modal; end-of-turn repair panel
 
-## Phase 2 — Effect wiring (all nine bite)
-- [ ] 2 Fire control → passive FC (D19): eff.range 2×, 5-hex cap, no ECCM, no seeking guidance
-- [ ] 3 Battery failure: zero charge, block hold/reserve/reinforce
-- [ ] 4 Transporter: gate `mines.js` raid / T-bomb
-- [ ] 5 Labs: block D14 EDR + lab use
-- [ ] 9 Tractor: release all links (needs `tractor.js`)
-- [ ] 10 Shuttle bay jammed (one bay): needs bay identity (verify.html capture)
-- [x] 11 Maneuver restricted: speed ≤ 8 (maxBaseSpeed) + TM +1 (turnModeOf). Browser-verified: D7 max 23→8. [no-HET/no-EM once those are executable]
-- [ ] 12 Warp: halt, no warp-move, ½ output lost (D22 simplified per D8.23)
+## Phase 2 — Effect wiring (6 of 9 bite)
+- [x] 2 Fire control → passive FC (D19): eff.range 2× + 5-hex cap (TDD), no ECCM, no seeking launch — `47b0a81`
+- [x] 3 Battery failure: batteryOf → 0 (verified 42→39) — `643f02e`
+- [x] 4 Transporter: raid + T-bomb blocked (verified) — `5ef5c18`
+- [x] 5 Labs: EDR hidden/zeroed (verified) — `5ef5c18`
+- [ ] 9 Tractor: release all links (needs `tractor.js` — Phase 3)
+- [ ] 10 Shuttle bay jammed (one bay): needs bay identity (Phase 3)
+- [x] 11 Maneuver restricted: speed ≤ 8 + TM +1 (verified 23→8) — `32199b7` [no-HET/no-EM once executable]
+- [x] 12 Warp: halt + no warp-move (verified max→0) — `643f02e` [½-output loss = deferred D22]
 
 **Also fixed:** auto-resume on reload (localStorage commander code) + crit state carried across resume — `32199b7`.
 
