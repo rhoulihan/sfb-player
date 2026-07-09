@@ -306,7 +306,7 @@ import { movesOnImpulse, neighbor, turnMode, turnModeFor, accelCap } from './mov
 // This map is used only for a ship whose verified data predates that field. Confirmed: FED-CA/GOR-CA=D, KLI-D7/ROM-KR=B.
 const SHIP_TURN_CATEGORY = { 'FED-CA': 'D', 'FED-CL': 'C', 'FED-NCL': 'C', 'GOR-CA': 'D', 'KLI-D7': 'B', 'ROM-KR': 'B', 'KZIN-CS': 'C' };
 const turnCategoryOf = code => SHIP_TURN_CATEGORY[code] || 'C';
-const turnModeOf = s => turnModeFor(s.turnCat || turnCategoryOf(s.code), s.speed);
+const turnModeOf = s => turnModeFor(s.turnCat || turnCategoryOf(s.code), s.speed) + (hasCrit(s.criticals, 'maneuver') ? 1 : 0);   // D8.2 maneuver crit: turn mode +1 at all speeds
 import { shipPower, newEafColumn, validateEaf, foldEaf, sinkMax, specReinfMax, plasmaClsOf } from './energy-model.js';
 import { armLabel, isArmed, canHold, canRoll, armTurns, rollCost, reserveCompletionCost } from './weapon-arming.js';   // multi-turn arming: label, fire-gate, holdability, rolling delay (E4.21/E3.24/FP1.311/FP1.221)
 import { reservePool as reservePoolOf, spendReserve, reserveCost } from './reserve-power.js';   // reactive power (H5/H7)
@@ -581,7 +581,7 @@ async function startBattle(defs, clk, restore, ph) {
   ui.ghosts = {}; ui.selectedGhost = null; ui.ghostDrag = null; ui.navPreview = null; ui.plotShipId = null; modelFleet = myFleet; stashedPlan = null; lockOn = {}; lockOnTurn = -1; seekers = []; seekerSeq = 0; terrain = { barrier: null, asteroids: [] }; settings = { criticals: true, d8crits: false, advancedShuttles: false, droneSpeed: 20, solo: false };   // fresh battle → no carried-over what-if / plot / perspective / lock state
   for (const d of defs) {
     const s = await hydrate(d), r = restore && restore[d.id];
-    if (r) { (r.destroyed || []).forEach(id => (s.status[id] = 'destroyed')); s.firedAt = r.firedAt || {}; if (r.hexesSinceTurn != null) s.hexesSinceTurn = r.hexesSinceTurn; s.queuedTurn = r.queuedTurn || 0; }
+    if (r) { (r.destroyed || []).forEach(id => (s.status[id] = 'destroyed')); s.firedAt = r.firedAt || {}; if (r.hexesSinceTurn != null) s.hexesSinceTurn = r.hexesSinceTurn; s.queuedTurn = r.queuedTurn || 0; s.criticals = r.criticals || []; s._critRolledTurn = r.critRolledTurn ?? -1; }   // D8 crit state carries across resume
     ships.push(s);
   }
   document.getElementById('log').innerHTML = '';
@@ -590,7 +590,7 @@ async function startBattle(defs, clk, restore, ph) {
 async function resumeSaved(saved) {
   const defs = saved.ships.map(s => ({ id: s.id, code: s.code, name: s.name, side: s.side, q: s.map.q, r: s.map.r, facing: s.map.facing, speed: s.map.speed }));
   const restore = {};
-  for (const s of saved.ships) restore[s.id] = { destroyed: s.status?.destroyed || [], firedAt: Object.fromEntries(Object.entries(s.weapons || {}).filter(([, w]) => w && w.firedAt).map(([k, w]) => [k, w.firedAt])), hexesSinceTurn: s.map.hexesSinceTurn, queuedTurn: s.map.queuedTurn };
+  for (const s of saved.ships) restore[s.id] = { destroyed: s.status?.destroyed || [], firedAt: Object.fromEntries(Object.entries(s.weapons || {}).filter(([, w]) => w && w.firedAt).map(([k, w]) => [k, w.firedAt])), hexesSinceTurn: s.map.hexesSinceTurn, queuedTurn: s.map.queuedTurn, criticals: s.criticals || [], critRolledTurn: s.critRolledTurn ?? -1 };   // D8 crit state
   await startBattle(defs, { turn: saved.turn, impulse: saved.impulse }, restore, saved.phase || 'energy');
   fleets = saved.fleets ? { friendly: { ...fleets.friendly, name: saved.fleets.friendly?.name }, enemy: { ...fleets.enemy, name: saved.fleets.enemy?.name } } : fleets;
   plan = saved.plans?.[myFleet] || newPlan();
@@ -603,9 +603,18 @@ async function resumeSaved(saved) {
   render();
 }
 let savedBattle = null;
-async function load() {   // startup: ask to resume a saved battle or set up a new one
+async function load() {   // startup: auto-resume the saved battle for our remembered commander, else prompt
   savedBattle = null;
   try { const j = await (await fetch('/api/battle')).json(); if (j && j.ships && j.ships.length) savedBattle = j; } catch {}
+  if (savedBattle) {
+    const stored = localStorage.getItem('sfbCode');   // the commander code we last joined with — re-establishes which fleet is ours
+    if (stored) {
+      try {
+        const view = await (await fetch('/api/battle?code=' + encodeURIComponent(stored))).json();
+        if (view && view.myFleet) { myCode = stored; myFleet = view.myFleet; resumeSaved(view); return; }   // auto-resume, no prompt
+      } catch {}
+    }
+  }
   const wrap = document.getElementById('startResumeWrap');
   if (savedBattle) {
     wrap.style.display = 'block';
@@ -1435,7 +1444,8 @@ const maxBaseSpeed = s => {
   const energyMax = Math.floor(moveBudget(s) / powerOf(s).moveCost);
   // C2.21 acceleration limit: from turn 2 on, next turn's speed can't exceed the previous turn's + max(prev, 10).
   // Turn 1 is the scenario entry speed (a given, not an allocation); mid-turn plotting (impulse phase) is energy-bound only.
-  return (clock.turn > 1 && getPhase() === 'energy') ? Math.min(energyMax, accelCap(s.speed)) : energyMax;
+  const acc = (clock.turn > 1 && getPhase() === 'energy') ? Math.min(energyMax, accelCap(s.speed)) : energyMax;
+  return hasCrit(s.criticals, 'maneuver') ? Math.min(acc, 8) : acc;   // D8.2 maneuver crit: cannot exceed speed 8
 };
 function setStartSpeed(s, hexes) {   // starting speed = the movement allocation; redirect free warp to match, reset the plot base
   const p = powerOf(s), col = eaColOf(s);
@@ -1669,7 +1679,7 @@ document.getElementById('startResume').onclick = async () => {
   try {
     const view = await (await fetch('/api/battle?code=' + encodeURIComponent(code))).json();   // server validates the code
     if (!view.myFleet) { document.getElementById('joinErr').textContent = 'Invalid commander code for this battle.'; return; }
-    myCode = code; myFleet = view.myFleet;
+    myCode = code; myFleet = view.myFleet; try { localStorage.setItem('sfbCode', code); } catch {}   // remember for auto-resume on reload
     document.getElementById('startModal').style.display = 'none';
     resumeSaved(view);
   } catch { document.getElementById('joinErr').textContent = 'Could not join the battle.'; }
@@ -1693,7 +1703,7 @@ document.getElementById('nbStart').onclick = async () => {
   const nm = side => document.querySelector(`.nbname[data-name="${side}"]`).value.trim();
   fleets = { friendly: { name: nm('friendly') || 'Fleet 1', code: genCode() }, enemy: { name: nm('enemy') || 'Fleet 2', code: genCode() } };
   myFleet = document.getElementById('nbCommand').value;
-  myCode = fleets[myFleet].code;
+  myCode = fleets[myFleet].code; try { localStorage.setItem('sfbCode', myCode); } catch {}   // remember for auto-resume on reload
   document.getElementById('nbModal').style.display = 'none';
   await startBattle(defs, { turn: 1, impulse: 0 });
   settings = { criticals: document.getElementById('nbCriticals').checked, d8crits: document.getElementById('nbD8Crits').checked, advancedShuttles: document.getElementById('nbAdvShuttles').checked, droneSpeed: parseInt(document.getElementById('nbDroneSpeed').value, 10) || 20, solo: document.getElementById('nbSolo').checked };
