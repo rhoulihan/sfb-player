@@ -260,6 +260,13 @@
     <button class="btn primary" id="codesEnter" style="width:100%;padding:10px;font-size:14px;margin-top:12px">Enter battle</button>
   </div>
 </div>
+<div id="critModal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.7);z-index:620;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:12px;padding:22px 26px;text-align:center;box-shadow:0 12px 44px rgba(0,0,0,.4);min-width:320px;max-width:440px;border-top:5px solid #dc2626">
+    <div style="font-size:20px;font-weight:800;color:#dc2626;margin-bottom:4px">💥 Critical Hit</div>
+    <div id="critBody" style="color:#334155;font-size:14px;margin:10px 0;text-align:left"></div>
+    <button class="btn primary" id="critAck" style="width:100%;padding:10px;font-size:14px;margin-top:8px">Acknowledge</button>
+  </div>
+</div>
 <div id="nbModal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:400;align-items:center;justify-content:center">
   <div style="background:#fff;border-radius:10px;width:min(780px,94vw);max-height:88vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 12px 44px rgba(0,0,0,.4)">
     <div style="padding:10px 16px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center"><b style="font-size:15px">＋ New Battle</b><span style="flex:1"></span><button class="btn" id="nbCancel">✕</button></div>
@@ -1659,7 +1666,16 @@ function renderLog(res, append) {
     : `<div class="vol">${l.target} shield #${l.shield}: ${l.points} pts → ${l.effects.filter(e => e.type === 'destroy').length} internal${l.effects.some(e => e.type === 'critical') ? ` <span style="color:#dc2626;font-weight:700">💥 ${l.effects.filter(e => e.type === 'critical').length} crit</span>` : ''}${l.effects.some(e => e.type === 'shipDestroyed') ? ' <span class="kill">◈ DESTROYED</span>' : ''}</div>`);
   const block = `<div style="font-weight:700;color:#0f172a;margin:2px 0">▶ Turn ${clock.turn} · Impulse ${clock.impulse}</div>` + (lines.join('') || '<div class="miss">no shots</div>');
   if (append) L.insertAdjacentHTML('afterbegin', block); else L.innerHTML = block;
+  const crits = res.log.filter(l => l.kind === 'crit' && l.type);   // actual criticals scored this resolution (6–8 = no crit are skipped)
+  if (crits.length) showCritModal(crits);
 }
+function showCritModal(crits) {   // D8 critical-hit notification: the 2d6 result and the system disabled
+  document.getElementById('critBody').innerHTML = crits.map(c =>
+    `<div style="padding:7px 0;border-bottom:1px solid #f1f5f9"><b>${c.ship}</b> — shield #${c.shield}, 2d6 = <b>${c.roll}</b><br><span style="color:#dc2626;font-weight:700">${CRIT_INFO[c.type].label} disabled</span> <span style="color:#64748b;font-size:12px">(${CRIT_INFO[c.type].rule})</span><br><span style="color:#475569;font-size:12.5px">${CRIT_INFO[c.type].desc}</span></div>`
+  ).join('');
+  document.getElementById('critModal').style.display = 'flex';
+}
+document.getElementById('critAck').onclick = () => { document.getElementById('critModal').style.display = 'none'; };
 
 // ---------- New Battle setup ----------
 let nbShips = { friendly: [], enemy: [] }, verifiedList = [];
