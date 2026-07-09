@@ -224,6 +224,16 @@
     <div id="intelBody" style="padding:12px 16px;font-size:13px;line-height:1.55"></div>
   </div>
 </div>
+<div id="reserveModal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:450;align-items:center;justify-content:center">
+  <div style="background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:12px;width:min(430px,92vw);box-shadow:0 12px 44px rgba(0,0,0,.5)">
+    <div style="padding:9px 14px;display:flex;align-items:center;gap:10px;border-bottom:1px solid #334155"><b id="reserveTitle">⚡ Reserve Power</b><span style="flex:1"></span></div>
+    <div id="reserveBody" style="padding:14px 16px;font-size:13px;line-height:1.55"></div>
+    <div style="padding:10px 16px;display:flex;gap:8px;border-top:1px solid #334155">
+      <button class="btn" id="reserveSkip" style="flex:1">Skip</button>
+      <button class="btn primary" id="reserveConfirm" style="flex:1">Confirm</button>
+    </div>
+  </div>
+</div>
 <div id="startModal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.78);z-index:500;align-items:center;justify-content:center">
   <div style="background:#fff;border-radius:12px;padding:26px 30px;text-align:center;box-shadow:0 12px 44px rgba(0,0,0,.4);min-width:340px">
     <div style="font-size:20px;font-weight:700;margin-bottom:3px">SFB Player</div>
@@ -289,6 +299,7 @@ const PD_SHUTTLE_DMG = 2;   // point-defense damage per hit vs a shuttle (shuttl
 import { movesOnImpulse, neighbor, turnMode } from './movement.js';
 import { shipPower, newEafColumn, validateEaf, foldEaf, sinkMax, specReinfMax, plasmaClsOf } from './energy-model.js';
 import { armLabel, isArmed, canHold } from './weapon-arming.js';   // multi-turn arming: EA label + fire-gate + holdability (E4.21/E3.24/FP1.311)
+import { reservePool as reservePoolOf, spendReserve, reserveCost } from './reserve-power.js';   // reactive power (H5/H7)
 import { legalNextHexes, tryStep, impulseTimeline, hexesInPlot, setSpeedChange, speedAt, legalSideslips, trySideslip } from './course-plan.js';
 import { family, segmentName } from './battle-phase.js';   // SFB Sequence-of-Play segment cursor
 import { hexPath, rad, plotOverlaySvg, createBattleMap } from './battle-map.js';
@@ -803,6 +814,50 @@ function applyPhaseUI() {
 // ---------- energy allocation panel ----------
 const carriedOf = s => Math.floor(s.capacitor || 0);   // phaser charge carried over from last turn (H6.21)
 const batteryOf = s => s.batteryCharge ?? powerOf(s).batteries;   // current battery charge (starts full)
+const reservePoolS = s => reservePoolOf(s.reserveWarp || 0, batteryOf(s));   // reactive power available this turn (H7.4 + H5)
+
+// Reactive reinforcement (H7.134/342/344): after damage is scored on a shield and before it applies, let the
+// defender pour reserve/battery power into reinforcement. Resolves when the commander confirms or skips; on
+// confirm it spends the pools and adds to t.reinfLeft — specific on the struck shield at 1 energy/pt (D3.342),
+// general at 2 energy/pt (D3.341). Reserve may only reinforce, never raise a shield (H7.345).
+function promptReserveReinforce(t, sh, incoming, preAbsorb) {
+  return new Promise(resolve => {
+    let source = (t.reserveWarp || 0) >= batteryOf(t) ? 'warp' : 'battery', spec = 0, gen = 0;
+    const modal = document.getElementById('reserveModal'), body = document.getElementById('reserveBody');
+    const pool = reservePoolS(t), cost = () => reserveCost('specReinf', spec) + reserveCost('genReinf', gen);
+    const down = (shieldsNow(t)[sh - 1] || 0) <= 0;
+    const draw = () => {
+      document.getElementById('reserveTitle').textContent = `⚡ Reserve Power — ${t.id}`;
+      const through = Math.max(0, incoming - preAbsorb - spec - gen);
+      body.innerHTML = `
+        <div style="margin-bottom:8px">Shield <b>${sh}</b> struck for <b>${incoming}</b>${preAbsorb ? ` · ${preAbsorb} already reinforced` : ''} — <b style="color:#f59e0b">${through}</b> would get through.</div>
+        <div style="color:#94a3b8;margin-bottom:10px">reserve warp ${t.reserveWarp || 0} · battery ${batteryOf(t)} · pool <b>${pool}</b> · spending <b>${cost()}</b></div>
+        <div style="display:flex;gap:6px;margin-bottom:12px">
+          <button class="btn ${source === 'warp' ? 'primary' : ''}" data-rsrc="warp" style="flex:1">Warp first</button>
+          <button class="btn ${source === 'battery' ? 'primary' : ''}" data-rsrc="battery" style="flex:1">Battery first</button></div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span style="flex:1">Reinforce shield ${sh} <span style="color:#64748b">(1/pt)</span></span><button class="btn" data-radj="spec" data-d="-1">−</button><b style="min-width:22px;text-align:center">${spec}</b><button class="btn" data-radj="spec" data-d="1">+</button></div>
+        <div style="display:flex;align-items:center;gap:8px"><span style="flex:1">General reinforce <span style="color:#64748b">(2/pt${down ? ', down shield' : ''})</span></span><button class="btn" data-radj="gen" data-d="-1">−</button><b style="min-width:22px;text-align:center">${gen}</b><button class="btn" data-radj="gen" data-d="1">+</button></div>`;
+    };
+    const onBody = e => {
+      const src = e.target.closest('[data-rsrc]'); if (src) { source = src.dataset.rsrc; draw(); return; }
+      const adj = e.target.closest('[data-radj]'); if (!adj) return;
+      const d = +adj.dataset.d, kind = adj.dataset.radj;
+      if (kind === 'spec') { const nv = Math.max(0, spec + d); if (reserveCost('specReinf', nv) + reserveCost('genReinf', gen) <= pool) spec = nv; }
+      else { const nv = Math.max(0, gen + d); if (reserveCost('specReinf', spec) + reserveCost('genReinf', nv) <= pool) gen = nv; }
+      draw();
+    };
+    const close = applied => { body.removeEventListener('click', onBody); modal.style.display = 'none';
+      document.getElementById('reserveConfirm').onclick = null; document.getElementById('reserveSkip').onclick = null; resolve(applied); };
+    body.addEventListener('click', onBody);
+    document.getElementById('reserveConfirm').onclick = () => {
+      if (cost() > 0) { const np = spendReserve(t.reserveWarp || 0, batteryOf(t), cost(), source); t.reserveWarp = np.reserveWarp; t.batteryCharge = np.battery;
+        t.reinfLeft.spec[sh] = (t.reinfLeft.spec[sh] || 0) + spec; t.reinfLeft.gen = (t.reinfLeft.gen || 0) + gen; }
+      close(spec + gen);
+    };
+    document.getElementById('reserveSkip').onclick = () => close(0);
+    draw(); modal.style.display = 'flex';
+  });
+}
 function eaColOf(s) {
   const c = carriedOf(s);
   const progress = {};   // per-weapon arming turns completed so far (E4.21/FP1.21) — drives EA step cost + ARM n/N vs HOLD
@@ -1428,10 +1483,13 @@ async function resolvePlanInto(p, models, log, affected) {
     }) };
   }) })) };
   const modeFn = (sid, mid) => { const a = byId(sid)?.armed?.[mid]; return a?.overload ? 'overload' : a?.prox ? 'prox' : ''; };   // overload / proximity mode
-  const reinforceOf = (tid, sh, pts) => {                                   // shield reinforcement absorbs first (per-turn, consumed)
+  const reinforceOf = async (tid, sh, pts) => {                            // shield reinforcement absorbs first (per-turn, consumed)
     const t = byId(tid); if (!t) return 0;
     if (!t.reinfLeft) t.reinfLeft = t.reinforce ? { gen: t.reinforce.gen || 0, spec: { ...t.reinforce.spec } } : { gen: 0, spec: {} };
-    const rl = t.reinfLeft, used = Math.min(pts, (rl.spec[sh] || 0) + (rl.gen || 0));
+    const rl = t.reinfLeft;
+    const preAbsorb = Math.min(pts, (rl.spec[sh] || 0) + (rl.gen || 0));     // what already-allocated reinforcement soaks
+    if (settings.solo && pts > preAbsorb && reservePoolS(t) > 0) await promptReserveReinforce(t, sh, pts, preAbsorb);   // H7.134: reactive reserve reinforcement before the volley applies
+    const used = Math.min(pts, (rl.spec[sh] || 0) + (rl.gen || 0));
     let u = used; const fromSpec = Math.min(u, rl.spec[sh] || 0); rl.spec[sh] = (rl.spec[sh] || 0) - fromSpec; u -= fromSpec; rl.gen = Math.max(0, (rl.gen || 0) - u);
     return used;
   };
