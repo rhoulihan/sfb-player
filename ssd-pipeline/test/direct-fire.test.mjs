@@ -21,7 +21,7 @@ test('resolveMount at long range beyond a phaser table returns 0 points', () => 
   assert.equal(r.hit, false);
 });
 
-test('resolveAttackPlan stacks two firers on one shield into a single volley (D4.34)', () => {
+test('resolveAttackPlan stacks two firers on one shield into a single volley (D4.34)', async () => {
   // two friendly ships north of a north-facing target both strike its front shield #1
   const ships = [ ship('F1', 6, 4, 1), ship('F2', 5, 4, 1), ship('E1', 6, 8, 4) ];
   const shipMounts = {
@@ -37,21 +37,21 @@ test('resolveAttackPlan stacks two firers on one shield into a single volley (D4
     armor: { boxIds: [], destroyed: new Set() }, pools: {}, neverTargets: new Set(), groupOf: {}, boxById: {} });
   const models = { E1: mkModel() };
   // seeded rand that always yields a low die (guarantees disruptor hits in-band)
-  const res = resolveAttackPlan(plan, ships, shipMounts, models, () => 0.0);
+  const res = await resolveAttackPlan(plan, ships, shipMounts, models, () => 0.0);
   assert.equal(res.volleys.length, 1, 'both firers strike one shield ⇒ one combined volley');
   assert.deepEqual(res.volleys[0].firers.sort(), ['F1', 'F2']);
   assert.ok(res.log.some(l => l.kind === 'shot'), 'log has per-mount shots');
   assert.ok(res.log.some(l => l.kind === 'volley'), 'log has a volley line');
 });
 
-test('shield reinforcement absorbs points before the shield goes down (per-turn)', () => {
+test('shield reinforcement absorbs points before the shield goes down (per-turn)', async () => {
   const ships = [ship('F1', 6, 4, 1), ship('F2', 5, 4, 1), ship('E1', 6, 8, 4)];
   const mounts = { F1: [{ id: 'F1.DISR.0', cls: 'DISR', arc: { arcs: ['FH'] } }], F2: [{ id: 'F2.DISR.0', cls: 'DISR', arc: { arcs: ['FH'] } }] };
   const plan = { groups: [{ id: 'A', color: '#2563eb', targetShipId: 'E1', members: [{ shipId: 'F1', mountIds: ['F1.DISR.0'] }, { shipId: 'F2', mountIds: ['F2.DISR.0'] }] }] };
   const mk = () => ({ shields: { 1: { boxIds: new Array(30).fill('s'), down: 0, max: 30 }, 2: { boxIds: [], down: 0, max: 0 }, 3: { boxIds: [], down: 0, max: 0 }, 4: { boxIds: [], down: 0, max: 0 }, 5: { boxIds: [], down: 0, max: 0 }, 6: { boxIds: [], down: 0, max: 0 } }, armor: { boxIds: [], destroyed: new Set() }, pools: {}, neverTargets: new Set(), groupOf: {}, boxById: {} });
-  const m0 = mk(); const base = resolveAttackPlan(plan, ships, mounts, { E1: m0 }, () => 0.0);
+  const m0 = mk(); const base = await resolveAttackPlan(plan, ships, mounts, { E1: m0 }, () => 0.0);
   const pts = base.volleys[0].points, baseDown = m0.shields[1].down;
-  const m1 = mk(); const withR = resolveAttackPlan(plan, ships, mounts, { E1: m1 }, () => 0.0, null, (t, sh, p) => (sh === 1 ? Math.min(p, 3) : 0));
+  const m1 = mk(); const withR = await resolveAttackPlan(plan, ships, mounts, { E1: m1 }, () => 0.0, null, (t, sh, p) => (sh === 1 ? Math.min(p, 3) : 0));
   assert.equal(withR.volleys[0].absorbed, Math.min(pts, 3), 'reinforcement absorbs up to 3 points');
   assert.equal(m1.shields[1].down, baseDown - withR.volleys[0].absorbed, 'shield takes fewer boxes down by the absorbed amount');
 });

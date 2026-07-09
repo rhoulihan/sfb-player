@@ -19,7 +19,10 @@ export function resolveMount(firer, mount, target, dieFn, mode = false, netEcm =
 
 // models[shipId] is that ship's buildShipModel() result. Rolls every committed mount, buckets hits by
 // (target, struck shield), and calls applyVolley once per bucket. Returns { volleys, log }.
-export function resolveAttackPlan(plan, ships, shipMounts, models, rand = Math.random, modeFn = null, reinforceOf = null, netEcmFn = null, criticals = false) {
+// reinforceOf may be async — it can pause to let the defender pour reserve/battery power into the struck
+// shield before the volley resolves (H7.134). All to-hit rolls are taken before any bucket applies, so the
+// pause does not affect determinism.
+export async function resolveAttackPlan(plan, ships, shipMounts, models, rand = Math.random, modeFn = null, reinforceOf = null, netEcmFn = null, criticals = false) {
   const byId = Object.fromEntries(ships.map(s => [s.id, s]));
   const d6 = () => 1 + Math.floor(rand() * 6);
   const dice2d6 = makeDice(rand);
@@ -45,7 +48,7 @@ export function resolveAttackPlan(plan, ships, shipMounts, models, rand = Math.r
   const volleys = [];
   for (const b of buckets.values()) {
     const model = models[b.targetShipId];
-    const absorbed = reinforceOf ? (reinforceOf(b.targetShipId, b.shield, b.points) || 0) : 0;   // reinforcement soaks first
+    const absorbed = reinforceOf ? (await reinforceOf(b.targetShipId, b.shield, b.points)) || 0 : 0;   // reinforcement soaks first (may pause for reactive reserve, H7.134)
     const pts = b.points - absorbed;
     const effects = model ? applyVolley(model, { shield: b.shield, points: pts, criticals }, dice2d6) : [];
     volleys.push({ targetShipId: b.targetShipId, shield: b.shield, points: b.points, absorbed, firers: [...b.firers], effects });

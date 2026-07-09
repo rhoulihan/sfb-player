@@ -1414,7 +1414,7 @@ fetch('weapons.html', { method: 'HEAD' }).then(r => { if (!r.ok) throw 0; }).cat
 
 // ---------- direct fire (6D of each impulse) — cached target models so damage accumulates across impulses ----------
 // resolve one fleet's plan into shared models/log/affected (cached models keep pre-fire shields for simultaneity)
-function resolvePlanInto(p, models, log, affected) {
+async function resolvePlanInto(p, models, log, affected) {
   ensureLocks(); p = applyLockGate(p, lockOn); p = applyCloakFireGate(p, byId); p = applyLoSGate(p, byId, terrain);   // D6.1 lock; G13 cloak holds fire; P3 asteroids block LoS
   const mk = t => t.model || (t.model = buildShipModel(t._ver, t._det));
   for (const g of (p.groups || [])) { const t = byId(g.targetShipId); if (t) models[t.id] = mk(t); }
@@ -1436,21 +1436,21 @@ function resolvePlanInto(p, models, log, affected) {
     return used;
   };
   const rng = makeRng(seed, rngCursor);   // deterministic shared dice — both clients agree, replayable
-  const res = resolveAttackPlan(clean, ships, shipMountsMap(), models, rng.next, modeFn, reinforceOf, netEcmOf, settings.criticals);   // DAC-1: criticals per game settings
+  const res = await resolveAttackPlan(clean, ships, shipMountsMap(), models, rng.next, modeFn, reinforceOf, netEcmOf, settings.criticals);   // DAC-1: criticals per game settings
   rngCursor = rng.cursor();
   res.log.filter(l => l.kind === 'shot').forEach(l => { const s = byId(l.firer); if (s) { s.firedAt[l.mount] = { turn: clock.turn, impulse: clock.impulse }; if (s.armProgress) s.armProgress[l.mount] = 0; if (isPhaser(l.cls)) s.capacitor = Math.max(0, (s.capacitor || 0) - PHASER_FIRE_COST); } affected.add(l.firer); affected.add(l.target); });   // firing discharges a heavy weapon → re-arm from scratch
   res.volleys.forEach(v => { const s = byId(v.targetShipId); v.effects.forEach(ef => { if (ef.boxId) s.status[ef.boxId] = 'destroyed'; }); affected.add(v.targetShipId); });
   log.push(...res.log);
 }
-function commitFiring() {
+async function commitFiring() {
   if (myCommitted) return;
   if (!confirm('Commit your firing plan for this impulse?\n\nThis is FINAL — you cannot change your fire groups until all fleets have committed and direct fire resolves.')) return;
-  if (settings.solo) { fireNow({ groups: [...(plan.groups || []), ...(stashedPlan && stashedPlan.groups || [])] }); return; }   // solo: resolve both fleets' plans together
+  if (settings.solo) { await fireNow({ groups: [...(plan.groups || []), ...(stashedPlan && stashedPlan.groups || [])] }); return; }   // solo: resolve both fleets' plans together
   myCommitted = true; render(); postCommit();
 }
-function fireNow(p = plan) {                            // resolve a plan immediately (solo)
+async function fireNow(p = plan) {                     // resolve a plan immediately (solo)
   const models = {}, log = [], affected = new Set();
-  resolvePlanInto(p, models, log, affected);
+  await resolvePlanInto(p, models, log, affected);
   pruneUnavailable(); render(); renderLog({ log }, true); save([...affected]);
 }
 async function postCommit() {
@@ -1463,7 +1463,7 @@ async function postCommit() {
 }
 async function resolveAll(plans) {                      // single resolver: both fleets fire simultaneously vs pre-fire state
   const models = {}, log = [], affected = new Set();
-  for (const side of ['friendly', 'enemy']) if (plans[side]) resolvePlanInto(plans[side], models, log, affected);
+  for (const side of ['friendly', 'enemy']) if (plans[side]) await resolvePlanInto(plans[side], models, log, affected);
   myCommitted = false; lastFireShown = Date.now();
   pruneUnavailable(); render(); renderLog({ log }, true);
   try {
