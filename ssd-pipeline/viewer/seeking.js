@@ -35,11 +35,13 @@ export function launchSeeker({ id, owner, type = 'drone', q, r, facing = 0, targ
   return { id, owner, type, q, r, facing, targetId, speed, warhead, fade, endurance, cls, phaserHits: 0, travelled: 0 };
 }
 
-// advance one impulse: move + home only if this impulse is one the seeker's speed schedules (C3 Impulse Chart)
+// advance one impulse: every impulse counts toward endurance (drones live a fixed number of turns, FD1.4;
+// plasma a fixed number of impulses, FP1.42); the seeker only MOVES + homes on the impulses its speed schedules.
 export function stepSeeker(seeker, target, impulse) {
-  if (!movesOnImpulse(seeker.speed, impulse)) return { ...seeker };
+  const endurance = (seeker.endurance ?? Infinity) - 1;
+  if (!movesOnImpulse(seeker.speed, impulse)) return { ...seeker, endurance };
   const facing = bearingToward(seeker, target), n = neighbor(seeker.q, seeker.r, facing);
-  return { ...seeker, q: n.q, r: n.r, facing, endurance: (seeker.endurance ?? Infinity) - 1, travelled: (seeker.travelled || 0) + 1 };
+  return { ...seeker, q: n.q, r: n.r, facing, endurance, travelled: (seeker.travelled || 0) + 1 };
 }
 
 export function seekerImpacts(seeker, target) {

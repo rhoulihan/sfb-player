@@ -14,6 +14,7 @@ const EPS = 1e-9;
 
 export function rackCapacity(type) { return RACK_CAPACITY[type] ?? RACK_CAPACITY.A; }
 export function droneSpaces(droneType) { return DRONE_CATALOG[droneType]?.spaces ?? 1; }
+export function droneWarhead(droneType) { return DRONE_CATALOG[droneType]?.warhead ?? 12; }   // FD2.1: the launched drone delivers its loaded type's warhead
 export function loadoutSpaces(loaded) { return (loaded || []).reduce((s, d) => s + droneSpaces(d), 0); }
 export function spaceLeft(type, loaded) { return rackCapacity(type) - loadoutSpaces(loaded); }
 export function canFit(type, loaded, droneType) { return droneSpaces(droneType) <= spaceLeft(type, loaded) + EPS; }

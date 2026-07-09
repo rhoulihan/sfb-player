@@ -1,6 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { RACK_CAPACITY, DRONE_CATALOG, rackCapacity, droneSpaces, loadoutSpaces, spaceLeft, canFit, fillRack, makeRack, reloadRack } from '../viewer/drone-inventory.js';
+import { RACK_CAPACITY, DRONE_CATALOG, rackCapacity, droneSpaces, droneWarhead, loadoutSpaces, spaceLeft, canFit, fillRack, makeRack, reloadRack } from '../viewer/drone-inventory.js';
+
+test('droneWarhead delivers the loaded type warhead — Type-IV 24, not a fixed 12 (FD2.1)', () => {
+  assert.equal(droneWarhead('Type-I'), 12);
+  assert.equal(droneWarhead('Type-IV'), 24);
+  assert.equal(droneWarhead('Type-VI'), 6);
+  assert.equal(droneWarhead('unknown'), 12);
+});
 
 test('rackCapacity: spaces by rack type (Type-A 4, E 8, G 2, B 6)', () => {
   assert.equal(rackCapacity('A'), 4);

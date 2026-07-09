@@ -22,6 +22,12 @@ test('a seeker only moves on the impulses its speed schedules, and homes toward 
   assert.ok(hexDistance(moved, target) < hexDistance(s, target), 'moves + homes on a scheduled impulse');
 });
 
+test('endurance counts every impulse, not only moving ones (FD1.4: endurance in turns)', () => {
+  const target = { q: 20, r: 5 }, s = at(5, 5, { speed: 8, endurance: 10 });
+  let held = 1; while (movesOnImpulse(8, held)) held++;   // first non-moving impulse for speed 8
+  assert.equal(stepSeeker(s, target, held).endurance, 9, 'a held drone still burns an impulse of endurance');
+});
+
 test('a seeker impacts when co-located with the target', () => {
   assert.equal(seekerImpacts({ q: 7, r: 3 }, { q: 7, r: 3 }), true);
   assert.equal(seekerImpacts({ q: 7, r: 3 }, { q: 8, r: 3 }), false);
