@@ -43,6 +43,8 @@
   .spd{font-size:11px;color:#64748b;display:flex;align-items:center;gap:3px}
   .spin{width:36px;font:inherit;font-size:11px;text-align:center;border:1px solid #cbd5e1;border-radius:4px;padding:1px 2px}
   .hbar{flex:1;height:5px;background:#e2e8f0;border-radius:3px;overflow:hidden}
+  .crits{display:flex;flex-wrap:wrap;gap:3px;margin-top:3px}
+  .critbadge{font-size:9px;font-weight:700;color:#fff;background:#dc2626;border-radius:4px;padding:1px 5px;letter-spacing:.2px;cursor:help}
   .hbar i{display:block;height:100%}
   .resizer{width:6px;flex:none;cursor:col-resize;background:transparent}
   .resizer:hover{background:#cbd5e1}
@@ -295,7 +297,7 @@ import { resolveLocks, applyLockGate } from './lock-on.js';
 import { launchSeeker, stepSeeker, seekerImpacts, seekerDamage, seekerExpired, plasmaSpec, pointDefense, pointDefenseHits, PD_PLASMA_DMG, PD_RANGE, controlLimit, controlledCount, SUICIDE_SHUTTLE, weaselFor, ADMIN_SHUTTLE, SCATTER_PACK } from './seeking.js';
 import { makeRack, reloadStep, loadoutSpaces, droneWarhead } from './drone-inventory.js';
 import { applyVolley, makeDice } from './dac-allocator.js';
-import { CRIT_THRESHOLD as D8_THRESHOLD, critForRoll, addCrit, hasCrit, activeCrits, CRIT_INFO } from './criticals.js';
+import { CRIT_THRESHOLD as D8_THRESHOLD, critForRoll, critRepairs, addCrit, hasCrit, activeCrits, CRIT_INFO } from './criticals.js';
 import { cloakEcm, applyCloakFireGate } from './cloak.js';
 import { makeScenario, applyLoSGate } from './terrain.js';
 import { MINE, mineTriggeredBy, hitAndRunSucceeds, SELF_DESTRUCT, selfDestructHits, selfDestructDamage, NUCLEAR_MINE, transporterTarget, TBOMB_WARHEAD } from './mines.js';
@@ -582,7 +584,8 @@ async function hydrate(d) {
 async function startBattle(defs, clk, restore, ph) {
   battleDefs = defs.map(d => ({ ...d }));
   ships = []; plan = newPlan(); shipRev = {}; workingId = null; ui.activeId = null; clock = clk || { turn: 1, impulse: 0 };
-  setCoarse(ph || 'energy'); eafDraft = {}; myLockedEnergy = false; ui.eaSelected = null; ui.eaHidden = false;   // turns open in energy allocation
+  clock.phase = ph === 'impulse' ? '6A2' : (ph || 'energy');   // preserve the exact saved SFB segment so a mid-turn resume restores the impulse, not just 'energy'
+  eafDraft = {}; myLockedEnergy = false; ui.eaSelected = null; ui.eaHidden = false;   // turns open in energy allocation
   ui.ghosts = {}; ui.selectedGhost = null; ui.ghostDrag = null; ui.navPreview = null; ui.plotShipId = null; modelFleet = myFleet; stashedPlan = null; lockOn = {}; lockOnTurn = -1; seekers = []; seekerSeq = 0; terrain = { barrier: null, asteroids: [] }; settings = { criticals: true, d8crits: false, advancedShuttles: false, droneSpeed: 20, solo: false };   // fresh battle → no carried-over what-if / plot / perspective / lock state
   for (const d of defs) {
     const s = await hydrate(d), r = restore && restore[d.id];
@@ -738,6 +741,11 @@ function stepImpulse() {
     for (const w of powerOf(s).weapons) if (!canHold(w.cls) && s.armProgress && isArmed(w.cls, s.armProgress[w.id] || 0)) s.armProgress[w.id] = 0;   // non-holdable weapon armed but not fired → discharge (E3.24 disruptor, FP1.311 plasma-R)
     if (s.reserveWarp) { s.batteryCharge = Math.min(powerOf(s).batteries, batteryOf(s) + s.reserveWarp); s.reserveWarp = 0; }   // H7.36: unused reserve warp drains into the batteries at end of turn
     if (addRacksOf(s) > 0 && addAmmoOf(s) < addCapOf(s)) { const mag = s.addMag ?? (s.addMag = ADD_RELOAD_SETS * addCapOf(s)); const add = Math.min(ADD_RELOAD_RATE, addCapOf(s) - s.addAmmo, mag); s.addAmmo += add; s.addMag = mag - add; }   // E5.74/E5.71: reload ≤4 anti-drones/turn from two reload sets
+    if (settings.d8crits && s.criticals && s.criticals.length) {   // D8.31: one repair attempt per turn — 1d6 ≤4 repairs, −1/−2 on repeat attempts of the same occurrence
+      const crit = s.criticals[0], rr = makeRng((seed ^ 0x5EE9A12 ^ Math.imul(clock.turn, 0x85ebca6b) ^ hashId(s.id)) >>> 0), d = rr.d6();
+      if (critRepairs(d, crit.repairAttempts)) { s.criticals = s.criticals.slice(1); s.model = null; skLog.push({ kind: 'critRepair', ship: s.id, type: crit.type, roll: d, repaired: true }); }
+      else { crit.repairAttempts = (crit.repairAttempts || 0) + 1; skLog.push({ kind: 'critRepair', ship: s.id, type: crit.type, roll: d, repaired: false }); }
+    }
   }
   pruneUnavailable(); render(); if (skLog.length) renderLog({ log: skLog }, true); save(null, wrapped ? { step: true, phase: 'energy' } : { step: true });   // movement syncs to all commanders
 }
@@ -1097,6 +1105,7 @@ function renderFleet() {
            <span class="meta">${chargedCount(s)}/${s.mounts.length}w</span>${isMine(s) && s.course && s.course.steps.length ? `<span class="auto" data-auto="${s.id}" title="${s.autopilot ? 'autopilot on — click to disable' : 'enable autopilot'}" style="cursor:pointer;margin-left:5px;color:${s.autopilot ? '#16a34a' : '#cbd5e1'}">🅰</span>` : ''}</div>
          <div class="sbot"><label class="spd" title="speed is set by Energy for Movement in the allocation phase">spd <input class="spin" data-spd="${s.id}" value="${s.speed}" readonly style="background:#f1f5f9;color:#475569"></label>
            <div class="hbar" title="${Math.round(h * 100)}% intact"><i style="width:${Math.round(h * 100)}%;background:${healthColor(h)}"></i></div></div>
+         ${(s.criticals && s.criticals.length) ? `<div class="crits">${s.criticals.map(c => `<span class="critbadge" title="${CRIT_INFO[c.type].desc}">💥 ${CRIT_INFO[c.type].label}</span>`).join('')}</div>` : ''}
        </div></div>`;
     return row + (s.id === ui.selectedId ? turnCtl(s) : '');   // turn controls follow the last-clicked ship
   }).join('');
@@ -1643,6 +1652,8 @@ function renderLog(res, append) {
     ? `<div class="${l.hit ? 'hit' : 'miss'}">${l.firer} ${l.cls} → ${l.target}: die ${l.die}, ${l.hit ? l.points + ' pts → shield #' + l.struckShield : 'miss'}</div>`
     : l.kind === 'crit'
     ? `<div class="vol"><span style="color:#dc2626;font-weight:700">💥 CRITICAL</span> ${l.ship} shield #${l.shield}: 2d6=${l.roll} → ${l.type ? CRIT_INFO[l.type].label + ' disabled' : 'no critical hit'}</div>`
+    : l.kind === 'critRepair'
+    ? `<div class="vol">🔧 ${l.ship} repair ${CRIT_INFO[l.type].label}: d6=${l.roll} → ${l.repaired ? '<span style="color:#16a34a;font-weight:700">repaired</span>' : 'still disabled'}</div>`
     : l.kind === 'death'
     ? `<div class="vol"><span class="kill">☠ ${l.ship} destroyed</span></div>`
     : `<div class="vol">${l.target} shield #${l.shield}: ${l.points} pts → ${l.effects.filter(e => e.type === 'destroy').length} internal${l.effects.some(e => e.type === 'critical') ? ` <span style="color:#dc2626;font-weight:700">💥 ${l.effects.filter(e => e.type === 'critical').length} crit</span>` : ''}${l.effects.some(e => e.type === 'shipDestroyed') ? ' <span class="kill">◈ DESTROYED</span>' : ''}</div>`);
