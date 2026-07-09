@@ -3,7 +3,7 @@
 // in by the host, which keeps plotBase/syncMovementEnergy as the single owner of the plot↔energy seam.
 import { GEOM, hexCenter, headingDeg, hexDistance } from './battle-geom.js';
 import { impulseTimeline, speedAt, legalNextHexes, legalSideslips, tryStep, trySideslip } from './course-plan.js';
-import { turnMode, neighbor } from './movement.js';
+import { turnMode, turnModeFor, neighbor } from './movement.js';
 
 // facing → radians (for on-map heading arrows)
 export const rad = f => headingDeg(f) * Math.PI / 180;
@@ -36,14 +36,15 @@ export function plotCursor(s, base) {
   const c = courseOf(s), sp = speedPlotOf(s, base), tl = impulseTimeline(sp);
   // seed the slip counter from the carried-over state: a ship may sideslip on its first move UNLESS its
   // last move of the previous turn was a sideslip (s.slipSince === 0). Fresh ships default to 1 (allowed).
-  let pos = { q: c.start.q, r: c.start.r }, facing = c.start.facing, hst = turnMode(sp.base), slip = s.slipSince ?? 1;
+  const cat = s.turnCat || 'B';
+  let pos = { q: c.start.q, r: c.start.r }, facing = c.start.facing, hst = turnModeFor(cat, sp.base), slip = s.slipSince ?? 1;
   for (const st of c.steps) {
     if (st.slip) { hst = hst + 1; slip = 0; }                                        // sideslip: straight for turn mode (C3.24), resets slip
     else { const turned = st.facing !== facing; hst = turned ? 1 : hst + 1; slip = slip + 1; }
     facing = st.facing; pos = { q: st.q, r: st.r };
   }
   const impulse = tl[c.steps.length]?.impulse ?? null;   // impulse the NEXT hex would be reached on
-  return { pos, facing, hst, slip, speed: speedAt(sp, impulse || 32), tl };
+  return { pos, facing, hst, slip, speed: speedAt(sp, impulse || 32), tl, category: cat };
 }
 
 // Greedily draw a legal course: start from `startSteps`, then step toward targetHex each impulse, always
@@ -57,7 +58,7 @@ export function pathFrom(s, base, startSteps, targetHex) {
     const cur = plotCursor(tmp, base), d0 = dist(cur.pos, targetHex);
     if (d0 === 0) break;
     let best = null, bd = Infinity;
-    for (const x of legalNextHexes(cur.pos, cur.facing, cur.speed, cur.hst)) {
+    for (const x of legalNextHexes(cur.pos, cur.facing, cur.speed, cur.hst, cur.category)) {
       if (!x.legal) continue; const d = dist(x.hex, targetHex); if (d < bd) { bd = d; best = x; }
     }
     if (!best || bd >= d0) break;   // can't get closer under the turn-mode constraints → stop here
@@ -101,7 +102,7 @@ export function plotOverlaySvg({ ships, isMine, byId, plotBase, ui }) {
     const start = sh.course ? sh.course.start : { q: sh.q, r: sh.r, facing: sh.facing };
     const steps = previewing ? ui.navPreview.steps : (sh.course ? sh.course.steps : []);
     const cur = plotCursor({ ...sh, course: { start, steps } }, plotBase(sh));
-    for (const cand of legalNextHexes(cur.pos, cur.facing, cur.speed, cur.hst)) {
+    for (const cand of legalNextHexes(cur.pos, cur.facing, cur.speed, cur.hst, cur.category)) {
       const cc = hexCenter(cand.hex.q, cand.hex.r);
       s += `<path d="${hexPath(cc.x, cc.y)}" fill="${cand.legal ? '#16a34a' : '#C74634'}" opacity="0.5" style="pointer-events:none"/>`;
     }
@@ -172,7 +173,7 @@ export function createBattleMap(ctx) {
     const navIdx = navIdxAt(ps, hex);
     if (navIdx >= 0) return steps.slice(0, navIdx + 1);                                 // existing nav hex → keep it, re-draw forward FROM that hex (don't back up to the previous)
     const cur = plotCursor(ps, plotBase(ps));
-    const g = legalNextHexes(cur.pos, cur.facing, cur.speed, cur.hst).find(x => x.legal && x.hex.q === hex.q && x.hex.r === hex.r);
+    const g = legalNextHexes(cur.pos, cur.facing, cur.speed, cur.hst, cur.category).find(x => x.legal && x.hex.q === hex.q && x.hex.r === hex.r);
     if (g) return [...steps, { q: g.hex.q, r: g.hex.r, facing: g.facing }];             // green next-hex → extend
     const p = cur.speed > 0 ? legalSideslips(cur.pos, cur.facing, cur.slip).find(x => x.legal && x.hex.q === hex.q && x.hex.r === hex.r) : null;
     if (p) return [...steps, { q: p.hex.q, r: p.hex.r, facing: p.facing, slip: true }]; // purple sideslip hex → extend

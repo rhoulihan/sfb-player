@@ -297,7 +297,12 @@ import { makeScenario, applyLoSGate } from './terrain.js';
 import { MINE, mineTriggeredBy, hitAndRunSucceeds, SELF_DESTRUCT, selfDestructHits, selfDestructDamage, NUCLEAR_MINE, transporterTarget, TBOMB_WARHEAD } from './mines.js';
 import { shuttleMaxHp, damageShuttle, shuttleDestroyed } from './shuttle-inventory.js';
 const PD_SHUTTLE_DMG = 2;   // point-defense damage per hit vs a shuttle (shuttles soak, drones one-shot)
-import { movesOnImpulse, neighbor, turnMode } from './movement.js';
+import { movesOnImpulse, neighbor, turnMode, turnModeFor } from './movement.js';
+// C3.31 turn-mode category by ship (Master Ship Chart). Confirmed: FED-CA & GOR-CA = D (C3.23), KLI-D7 & ROM-KR = B
+// (chart grouping); FED-CL/NCL & KZIN-CS inferred (verify vs MSC), default C.
+const SHIP_TURN_CATEGORY = { 'FED-CA': 'D', 'FED-CL': 'C', 'FED-NCL': 'C', 'GOR-CA': 'D', 'KLI-D7': 'B', 'ROM-KR': 'B', 'KZIN-CS': 'C' };
+const turnCategoryOf = code => SHIP_TURN_CATEGORY[code] || 'C';
+const turnModeOf = s => turnModeFor(s.turnCat || turnCategoryOf(s.code), s.speed);
 import { shipPower, newEafColumn, validateEaf, foldEaf, sinkMax, specReinfMax, plasmaClsOf } from './energy-model.js';
 import { armLabel, isArmed, canHold, canRoll, armTurns, rollCost, reserveCompletionCost } from './weapon-arming.js';   // multi-turn arming: label, fire-gate, holdability, rolling delay (E4.21/E3.24/FP1.311/FP1.221)
 import { reservePool as reservePoolOf, spendReserve, reserveCost } from './reserve-power.js';   // reactive power (H5/H7)
@@ -544,7 +549,7 @@ async function hydrate(d) {
   const det = await (await fetch(`../data/${d.code}/detection.json`)).json();
   const ver = await (await fetch(`../data/${d.code}/verified.json`)).json();
   const { mounts, shields } = shipLoadout(ver, det);
-  return { ...d, mounts, shields, _ver: ver, _det: det, status: {}, firedAt: {}, model: null, hexesSinceTurn: turnMode(d.speed), queuedTurn: 0 };
+  return { ...d, mounts, shields, _ver: ver, _det: det, status: {}, firedAt: {}, model: null, turnCat: turnCategoryOf(d.code), hexesSinceTurn: turnModeFor(turnCategoryOf(d.code), d.speed), queuedTurn: 0 };
 }
 async function startBattle(defs, clk, restore, ph) {
   battleDefs = defs.map(d => ({ ...d }));
@@ -672,7 +677,7 @@ function stepImpulse() {
       s.facing = st.facing; s.q = st.q; s.r = st.r; s.hexesSinceTurn = turned ? 1 : s.hexesSinceTurn + 1;
       s.slipSince = st.slip ? 0 : (s.slipSince ?? 1) + 1;   // track sideslip spacing across turns (C4.0)
       s._autoIdx = (s._autoIdx || 0) + 1; continue; }
-    if (s.queuedTurn && s.hexesSinceTurn >= turnMode(s.speed)) { s.facing = (s.facing + s.queuedTurn + 6) % 6; s.hexesSinceTurn = 0; s.queuedTurn = 0; }
+    if (s.queuedTurn && s.hexesSinceTurn >= turnModeOf(s)) { s.facing = (s.facing + s.queuedTurn + 6) % 6; s.hexesSinceTurn = 0; s.queuedTurn = 0; }
     const n = neighbor(s.q, s.r, s.facing);
     if (n.q >= 0 && n.q < COLS && n.r >= 0 && n.r < ROWS) { s.q = n.q; s.r = n.r; s.hexesSinceTurn++; s.slipSince = (s.slipSince ?? 1) + 1; }   // a straight move increments slip spacing
   }
@@ -1051,7 +1056,7 @@ function renderFleet() {
 }
 function turnCtl(s) {
   if (!isMine(s)) return `<div class="turnctl"><span class="tmc" style="margin:0">other fleet — switch command perspective to control it</span></div>`;
-  const tm = turnMode(s.speed), rem = Math.max(0, tm - s.hexesSinceTurn);
+  const tm = turnModeOf(s), rem = Math.max(0, tm - s.hexesSinceTurn);
   const cd = tm === 0 ? 'may turn freely' : rem === 0 ? 'may turn on next move' : `turn in ${rem} hex${rem !== 1 ? 'es' : ''}`;
   return `<div class="turnctl"><button data-turn="-1" data-ship="${s.id}" class="${s.queuedTurn === -1 ? 'lit' : ''}">↺ turn</button>
     <button data-turn="1" data-ship="${s.id}" class="${s.queuedTurn === 1 ? 'lit' : ''}">turn ↻</button><span class="tmc">${cd}</span></div>`;
@@ -1293,7 +1298,7 @@ async function resolveEnergy(allEaf) {                        // fold each locke
     s.ecmLevel = ts.ecmLevel; s.eccmLevel = ts.eccmLevel; s.queuedTurn = 0;
     // movement: the plotted speed schedule (base + mid-turn changes) drives execution; no plot → constant speed
     s.speedPlot = s.speedPlot ? { base: s.speedPlot.base, changes: s.speedPlot.changes } : { base: ts.speed, changes: [] };
-    s.speed = speedAt(s.speedPlot, 1); s.hexesSinceTurn = turnMode(s.speed); s._autoIdx = 0;   // autopilot restarts each turn
+    s.speed = speedAt(s.speedPlot, 1); s.hexesSinceTurn = turnModeOf(s); s._autoIdx = 0;   // autopilot restarts each turn
   }
   clock.phase = '6A2'; myLockedEnergy = false; committed = {}; eafDraft = {};
   render(); requestAnimationFrame(fitToShips);
@@ -1312,7 +1317,7 @@ document.getElementById('newBattleBtn').onclick = () => openNewBattle();
 const shieldsNow = s => s.model ? [1, 2, 3, 4, 5, 6].map(n => { const sh = s.model.shields[n]; return sh ? sh.max - sh.down : (s.shields[n - 1] || 0); }) : s.shields.slice();
 const serializeShip = s => ({
   id: s.id, code: s.code, name: s.name, side: s.side,
-  map: { q: s.q, r: s.r, facing: s.facing, speed: s.speed, hexesSinceTurn: s.hexesSinceTurn, queuedTurn: s.queuedTurn, turnMode: turnMode(s.speed) },
+  map: { q: s.q, r: s.r, facing: s.facing, speed: s.speed, hexesSinceTurn: s.hexesSinceTurn, queuedTurn: s.queuedTurn, turnMode: turnModeOf(s) },
   status: { destroyed: Object.keys(s.status), shields: shieldsNow(s) },
   armed: s.armed || {}, armProgress: s.armProgress || {}, capacitor: s.capacitor ?? 0, batteryCharge: s.batteryCharge, reserveWarp: s.reserveWarp || 0, addAmmo: s.addAmmo, addMag: s.addMag, reinforce: s.reinforce || null,   // folded energy-allocation + ammo state
   course: s.course || null, speedPlot: s.speedPlot || null, autopilot: !!s.autopilot,   // tactical course plot

@@ -1,6 +1,21 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { movesOnImpulse, neighbor, turnMode, movesInTurn } from '../viewer/movement.js';
+import { movesOnImpulse, neighbor, turnMode, turnModeFor, movesInTurn } from '../viewer/movement.js';
+
+test('turnModeFor is category-aware: a category-D cruiser turns less often than category B (C3.31/C3.23)', () => {
+  // Category D (Federation CA, Gorn CA): TM 3 at speed 9, TM 4 at speed 13 (the C3.23 worked example)
+  assert.equal(turnModeFor('D', 1), 0);
+  assert.equal(turnModeFor('D', 5), 2);
+  assert.equal(turnModeFor('D', 9), 3);
+  assert.equal(turnModeFor('D', 13), 4);
+  assert.equal(turnModeFor('D', 25), 6);
+  // Category B (Klingon D7) matches the legacy single curve
+  assert.equal(turnModeFor('B', 9), 2);
+  assert.equal(turnModeFor('B', 15), 3);
+  assert.equal(turnMode(9), turnModeFor('B', 9), 'turnMode() defaults to category B');
+  // the audit finding: at speed 9 a category-D ship must go straighter (TM 3) than category B (TM 2)
+  assert.ok(turnModeFor('D', 9) > turnModeFor('B', 9));
+});
 import { localBearing } from '../viewer/battle-geom.js';
 
 test('movesInTurn equals speed (even distribution over 32 impulses)', () => {

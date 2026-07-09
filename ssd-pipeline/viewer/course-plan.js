@@ -2,7 +2,7 @@
 // Pure functions; the movement rules live here. Reuses the 32-impulse move chart + hex stepping from
 // movement.js. A SpeedPlot is { base, changes:[{ announceImpulse, speed }] } — a change announced on
 // impulse K takes effect on impulse K+1 (the 1-impulse announce delay, C12.36).
-import { movesOnImpulse, neighbor, turnMode } from './movement.js';
+import { movesOnImpulse, neighbor, turnMode, turnModeFor } from './movement.js';
 
 export function speedAt(plot, impulse) {
   let s = plot.base;
@@ -31,8 +31,8 @@ export function impulseTimeline(plot) {
 
 // the three candidate next hexes: straight ahead (always legal) + the two ±1 turns (legal only once the
 // ship has moved turnMode(speed) straight hexes). legal=true → green, legal=false → red.
-export function legalNextHexes(pos, facing, speed, hexesSinceTurn) {
-  const canTurn = hexesSinceTurn >= turnMode(speed);
+export function legalNextHexes(pos, facing, speed, hexesSinceTurn, category = 'B') {
+  const canTurn = hexesSinceTurn >= turnModeFor(category, speed);
   const at = f => ({ facing: f, hex: neighbor(pos.q, pos.r, f) });
   return [
     { ...at(facing), legal: true },
