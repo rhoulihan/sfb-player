@@ -136,7 +136,7 @@
       <div class="navmenu" id="navMenu"><a href="index.html">🏠 Home</a><a href="verify.html?ship=FED-CA">🛠️ Verify editor</a><a href="ssd.html?ship=FED-CA">🖥️ SSD viewer</a><a href="weapons.html">🎯 Weapon tables</a></div></div>
     <b>SFB Player</b>
     <span class="sp"></span>
-    <label class="tmode" title="allow turning any ship, including enemy/target ships (test only)"><input type="checkbox" id="testMode"> Test mode</label>
+    <label class="tmode" id="soloPerspWrap" style="display:none" title="solo mode — switch which fleet you command">Command <select id="soloPersp"></select></label>
     <div class="clock" id="clock">TURN 1 · IMP 0/32</div>
     <button class="btn primary" id="stepBtn">▶ Impulse</button>
     <div class="zoomc"><button data-z="-1">−</button><button data-z="fit">fit</button><span id="zpct">50%</span><button data-z="1">+</button></div>
@@ -261,6 +261,7 @@
       <label style="font-size:13px;display:flex;align-items:center;gap:5px" title="volatile systems can suffer a secondary explosion (DAC-1)"><input type="checkbox" id="nbCriticals" checked> Criticals</label>
       <label style="font-size:13px;display:flex;align-items:center;gap:5px" title="advanced shuttles have +2 hit points (J17)"><input type="checkbox" id="nbAdvShuttles"> Advanced shuttles</label>
       <label style="font-size:13px;display:flex;align-items:center;gap:5px" title="drone speed class (FD) — 8/12/20/32 by era/refit">Drone speed <select id="nbDroneSpeed"><option>8</option><option>12</option><option selected>20</option><option>32</option></select></label>
+      <label style="font-size:13px;display:flex;align-items:center;gap:5px" title="solo — one player operates both fleets by switching the command perspective"><input type="checkbox" id="nbSolo"> Solo</label>
       <label style="font-size:13px;display:flex;align-items:center;gap:5px" title="fix the deterministic dice seed for a reproducible battle (blank = random)">Seed <input id="nbSeed" type="text" inputmode="numeric" placeholder="random" style="width:76px;font:inherit;padding:2px 5px;border:1px solid #cbd5e1;border-radius:4px"><button class="btn" id="nbGenSeed" type="button" title="use the current system time as the seed" style="padding:2px 6px;margin-left:4px">🎲</button></label>
       <label style="font-size:13px;display:flex;align-items:center;gap:5px">You command
         <select id="nbCommand"><option value="friendly">Fleet 1</option><option value="enemy">Fleet 2</option></select></label>
@@ -300,7 +301,7 @@ let seed = 0, rngCursor = 0;   // shared deterministic dice (RNG-1 / SEAL-1): ev
 let lockOn = {}, lockOnTurn = -1;   // sensor lock-on (LOCK-1, D6): { firerId: Set<targetId> }, rolled once per turn
 let seekers = [], seekerSeq = 0;   // seeking weapons on the map (SEEK-1, C5): drone/plasma tokens
 let terrain = { barrier: null, asteroids: [] };   // scenario terrain (TERR-1, C9)
-let settings = { criticals: true, advancedShuttles: false, droneSpeed: 20 };   // per-battle game settings — the creator sets them, synced to joiners
+let settings = { criticals: true, advancedShuttles: false, droneSpeed: 20, solo: false };   // per-battle game settings — the creator sets them, synced to joiners
 const DRONE = { type: 'drone', speed: 20, warhead: 12, fade: 0, endurance: 40 };   // standard sandbox drone (speed/warhead are data)
 const droneSpec = () => ({ ...DRONE, speed: settings.droneSpeed || DRONE.speed });   // launched drone uses the game's drone-speed class (FD)
 const droneRacksOf = s => (s._ver.groups || []).filter(g => g.family === 'drone-rack').reduce((n, g) => n + (g.boxIds || []).filter(id => !s.status[id]).length, 0);
@@ -455,7 +456,7 @@ function syncMovementEnergy(s) {   // a plot with speed changes drives the EAF "
 let clock = { turn: 1, impulse: 0, phase: 'energy' };   // impulse 0 = pre-start setup; phase = SFB segment id
 const getPhase = () => family(clock.phase);   // coarse energy/impulse fork for the existing UI branches
 const setCoarse = c => { clock.phase = c === 'impulse' ? (family(clock.phase) === 'impulse' ? clock.phase : '6A2') : 'energy'; };
-let testMode = false;                   // when on, any ship (incl. enemy/target) can be turned
+// solo mode is a per-battle setting (settings.solo); the command perspective (myFleet) switches via the header dropdown
 let myFleet = 'friendly';               // which fleet the local commander controls
 let modelFleet = 'friendly';            // fire-modeling perspective (whose attack you preview); command stays on myFleet
 let fleets = { friendly: { name: 'Fleet 1', code: '' }, enemy: { name: 'Fleet 2', code: '' } };
@@ -500,7 +501,7 @@ async function startBattle(defs, clk, restore, ph) {
   battleDefs = defs.map(d => ({ ...d }));
   ships = []; plan = newPlan(); shipRev = {}; workingId = null; ui.activeId = null; clock = clk || { turn: 1, impulse: 0 };
   setCoarse(ph || 'energy'); eafDraft = {}; myLockedEnergy = false; ui.eaSelected = null; ui.eaHidden = false;   // turns open in energy allocation
-  ui.ghosts = {}; ui.selectedGhost = null; ui.ghostDrag = null; ui.navPreview = null; ui.plotShipId = null; modelFleet = myFleet; stashedPlan = null; lockOn = {}; lockOnTurn = -1; seekers = []; seekerSeq = 0; terrain = { barrier: null, asteroids: [] }; settings = { criticals: true, advancedShuttles: false, droneSpeed: 20 };   // fresh battle → no carried-over what-if / plot / perspective / lock state
+  ui.ghosts = {}; ui.selectedGhost = null; ui.ghostDrag = null; ui.navPreview = null; ui.plotShipId = null; modelFleet = myFleet; stashedPlan = null; lockOn = {}; lockOnTurn = -1; seekers = []; seekerSeq = 0; terrain = { barrier: null, asteroids: [] }; settings = { criticals: true, advancedShuttles: false, droneSpeed: 20, solo: false };   // fresh battle → no carried-over what-if / plot / perspective / lock state
   for (const d of defs) {
     const s = await hydrate(d), r = restore && restore[d.id];
     if (r) { (r.destroyed || []).forEach(id => (s.status[id] = 'destroyed')); s.firedAt = r.firedAt || {}; if (r.hexesSinceTurn != null) s.hexesSinceTurn = r.hexesSinceTurn; s.queuedTurn = r.queuedTurn || 0; }
@@ -601,7 +602,7 @@ let poller = 0;
 function startPolling() {
   clearInterval(poller);
   poller = setInterval(async () => {
-    if (testMode || applying || saving || saveTimer) return;   // test mode is a solo sandbox; don't fight an in-flight save
+    if (settings.solo || applying || saving || saveTimer) return;   // solo is standalone; don't fight an in-flight save
     try { const j = await (await fetch('/api/battle?code=' + encodeURIComponent(myCode))).json(); if (j && j.rev && j.rev > rev && j.ships) applyRemote(j); } catch {}
   }, 1500);
 }
@@ -645,7 +646,7 @@ function stepImpulse() {
 // a queued turn executes when the ship next moves; applies to the given ship (defaults to the last-clicked one)
 function turnAction(dir, shipId = ui.selectedId) {
   if (!shipId) return; const s = byId(shipId);
-  if (!s || (!isMine(s) && !testMode)) return;           // only your own fleet's ships turn in game mode
+  if (!s || !isMine(s)) return;           // only the fleet you currently command turns (switch perspective for the other)
   s.queuedTurn = s.queuedTurn === dir ? 0 : dir;         // always QUEUE — a ship only turns when it moves
   pruneUnavailable(); render(); saveSoon(shipId);
 }
@@ -683,6 +684,7 @@ function buildGrid() {                                     // static hex grid + 
 }
 function render() {
   if (!gridBuilt) buildGrid();
+  renderSoloPersp();
   let svg = '';
   // overlays: lines of fire + exposed shields, per group
   for (const g of plan.groups) {
@@ -874,7 +876,7 @@ function fedShieldSvg(s, p) {
   return `<svg class="shsvg" viewBox="0 0 2816 1536" preserveAspectRatio="none"><defs><filter id="shGlow" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="7"/></filter></defs>${fills}${glows}</svg>`;
 }
 function renderEnergy() {
-  const mine = testMode ? ships.slice() : ships.filter(isMine);   // test-mode sandbox: allocate any ship's energy
+  const mine = ships.filter(isMine);   // allocate the fleet you currently command (switch perspective for the other)
   const theme = (mine[0]?.code?.split('-')[0] === 'KLI') ? 'kli' : 'fed';
   const L = CONSOLE[theme], ep = document.getElementById('energyPanel');
   ep.className = 'epanel ' + L.cls; ep.style.backgroundImage = '';
@@ -948,7 +950,7 @@ function renderFleet() {
   document.getElementById('rotc').style.display = 'none';
 }
 function turnCtl(s) {
-  if (!(isMine(s) || testMode)) return `<div class="turnctl"><span class="tmc" style="margin:0">target ship — enable Test mode to turn</span></div>`;
+  if (!isMine(s)) return `<div class="turnctl"><span class="tmc" style="margin:0">other fleet — switch command perspective to control it</span></div>`;
   const tm = turnMode(s.speed), rem = Math.max(0, tm - s.hexesSinceTurn);
   const cd = tm === 0 ? 'may turn freely' : rem === 0 ? 'may turn on next move' : `turn in ${rem} hex${rem !== 1 ? 'es' : ''}`;
   return `<div class="turnctl"><button data-turn="-1" data-ship="${s.id}" class="${s.queuedTurn === -1 ? 'lit' : ''}">↺ turn</button>
@@ -1012,7 +1014,7 @@ function renderTray() {
   const fb = document.getElementById('fireBtn');
   fb.disabled = myCommitted || modelFleet !== myFleet;
   fb.textContent = myCommitted ? '✓ Committed — waiting' : nMounts ? '⚡ Commit firing plan' : '⚡ Commit (no fire)';
-  document.getElementById('planStatus').textContent = testMode
+  document.getElementById('planStatus').textContent = settings.solo
     ? `${nMounts} mount${nMounts !== 1 ? 's' : ''} ready (test — resolves immediately)`
     : ['friendly', 'enemy'].map(s => `${fleets[s]?.name || s} ${committed[s] ? '✓ committed' : '…'}`).join('  ·  ');
   const lb = document.getElementById('launchBtn'), af = byId(ui.activeId), wg = working();
@@ -1070,16 +1072,22 @@ document.getElementById('fleet').addEventListener('click', e => {
 });
 window.addEventListener('keydown', e => { if (e.target.tagName === 'INPUT') return; if (e.key === '[') turnAction(-1); else if (e.key === ']') turnAction(1); });
 document.getElementById('stepBtn').onclick = () => stepImpulse();
-document.getElementById('testMode').onchange = e => { testMode = e.target.checked; if (testMode) armAllShips(); render(); };
 let stashedPlan = null;   // the other fleet's fire plan, kept while you model this side
-function armAllShips() {   // test mode: every weapon on every ship ready to fire right now
-  for (const s of ships) {
-    const p = powerOf(s);
-    s.capacitor = p.capacitorCap || 0;                                                                   // full phaser capacitor
-    s.armed = s.armed || {}; for (const mt of s.mounts) if (HEAVY_CLS.has(mt.cls)) s.armed[mt.id] = true; // arm heavy weapons
-    s.firedAt = {};                                                                                       // nothing spent this turn
-  }
+function renderSoloPersp() {   // solo: show + populate the command-fleet dropdown
+  const wrap = document.getElementById('soloPerspWrap'), sel = document.getElementById('soloPersp');
+  wrap.style.display = settings.solo ? '' : 'none';
+  if (!settings.solo) return;
+  const opts = ['friendly', 'enemy'].map(fl => `<option value="${fl}">${(fleets[fl] || {}).name || fl}</option>`).join('');
+  if (sel.getAttribute('data-opts') !== opts) { sel.innerHTML = opts; sel.setAttribute('data-opts', opts); }
+  sel.value = myFleet;
 }
+function soloSwitch() {   // solo: hand command to the other fleet — swap to its plan (each fleet keeps its own)
+  const other = stashedPlan; stashedPlan = plan; plan = other || newPlan();
+  myFleet = myFleet === 'friendly' ? 'enemy' : 'friendly';
+  modelFleet = myFleet; myCode = (fleets[myFleet] || {}).code || myCode;
+  workingId = null; ui.activeId = null; ui.eaSelected = null; render();
+}
+document.getElementById('soloPersp').onchange = e => { if (e.target.value !== myFleet) soloSwitch(); };
 function togglePerspective() {   // model attacks from the other fleet's side — preview only; command stays on your own fleet, each side keeps its own plan
   const other = stashedPlan; stashedPlan = plan; plan = other || newPlan();
   modelFleet = modelFleet === 'friendly' ? 'enemy' : 'friendly';
@@ -1157,12 +1165,12 @@ window.addEventListener('mouseup', () => { epDrag = null; });
 
 async function lockEnergy() {
   if (myLockedEnergy) return;
-  const mine = testMode ? ships.slice() : ships.filter(isMine);   // test-mode sandbox folds every ship's energy
+  const mine = settings.solo ? ships.slice() : ships.filter(isMine);   // solo: fold both fleets (you allocated each via the perspective switch)
   if (mine.some(s => validateShip(s).status === 'over')) return;
   if (!confirm('Lock your energy allocation for this turn?\n\nThis is FINAL — you cannot change it once locked.')) return;
   myLockedEnergy = true; render();
   const eaf = {}; for (const s of mine) eaf[s.id] = eaColOf(s);
-  if (testMode) { await resolveEnergy(eaf); return; }        // solo sandbox
+  if (settings.solo) { await resolveEnergy(eaf); return; }        // solo: resolve locally
   try {
     const j = await (await fetch('/api/battle', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: myCode, kind: 'lockEnergy', eaf }) })).json();
     if (j.rev) rev = j.rev; if (j.committed) committed = j.committed;
@@ -1184,7 +1192,7 @@ async function resolveEnergy(allEaf) {                        // fold each locke
   }
   clock.phase = '6A2'; myLockedEnergy = false; committed = {}; eafDraft = {};
   render(); requestAnimationFrame(fitToShips);
-  if (testMode) return;
+  if (settings.solo) return;
   try { const j = await (await fetch('/api/battle', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: myCode, kind: 'energyResolved', phase: 'impulse', ships: ships.map(serializeShip) }) })).json(); if (j.rev) rev = j.rev; for (const [id, nr] of Object.entries(j.ships || {})) shipRev[id] = nr; } catch {}
 }
 
@@ -1244,7 +1252,7 @@ let ctxShip = null;
 createBattleMap({
   map, ui, getPhase, getShips: () => ships, byId, isMine, isFirer, COLS, ROWS, hasGhosts, groupOfShip,
   plotBase, saveSoon, render, syncMovementEnergy, onShipClick, renderFleet, pruneUnavailable,
-  openCtxMenu: (shipId, e) => { ctxShip = shipId; const mine = isMine(byId(shipId)); document.querySelector('#ctxMenu [data-act="ea"]').style.display = mine ? '' : 'none'; document.querySelector('#ctxMenu [data-act="intel"]').style.display = mine ? 'none' : ''; document.querySelector('#ctxMenu [data-act="setspeed"]').style.display = (mine && getPhase() === 'energy' && !myLockedEnergy) ? '' : 'none'; const ci = document.querySelector('#ctxMenu [data-act="cloak"]'); const cShip = byId(shipId); ci.style.display = (mine && (testMode || powerOf(cShip).systems.cloak)) ? '' : 'none'; ci.textContent = cShip.cloaked ? '🌫 Decloak' : '🌫 Cloak'; document.querySelector('#ctxMenu [data-act="weasel"]').style.display = ((mine || testMode) && getPhase() !== 'energy' && shuttleBaysOf(cShip) > 0) ? '' : 'none'; document.querySelector('#ctxMenu [data-act="mine"]').style.display = document.querySelector('#ctxMenu [data-act="raid"]').style.display = document.querySelector('#ctxMenu [data-act="nukemine"]').style.display = document.querySelector('#ctxMenu [data-act="tbomb"]').style.display = ((mine || testMode) && getPhase() !== 'energy') ? '' : 'none'; document.querySelector('#ctxMenu [data-act="admin"]').style.display = ((mine || testMode) && getPhase() !== 'energy' && shuttleBaysOf(cShip) > 0) ? '' : 'none'; document.querySelector('#ctxMenu [data-act="selfdestruct"]').style.display = (mine || testMode) ? '' : 'none'; const m = document.getElementById('ctxMenu'); m.style.display = 'block'; m.style.left = Math.min(e.clientX, innerWidth - 160) + 'px'; m.style.top = e.clientY + 'px'; },
+  openCtxMenu: (shipId, e) => { ctxShip = shipId; const mine = isMine(byId(shipId)); document.querySelector('#ctxMenu [data-act="ea"]').style.display = mine ? '' : 'none'; document.querySelector('#ctxMenu [data-act="intel"]').style.display = mine ? 'none' : ''; document.querySelector('#ctxMenu [data-act="setspeed"]').style.display = (mine && getPhase() === 'energy' && !myLockedEnergy) ? '' : 'none'; const ci = document.querySelector('#ctxMenu [data-act="cloak"]'); const cShip = byId(shipId); ci.style.display = (mine && powerOf(cShip).systems.cloak) ? '' : 'none'; ci.textContent = cShip.cloaked ? '🌫 Decloak' : '🌫 Cloak'; document.querySelector('#ctxMenu [data-act="weasel"]').style.display = (mine && getPhase() !== 'energy' && shuttleBaysOf(cShip) > 0) ? '' : 'none'; document.querySelector('#ctxMenu [data-act="mine"]').style.display = document.querySelector('#ctxMenu [data-act="raid"]').style.display = document.querySelector('#ctxMenu [data-act="nukemine"]').style.display = document.querySelector('#ctxMenu [data-act="tbomb"]').style.display = (mine && getPhase() !== 'energy') ? '' : 'none'; document.querySelector('#ctxMenu [data-act="admin"]').style.display = (mine && getPhase() !== 'energy' && shuttleBaysOf(cShip) > 0) ? '' : 'none'; document.querySelector('#ctxMenu [data-act="selfdestruct"]').style.display = mine ? '' : 'none'; const m = document.getElementById('ctxMenu'); m.style.display = 'block'; m.style.left = Math.min(e.clientX, innerWidth - 160) + 'px'; m.style.top = e.clientY + 'px'; },
   openSpeedMenu: (shipId, idx, e) => { navSpeed = { shipId, idx }; const m = document.getElementById('speedMenu'); m.style.display = 'block'; m.style.left = Math.min(e.clientX, innerWidth - 160) + 'px'; m.style.top = e.clientY + 'px'; },
 });
 document.addEventListener('click', () => { document.getElementById('ctxMenu').style.display = 'none'; });
@@ -1429,12 +1437,12 @@ function resolvePlanInto(p, models, log, affected) {
 function commitFiring() {
   if (myCommitted) return;
   if (!confirm('Commit your firing plan for this impulse?\n\nThis is FINAL — you cannot change your fire groups until all fleets have committed and direct fire resolves.')) return;
-  if (testMode) { fireNow(); return; }                 // solo sandbox: no other players to wait for
+  if (settings.solo) { fireNow({ groups: [...(plan.groups || []), ...(stashedPlan && stashedPlan.groups || [])] }); return; }   // solo: resolve both fleets' plans together
   myCommitted = true; render(); postCommit();
 }
-function fireNow() {                                    // resolve my own plan immediately (solo/test)
+function fireNow(p = plan) {                            // resolve a plan immediately (solo)
   const models = {}, log = [], affected = new Set();
-  resolvePlanInto(plan, models, log, affected);
+  resolvePlanInto(p, models, log, affected);
   pruneUnavailable(); render(); renderLog({ log }, true); save([...affected]);
 }
 async function postCommit() {
@@ -1530,7 +1538,7 @@ document.getElementById('nbStart').onclick = async () => {
   myCode = fleets[myFleet].code;
   document.getElementById('nbModal').style.display = 'none';
   await startBattle(defs, { turn: 1, impulse: 0 });
-  settings = { criticals: document.getElementById('nbCriticals').checked, advancedShuttles: document.getElementById('nbAdvShuttles').checked, droneSpeed: parseInt(document.getElementById('nbDroneSpeed').value, 10) || 20 };
+  settings = { criticals: document.getElementById('nbCriticals').checked, advancedShuttles: document.getElementById('nbAdvShuttles').checked, droneSpeed: parseInt(document.getElementById('nbDroneSpeed').value, 10) || 20, solo: document.getElementById('nbSolo').checked };
   const seedInput = document.getElementById('nbSeed').value.trim(); if (/^\d+$/.test(seedInput)) seed = (parseInt(seedInput, 10) >>> 0) || 1;   // fixed seed → reproducible battle; blank → server randomises
   terrain = makeScenario(document.getElementById('nbScenario').value, COLS, ROWS); render();
   try { const j = await (await fetch('/api/battle', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...serializeBattle(), kind: 'new', code: myCode }) })).json(); rev = j.rev || 1; if (j.seed) seed = j.seed; rngCursor = 0; for (const [id, nr] of Object.entries(j.ships || {})) shipRev[id] = nr; } catch {}
