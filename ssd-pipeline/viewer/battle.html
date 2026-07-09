@@ -287,7 +287,7 @@ import { MINE, mineTriggeredBy, hitAndRunSucceeds, SELF_DESTRUCT, selfDestructHi
 import { shuttleMaxHp, damageShuttle, shuttleDestroyed } from './shuttle-inventory.js';
 const PD_SHUTTLE_DMG = 2;   // point-defense damage per hit vs a shuttle (shuttles soak, drones one-shot)
 import { movesOnImpulse, neighbor, turnMode } from './movement.js';
-import { shipPower, newEafColumn, validateEaf, foldEaf, sinkMax, specReinfMax } from './energy-model.js';
+import { shipPower, newEafColumn, validateEaf, foldEaf, sinkMax, specReinfMax, plasmaClsOf } from './energy-model.js';
 import { armLabel, isArmed } from './weapon-arming.js';   // multi-turn arming: EA label + fire-gate (E4.21/FP1.21)
 import { legalNextHexes, tryStep, impulseTimeline, hexesInPlot, setSpeedChange, speedAt, legalSideslips, trySideslip } from './course-plan.js';
 import { family, segmentName } from './battle-phase.js';   // SFB Sequence-of-Play segment cursor
@@ -323,9 +323,11 @@ function launchDrone(firer, target) {   // 6B: an armed rack puts a drone on the
   seekers.push(launchSeeker({ id: `dr${++seekerSeq}`, owner: firer.id, q: firer.q, r: firer.r, facing: firer.facing, targetId: target.id, ...droneSpec() }));
   saveSoon(firer.id); render();
 }
-const plasmaGroupsOf = s => (s._ver.groups || []).filter(g => g.family === 'heavy-weapon' && /plasma/i.test(g.type || ''));
-const plasmaLoaded = s => plasmaGroupsOf(s).filter(g => (g.boxIds || []).some(id => !s.status[id])).length;   // undamaged plasma launchers
-const plasmaLeftOf = s => (s.plasmaLeft == null ? (s.plasmaLeft = plasmaLoaded(s)) : s.plasmaLeft);
+const plasmaGroupsOf = s => (s._ver.groups || []).filter(g => g.family === 'heavy-weapon' && /plasma/i.test(g.type || '') && !/pseudo/i.test(g.type || ''));
+const launcherAlive = (s, g) => (g.boxIds || []).some(id => !s.status[id]);
+// Phase B: a launcher may fire only when undamaged AND fully armed through its 3-turn cycle (FP1.21). Its group
+// id is the arming key in s.armProgress (seeded by shipPower into power.weapons).
+const plasmaReadyOf = s => plasmaGroupsOf(s).filter(g => launcherAlive(s, g) && isArmed(plasmaClsOf(g.type), (s.armProgress && s.armProgress[g.id]) || 0));
 const pdRatingOf = s => (s.mounts || []).filter(m => m.cls === 'PH-3').length + (s._ver.groups || []).filter(g => g.family === 'anti-drone').reduce((n, g) => n + (g.boxIds || []).filter(id => !s.status[id]).length, 0);   // point-defense: PH-3 + ADD
 const shuttleBaysOf = s => (s._ver.groups || []).filter(g => g.family === 'shuttle-bay').reduce((n, g) => n + (g.boxIds || []).filter(id => !s.status[id]).length, 0);
 const shuttlesLeftOf = s => (s.shuttlesLeft == null ? (s.shuttlesLeft = shuttleBaysOf(s)) : s.shuttlesLeft);
@@ -398,10 +400,9 @@ function selfDestruct(ship) {   // D19 (SOP phase-3): the ship explodes, hitting
   saveSoon(ship.id); render(); renderLog({ log }, true);
 }
 function launchPlasma(firer, target) {   // 6B: fire a plasma torpedo — a fading seeker (FP)
-  if (!firer || !target || plasmaLeftOf(firer) <= 0) return;
-  firer.plasmaLeft = plasmaLeftOf(firer) - 1;
-  const gtype = (plasmaGroupsOf(firer)[0] || {}).type || 'Plasma S';
-  seekers.push(launchSeeker({ id: `pl${++seekerSeq}`, owner: firer.id, q: firer.q, r: firer.r, facing: firer.facing, targetId: target.id, ...plasmaSpec(gtype) }));
+  const g = firer && target && plasmaReadyOf(firer)[0]; if (!g) return;   // fire the first fully-armed launcher
+  if (firer.armProgress) firer.armProgress[g.id] = 0;                     // launched → re-arm from scratch (3-turn cycle)
+  seekers.push(launchSeeker({ id: `pl${++seekerSeq}`, owner: firer.id, q: firer.q, r: firer.r, facing: firer.facing, targetId: target.id, ...plasmaSpec(g.type) }));
   saveSoon(firer.id); render();
 }
 function stepSeekers(out) {   // 6A: move every seeker one impulse toward its target; resolve any impact through the DAC
@@ -641,7 +642,7 @@ function stepImpulse() {
   }
   const skLog = []; stepSeekers(skLog);   // 6A: seeking weapons advance + impact this impulse
   for (const s of ships) if (aliveBefore.has(s.id) && isDead(s)) skLog.push({ kind: 'death', ship: s.id });   // 6E post-combat: announce the fallen
-  if (wrapped) for (const s of ships) { if (s.drones) s.drones.racks = s.drones.racks.map(r => (loadoutSpaces(r.loaded) < r.capacity && r.reloadsLeft > 0) ? reloadRack(r) : r); s.plasmaLeft = plasmaLoaded(s); s.shuttlesLeft = shuttleBaysOf(s); }   // reload plasma/shuttles; drone racks reload finitely from cargo
+  if (wrapped) for (const s of ships) { if (s.drones) s.drones.racks = s.drones.racks.map(r => (loadoutSpaces(r.loaded) < r.capacity && r.reloadsLeft > 0) ? reloadRack(r) : r); s.shuttlesLeft = shuttleBaysOf(s); }   // reload shuttles + drone racks (finitely, from cargo); plasma re-arms through the EAF (FP1.21), no free reload
   pruneUnavailable(); render(); if (skLog.length) renderLog({ log: skLog }, true); save(null, wrapped ? { step: true, phase: 'energy' } : { step: true });   // movement syncs to all commanders
 }
 // a queued turn executes when the ship next moves; applies to the given ship (defaults to the last-clicked one)
@@ -847,7 +848,7 @@ function shieldCtl(n, x, y, strength, reinf, max) {
 }
 function weaponCtl(x, y, w, st) {
   const name = w.cls === 'DISR' ? 'DISRUPTOR' : w.cls;   // full weapon name + SSD box label (A–D)
-  return ctl(x, y, `<div class="lab">${name} ${w.label || ''}</div><div class="row"><button class="${st.armed ? 'on' : ''}" data-ea="weap" data-wid="${w.id}" data-what="armed" title="multi-turn arming (E4.21/FP1.21) — fires only when fully armed or held">${armLabel(w.cls, st.progress || 0)}</button><button class="${st.overload ? 'on' : ''}" data-ea="weap" data-wid="${w.id}" data-what="overload">OL</button>${w.cls === 'PHOTON' ? `<button class="${st.prox ? 'on' : ''}" data-ea="weap" data-wid="${w.id}" data-what="prox">PX</button>` : ''}</div>`);
+  return ctl(x, y, `<div class="lab">${name} ${w.label || ''}</div><div class="row"><button class="${st.armed ? 'on' : ''}" data-ea="weap" data-wid="${w.id}" data-what="armed" title="multi-turn arming (E4.21/FP1.21) — fires only when fully armed or held">${armLabel(w.cls, st.progress || 0)}</button>${w.plasma ? '' : `<button class="${st.overload ? 'on' : ''}" data-ea="weap" data-wid="${w.id}" data-what="overload">OL</button>`}${w.cls === 'PHOTON' ? `<button class="${st.prox ? 'on' : ''}" data-ea="weap" data-wid="${w.id}" data-what="prox">PX</button>` : ''}</div>`);
 }
 // phaser capacitor: spell it out, show existing (carried) charge, and never allow overcharging past capacity
 function capCtl(x, y, carried, charging, cap) {
@@ -1025,9 +1026,9 @@ function renderTray() {
   const canLaunch = targeted && dronesLeftOf(af) > 0;
   lb.style.display = canLaunch ? '' : 'none';
   if (canLaunch) lb.textContent = `🚀 Launch drone (${dronesLeftOf(af)})`;
-  const pb = document.getElementById('launchPlasmaBtn'), canPlasma = targeted && plasmaLeftOf(af) > 0;
-  pb.style.display = canPlasma ? '' : 'none';
-  if (canPlasma) pb.textContent = `☄ Launch plasma (${plasmaLeftOf(af)})`;
+  const pb = document.getElementById('launchPlasmaBtn'), ready = targeted ? plasmaReadyOf(af).length : 0;
+  pb.style.display = ready > 0 ? '' : 'none';
+  if (ready > 0) pb.textContent = `☄ Launch plasma (${ready})`;
   const sb = document.getElementById('launchShuttleBtn'), canShuttle = targeted && shuttlesLeftOf(af) > 0;
   sb.style.display = canShuttle ? '' : 'none';
   if (canShuttle) sb.textContent = `🛰 Launch shuttle (${shuttlesLeftOf(af)})`;

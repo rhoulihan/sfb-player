@@ -10,6 +10,11 @@ export const LIFE_SUPPORT = { 1: 3, 2: 1.5, 3: 1, 4: 0.5, 5: 0 };               
 // per-turn arming cost + hold cost (E4.44): a photon armed last turn but not fired can be HELD in the tube
 // for the hold price instead of re-armed. Disruptors have no hold (re-armed each turn) → hold defaults to arm.
 export const WEAPON_ARM = { PHOTON: { arm: 2, overload: 4, hold: 1, holdOverload: 2 }, DISR: { arm: 2, overload: 4 } };
+// map a plasma launcher's SSD type string ("Plasma S", "Plasma S (LP)", "Plasma-R") to its arming class (FP2.51)
+export function plasmaClsOf(type) {
+  const m = /plasma\s*-?\s*([RSGF])/i.exec(type || '');
+  return m ? `PLASMA-${m[1].toUpperCase()}` : 'PLASMA-S';
+}
 export const CAP_PER_PHASER = { 'PH-1': 1, 'PH-2': 1, 'PH-3': 0.5 };                 // capacitor capacity (H6.21)
 export const SHIP_PROFILES = {   // size class + movement cost per ship code (default SC3 / cost 1)
   'FED-CA': { sizeClass: 3, moveCost: 1 }, 'FED-CL': { sizeClass: 3, moveCost: 1 },
@@ -37,6 +42,11 @@ export function shipPower(code, verified, detection) {
     const wa = WEAPON_ARM[m.cls];
     return { id: m.id, cls: m.cls, arc: (m.arc && m.arc.arcs && m.arc.arcs[0]) || '', label, arm: wa.arm, overload: wa.overload, hold: wa.hold ?? wa.arm, holdOverload: wa.holdOverload ?? wa.overload };
   });
+  // Phase B: plasma launchers (heavy-weapon groups) arm through the EAF just like photons (FP1.21, 3-turn cycle).
+  // Pseudo-plasma markers are not launchers. The group id is the arming key; the arc doubles as the box label.
+  for (const g of (verified.groups || []))
+    if (g.family === 'heavy-weapon' && /plasma/i.test(g.type || '') && !/pseudo/i.test(g.type || ''))
+      weapons.push({ id: g.id, cls: plasmaClsOf(g.type), arc: g.arc || '', label: g.arc || '', plasma: true, gtype: g.type });
   const prof = SHIP_PROFILES[code] || DEFAULT_PROFILE;
   return {
     warp, impulse, apr, total: warp + impulse + apr,

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { shipPower, lifeSupportCost, newEafColumn, validateEaf, foldEaf, sinkMax, specReinfMax } from '../viewer/energy-model.js';
+import { shipPower, lifeSupportCost, newEafColumn, validateEaf, foldEaf, sinkMax, specReinfMax, plasmaClsOf } from '../viewer/energy-model.js';
 import { armStepCost, armTurns } from '../viewer/weapon-arming.js';
 
 const load = c => shipPower(
@@ -143,4 +143,25 @@ test('foldEaf advances arming progress one turn per armed turn, resets when un-a
   const dropCol = { ...col, weapons: { ...col.weapons, [photon.id]: { ...col.weapons[photon.id], armed: false } } };
   const dropped = foldEaf(p, dropCol, 0, t2.armProgress);       // un-arm → discharged
   assert.equal(dropped.armProgress[photon.id], 0, 'skipping a turn discharges the weapon');
+});
+
+test('plasmaClsOf maps launcher type strings to arming classes (FP2.51)', () => {
+  assert.equal(plasmaClsOf('Plasma F'), 'PLASMA-F');
+  assert.equal(plasmaClsOf('Plasma S'), 'PLASMA-S');
+  assert.equal(plasmaClsOf('Plasma S (LP)'), 'PLASMA-S');   // arc suffix ignored
+  assert.equal(plasmaClsOf('Plasma-R'), 'PLASMA-R');
+  assert.equal(plasmaClsOf('Plasma G'), 'PLASMA-G');
+});
+
+test('Phase B: shipPower brings plasma launchers into the EA weapon list (GOR-CA 2×S + 2×F)', () => {
+  const p = load('GOR-CA');
+  const plasma = p.weapons.filter(w => w.plasma);
+  assert.equal(plasma.length, 4, 'four real plasma launchers');
+  assert.ok(plasma.every(w => w.cls.startsWith('PLASMA-')), 'each carries a PLASMA-x arming class');
+  assert.equal(plasma.filter(w => w.cls === 'PLASMA-S').length, 2);
+  assert.equal(plasma.filter(w => w.cls === 'PLASMA-F').length, 2);
+  assert.ok(!plasma.some(w => /pseudo/i.test(w.gtype || '')), 'pseudo-plasma marker is not a launcher');
+  // each launcher arms over three turns per its type schedule
+  const s = plasma.find(w => w.cls === 'PLASMA-S');
+  assert.equal(armTurns(s.cls), 3);
 });
