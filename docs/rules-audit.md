@@ -17,7 +17,10 @@ the cruisers actually in the game (Fed CA/CL/NCL, Klingon D7, Gorn CA, Romulan K
 - ✅ **ADD-as-ammo** (E5.1) — 6/rack, one/impulse, consumed, reload ≤4/turn `6d6fa92`.
 - ✅ **Turn mode by ship category** (C3.31/C3.23) — Fed/Gorn = D (turn later), KLI/Rom = B; category threaded through execution/preview/UI `bebf770`.
 - ✅ **Verification owns ship data** — turn category + size class/move cost moved into verified.json `stats`, captured by verify.html, read by the game (hardcodes demoted to fallbacks) `b64530a`/`4835f3f`.
-- ⏳ **Tier 1 remaining:** acceleration limit (C2.21); cloak cost (G13.21); general-reinforcement cost/order (D3.341).
+- ✅ **Cloak cost** (C6/G13) — reactive cloak charges `cloakCost` from reserve/battery, cost sourced from verified.json `stats` `19efb49`.
+- ✅ **General reinforcement cost & order** — D3.341: general reinforcement energy ÷2 = points (was 1:1, twice as strong); D3.3411: general spent before specific (was specific-first) `612ab3c`.
+- ✅ **Acceleration limit** (C2.21) — next turn's speed capped at prev + max(prev, 10) via `accelCap`; applied at the 'Set speed' modal from turn 2 on `872459d`.
+- 🎉 **Tier 1 complete.** Remaining work is Tier 2 (advanced/optional) + the reactive-power follow-ons above.
 
 ## Headline
 
@@ -73,8 +76,8 @@ Mostly 1–3 line changes; each closes a verified rule mismatch.
 
 ### Movement / energy
 - [ ] **Turn mode by ship category (C3.3)** — `movement.js:20` is a single speed curve = **category B**. Correct for KLI-D7, but **Fed CA & Gorn CA are category D** (C3.23) and are allowed to turn a hex-side too early at many speeds. Needs a category×speed turn-mode chart + per-ship category.
-- [ ] **Acceleration limit (C2.21)** — a turn's speed increase is capped at **max(previous speed, 10)**; code caps only by available energy (0→31 possible). `newEafColumn` already receives `prevSpeed`.
-- [ ] **General reinforcement cost & order** — D3.341: general reinforcement costs **2 energy per shield point** (code appears to apply 1:1 — verify the halving at damage time); D3.3411: general **must be spent before** specific (code does specific-first, `battle.html:1431`).
+- [x] **Acceleration limit (C2.21)** — ✅ `accelCap(prev) = prev + max(prev, 10)`; capped at the 'Set speed' modal from turn 2 on. `872459d`
+- [x] **General reinforcement cost & order** — ✅ D3.341: general energy ÷2 = points; D3.3411: general spent before specific. `612ab3c`
 
 ### Balance
 - [ ] **Cloak energy cost (G13.21)** — `energy-model.js` `CLOAK_COST = 0`; the Romulan KR must pay a per-turn drain (~20) whether cloaked 1 or 32 impulses (G13.23). Free cloak is strictly dominant.
