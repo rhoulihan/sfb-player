@@ -16,7 +16,7 @@ reinforcement functionality, **general reinforcement highlights all 6 shield fie
 
 ## Phase 1 — Crit framework (foundation)
 - [ ] `criticals.js` (TDD): D8.2 2d6→effect table, `rollCritical`, per-ship active-crit occurrences, `hasCrit`
-- [ ] Trigger: per-shield/impulse damage accumulator; one 2d6 roll per ship per turn (D8.1)
+- [x] Trigger: per-shield/impulse damage accumulator (`accrueShieldDamage`) at all 3 damage sites (direct fire, seekers, self-destruct); one deterministic 2d6 roll per ship per turn (D8.1); crit logged + persisted. End-to-end firing verification deferred to Phase 2 (first effect).
 - [ ] `repair-stage.js` (TDD): end-of-turn crit repair (D8.31) + D14 EDR + shield repair (D9.21)
 - [ ] UI: relabel "Criticals"→"Secondary explosions"; add optional default-off "D8 Critical hits" toggle
 - [ ] UI: on-ship crit badges; crit-roll modal; end-of-turn repair panel

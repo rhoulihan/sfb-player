@@ -295,6 +295,7 @@ import { resolveLocks, applyLockGate } from './lock-on.js';
 import { launchSeeker, stepSeeker, seekerImpacts, seekerDamage, seekerExpired, plasmaSpec, pointDefense, pointDefenseHits, PD_PLASMA_DMG, PD_RANGE, controlLimit, controlledCount, SUICIDE_SHUTTLE, weaselFor, ADMIN_SHUTTLE, SCATTER_PACK } from './seeking.js';
 import { makeRack, reloadStep, loadoutSpaces, droneWarhead } from './drone-inventory.js';
 import { applyVolley, makeDice } from './dac-allocator.js';
+import { CRIT_THRESHOLD as D8_THRESHOLD, critForRoll, addCrit, hasCrit, activeCrits, CRIT_INFO } from './criticals.js';
 import { cloakEcm, applyCloakFireGate } from './cloak.js';
 import { makeScenario, applyLoSGate } from './terrain.js';
 import { MINE, mineTriggeredBy, hitAndRunSucceeds, SELF_DESTRUCT, selfDestructHits, selfDestructDamage, NUCLEAR_MINE, transporterTarget, TBOMB_WARHEAD } from './mines.js';
@@ -436,6 +437,7 @@ function selfDestruct(ship) {   // D19 (SOP phase-3): the ship explodes, hitting
     const model = victim.model || (victim.model = buildShipModel(victim._ver, victim._det));
     const effects = dmg > 0 ? applyVolley(model, { shield, points: dmg, criticals: settings.criticals }, dice) : [];
     effects.forEach(ef => { if (ef.boxId) victim.status[ef.boxId] = 'destroyed'; });
+    accrueShieldDamage(victim, shield, dmg, log);   // D8.1: blast damage counts toward the per-impulse shield total
     log.push({ target: victim.id, shield, points: dmg, effects }); saveSoon(victim.id);
   }
   (ship._ver.groups || []).forEach(g => (g.boxIds || []).forEach(id => ship.status[id] = 'destroyed'));   // the exploding ship is gone
@@ -447,6 +449,22 @@ function launchPlasma(firer, target) {   // 6B: fire a plasma torpedo — a fadi
   if (firer.armProgress) firer.armProgress[g.id] = 0;                     // launched → re-arm from scratch (3-turn cycle)
   seekers.push(launchSeeker({ id: `pl${++seekerSeq}`, owner: firer.id, q: firer.q, r: firer.r, facing: firer.facing, targetId: target.id, ...plasmaSpec(g.type) }));
   saveSoon(firer.id); render();
+}
+// D8.1 trigger: accumulate damage on each shield within an impulse; when 20+ strikes one shield, the ship rolls
+// 2d6 once per turn (D8.2). The roll is deterministic per (seed, turn, ship) so every client agrees. Gated by
+// settings.d8crits. `points` is total damage directed at the shield (shield + reinforcement + penetrating).
+const hashId = id => { let h = 0; for (let i = 0; i < (id || '').length; i++) h = (Math.imul(h, 31) + id.charCodeAt(i)) >>> 0; return h; };
+function accrueShieldDamage(target, shield, points, log) {
+  if (!settings.d8crits || !target || !(points > 0)) return;
+  const tally = (target._shieldDmg = target._shieldDmg || {});
+  tally[shield] = (tally[shield] || 0) + points;
+  if (tally[shield] < D8_THRESHOLD || target._critRolledTurn === clock.turn) return;   // D8.1: only one roll per turn
+  target._critRolledTurn = clock.turn;
+  const r = makeRng((seed ^ 0x0d8c817 ^ Math.imul(clock.turn, 0x9e3779b9) ^ hashId(target.id)) >>> 0);
+  const roll = r.d6() + r.d6(), type = critForRoll(roll);   // 6–8 → no critical (type null), but the turn's roll is still spent
+  if (type) { target.criticals = addCrit(target.criticals || [], type); target.model = null; }   // disable the system (never destroy, D8.21)
+  if (log) log.push({ kind: 'crit', ship: target.id, roll, type, shield });
+  saveSoon(target.id);
 }
 function stepSeekers(out) {   // 6A: move every seeker one impulse toward its target; resolve any impact through the DAC
   if (!seekers.length) return;
@@ -487,6 +505,7 @@ function stepSeekers(out) {   // 6A: move every seeker one impulse toward its ta
     const t = im.t, model = t.model || (t.model = buildShipModel(t._ver, t._det));
     const effects = im.points > 0 ? applyVolley(model, { shield: im.shield, points: im.points, criticals: settings.criticals }, dice) : [];
     effects.forEach(ef => { if (ef.boxId) t.status[ef.boxId] = 'destroyed'; });
+    accrueShieldDamage(t, im.shield, im.points, out);   // D8.1: seeker damage counts toward the per-impulse shield total
     (out || []).push({ kind: 'shot', firer: im.id, cls: im.cls, target: t.id, points: im.points, struckShield: im.shield, hit: im.points > 0 });
   }
   seekers = seekers.filter(sk => !sk._done && !hitWeasels.has(sk.id));
@@ -641,6 +660,7 @@ function applyRemote(data) {
     s.speed = m.speed ?? s.speed; s.hexesSinceTurn = m.hexesSinceTurn ?? s.hexesSinceTurn; s.queuedTurn = m.queuedTurn || 0;
     s.status = {}; (sd.status?.destroyed || []).forEach(id => (s.status[id] = 'destroyed'));
     s.firedAt = {}; for (const [mid, w] of Object.entries(sd.weapons || {})) if (w && w.firedAt) s.firedAt[mid] = w.firedAt;
+    if (sd.criticals !== undefined) s.criticals = sd.criticals; if (sd.critRolledTurn !== undefined) s._critRolledTurn = sd.critRolledTurn;   // D8 crit state
     if (sd.armed !== undefined) s.armed = sd.armed; if (sd.armProgress !== undefined) s.armProgress = sd.armProgress; if (sd.capacitor !== undefined) s.capacitor = sd.capacitor; if (sd.batteryCharge !== undefined) s.batteryCharge = sd.batteryCharge; if (sd.reserveWarp !== undefined) s.reserveWarp = sd.reserveWarp; if (sd.addAmmo !== undefined) s.addAmmo = sd.addAmmo; if (sd.addMag !== undefined) s.addMag = sd.addMag; if (sd.reinforce !== undefined) { s.reinforce = sd.reinforce; s.reinfLeft = null; }
     if (sd.course !== undefined) s.course = sd.course; if (sd.speedPlot !== undefined) s.speedPlot = sd.speedPlot; if (sd.autopilot !== undefined) s.autopilot = sd.autopilot;
     s.model = null;
@@ -673,6 +693,7 @@ function stepImpulse() {
   myCommitted = false; committed = {};                            // new impulse → fresh firing commits
   let wrapped = false;
   if (clock.impulse > 32) { clock.impulse = 1; clock.turn++; wrapped = true; }   // new turn → back to energy allocation
+  ships.forEach(s => s._shieldDmg = {});   // D8.1: shield-damage tally is per-impulse (direct fire + seekers combine within an impulse)
   for (const s of ships) {
     s.speed = speedAt(s.speedPlot || { base: s.speed, changes: [] }, clock.impulse);   // plotted speed changes fire on their locked impulses (C12.36)
     if (isDead(s) || !movesOnImpulse(s.speed, clock.impulse)) continue;
@@ -1331,6 +1352,7 @@ const serializeShip = s => ({
   id: s.id, code: s.code, name: s.name, side: s.side,
   map: { q: s.q, r: s.r, facing: s.facing, speed: s.speed, hexesSinceTurn: s.hexesSinceTurn, queuedTurn: s.queuedTurn, turnMode: turnModeOf(s) },
   status: { destroyed: Object.keys(s.status), shields: shieldsNow(s) },
+  criticals: s.criticals || [], critRolledTurn: s._critRolledTurn ?? -1,   // D8 active critical hits + one-roll-per-turn guard
   armed: s.armed || {}, armProgress: s.armProgress || {}, capacitor: s.capacitor ?? 0, batteryCharge: s.batteryCharge, reserveWarp: s.reserveWarp || 0, addAmmo: s.addAmmo, addMag: s.addMag, reinforce: s.reinforce || null,   // folded energy-allocation + ammo state
   course: s.course || null, speedPlot: s.speedPlot || null, autopilot: !!s.autopilot,   // tactical course plot
   weapons: Object.fromEntries(s.mounts.map(m => [m.id, { cls: m.cls, arc: (m.arc.arcs || []), charged: isCharged(s, m.id, m.cls), firedAt: s.firedAt[m.id] || null }])),
@@ -1565,7 +1587,7 @@ async function resolvePlanInto(p, models, log, affected) {
   const res = await resolveAttackPlan(clean, ships, shipMountsMap(), models, rng.next, modeFn, reinforceOf, netEcmOf, settings.criticals);   // DAC-1: criticals per game settings
   rngCursor = rng.cursor();
   res.log.filter(l => l.kind === 'shot').forEach(l => { const s = byId(l.firer); if (s) { s.firedAt[l.mount] = { turn: clock.turn, impulse: clock.impulse }; if (s.armProgress) s.armProgress[l.mount] = 0; if (isPhaser(l.cls)) s.capacitor = Math.max(0, (s.capacitor || 0) - PHASER_FIRE_COST); } affected.add(l.firer); affected.add(l.target); });   // firing discharges a heavy weapon → re-arm from scratch
-  res.volleys.forEach(v => { const s = byId(v.targetShipId); v.effects.forEach(ef => { if (ef.boxId) s.status[ef.boxId] = 'destroyed'; }); affected.add(v.targetShipId); });
+  res.volleys.forEach(v => { const s = byId(v.targetShipId); v.effects.forEach(ef => { if (ef.boxId) s.status[ef.boxId] = 'destroyed'; }); accrueShieldDamage(s, v.shield, v.points, log); affected.add(v.targetShipId); });   // D8.1: direct-fire damage counts toward the per-impulse shield total
   log.push(...res.log);
 }
 async function commitFiring() {
@@ -1602,6 +1624,8 @@ function renderLog(res, append) {
   const L = document.getElementById('log');
   const lines = res.log.map(l => l.kind === 'shot'
     ? `<div class="${l.hit ? 'hit' : 'miss'}">${l.firer} ${l.cls} → ${l.target}: die ${l.die}, ${l.hit ? l.points + ' pts → shield #' + l.struckShield : 'miss'}</div>`
+    : l.kind === 'crit'
+    ? `<div class="vol"><span style="color:#dc2626;font-weight:700">💥 CRITICAL</span> ${l.ship} shield #${l.shield}: 2d6=${l.roll} → ${l.type ? CRIT_INFO[l.type].label + ' disabled' : 'no critical hit'}</div>`
     : l.kind === 'death'
     ? `<div class="vol"><span class="kill">☠ ${l.ship} destroyed</span></div>`
     : `<div class="vol">${l.target} shield #${l.shield}: ${l.points} pts → ${l.effects.filter(e => e.type === 'destroy').length} internal${l.effects.some(e => e.type === 'critical') ? ` <span style="color:#dc2626;font-weight:700">💥 ${l.effects.filter(e => e.type === 'critical').length} crit</span>` : ''}${l.effects.some(e => e.type === 'shipDestroyed') ? ' <span class="kill">◈ DESTROYED</span>' : ''}</div>`);
