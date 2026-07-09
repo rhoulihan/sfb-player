@@ -343,6 +343,7 @@ const seekingArmedOf = s => dronesOf(s).racks.length > 0 || plasmaGroupsOf(s).le
 const controlLimitOf = s => controlLimit(sensorRating(s), seekingArmedOf(s));                 // F3.21 control channels (sensor rating, or half)
 const canControlMore = s => controlledCount(seekers, s.id) < controlLimitOf(s);               // room to guide another seeker
 function launchDrone(firer, target) {   // 6B: an armed rack puts a drone on the map, homing at the target
+  if (passiveFcOf(firer)) { alert('Cannot launch seeking weapons under passive fire control (D19.22).'); return; }
   if (!firer || !target || !canControlMore(firer)) return;   // F3.21: cannot guide more seekers than the control limit
   const rack = dronesOf(firer).racks.find(r => r.loaded.length && r.firedTurn !== clock.turn);   // a rack that is loaded AND has not fired this turn
   if (!rack) return;
@@ -447,6 +448,7 @@ function selfDestruct(ship) {   // D19 (SOP phase-3): the ship explodes, hitting
   saveSoon(ship.id); render(); renderLog({ log }, true);
 }
 function launchPlasma(firer, target) {   // 6B: fire a plasma torpedo — a fading seeker (FP)
+  if (passiveFcOf(firer)) { alert('Cannot launch seeking weapons under passive fire control (D19.22).'); return; }
   const g = firer && target && canControlMore(firer) && plasmaReadyOf(firer)[0]; if (!g) return;   // fully-armed launcher, within the control limit (F3.21)
   if (firer.armProgress) firer.armProgress[g.id] = 0;                     // launched → re-arm from scratch (3-turn cycle)
   seekers.push(launchSeeker({ id: `pl${++seekerSeq}`, owner: firer.id, q: firer.q, r: firer.r, facing: firer.facing, targetId: target.id, ...plasmaSpec(g.type) }));
@@ -512,7 +514,8 @@ function stepSeekers(out) {   // 6A: move every seeker one impulse toward its ta
   }
   seekers = seekers.filter(sk => !sk._done && !hitWeasels.has(sk.id));
 }
-const netEcmOf = (fr, t) => (fr && t) ? Math.max(0, (t.ecmLevel || 0) + cloakEcm(t) - (fr.eccmLevel || 0)) : 0;   // net ECM: target ECM + cloak, beyond firer ECCM (D6.3/G13) — gates lock-on and shifts effective range
+const passiveFcOf = s => !!s && (hasCrit(s.criticals, 'fireControl') || !!s.fcPassive);   // D19: a fire-control crit or the voluntary toggle puts the ship on passive fire control
+const netEcmOf = (fr, t) => (fr && t) ? Math.max(0, (t.ecmLevel || 0) + cloakEcm(t) - (passiveFcOf(fr) ? 0 : (fr.eccmLevel || 0))) : 0;   // net ECM: target ECM + cloak, beyond firer ECCM (D6.3/G13); passive FC can't use ECCM (D19.12)
 function ensureLocks() {   // roll phase-4 locks lazily for this turn (deterministic from seed+turn so clients agree; net ECM can deny a lock)
   if (lockOnTurn === clock.turn) return;
   lockOn = {}; const lockRng = makeRng((seed ^ (clock.turn * 0x9e3779b9)) >>> 0);
@@ -1340,7 +1343,7 @@ async function resolveEnergy(allEaf) {                        // fold each locke
     const pw = powerOf(s), bv = validateEaf(pw, col, s.capacitor || 0, batteryOf(s));   // battery charge: refill by recharge, deplete by draw
     s.batteryCharge = Math.max(0, Math.min(pw.batteries, batteryOf(s) - bv.batteryUsed + (col.recharge || 0)));
     s.armed = ts.armed; s.armProgress = ts.armProgress; s.capacitor = ts.capacitor; s.reinforce = ts.reinforce; s.reinfLeft = null; s.reserveWarp = ts.reserveWarp || 0;   // held reserve warp, spendable reactively this turn (H7.4)
-    s.ecmLevel = ts.ecmLevel; s.eccmLevel = ts.eccmLevel; s.queuedTurn = 0;
+    s.ecmLevel = ts.ecmLevel; s.eccmLevel = ts.eccmLevel; s.queuedTurn = 0; s.fcPassive = !!col.fcPassive;   // D19: voluntary passive-fire-control choice for the turn
     // movement: the plotted speed schedule (base + mid-turn changes) drives execution; no plot → constant speed
     s.speedPlot = s.speedPlot ? { base: s.speedPlot.base, changes: s.speedPlot.changes } : { base: ts.speed, changes: [] };
     s.speed = speedAt(s.speedPlot, 1); s.hexesSinceTurn = turnModeOf(s); s._autoIdx = 0;   // autopilot restarts each turn
@@ -1598,7 +1601,7 @@ async function resolvePlanInto(p, models, log, affected) {
     return used;
   };
   const rng = makeRng(seed, rngCursor);   // deterministic shared dice — both clients agree, replayable
-  const res = await resolveAttackPlan(clean, ships, shipMountsMap(), models, rng.next, modeFn, reinforceOf, netEcmOf, settings.criticals);   // DAC-1: criticals per game settings
+  const res = await resolveAttackPlan(clean, ships, shipMountsMap(), models, rng.next, modeFn, reinforceOf, netEcmOf, settings.criticals, passiveFcOf);   // DAC-1 secondary explosions per settings; passive FC per fire-control crit / toggle (D19)
   rngCursor = rng.cursor();
   res.log.filter(l => l.kind === 'shot').forEach(l => { const s = byId(l.firer); if (s) { s.firedAt[l.mount] = { turn: clock.turn, impulse: clock.impulse }; if (s.armProgress) s.armProgress[l.mount] = 0; if (isPhaser(l.cls)) s.capacitor = Math.max(0, (s.capacitor || 0) - PHASER_FIRE_COST); } affected.add(l.firer); affected.add(l.target); });   // firing discharges a heavy weapon → re-arm from scratch
   res.volleys.forEach(v => { const s = byId(v.targetShipId); v.effects.forEach(ef => { if (ef.boxId) s.status[ef.boxId] = 'destroyed'; }); accrueShieldDamage(s, v.shield, v.points, log); affected.add(v.targetShipId); });   // D8.1: direct-fire damage counts toward the per-impulse shield total

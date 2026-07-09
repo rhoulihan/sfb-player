@@ -7,12 +7,14 @@ import { applyVolley, makeDice } from './dac-allocator.js';
 // dieFn() returns a d6 (1..6). netEcm (target ECM beyond firer ECCM, D6.3) is added to the range the weapon
 // chart is read at, so jamming lowers damage or pushes a shot out of range. Returns { hit, points,
 // struckShield, die, trueRange, effRange }.
-export function resolveMount(firer, mount, target, dieFn, mode = false, netEcm = 0) {
+export function resolveMount(firer, mount, target, dieFn, mode = false, netEcm = 0, passive = false) {
   const def = WEAPONS[mount.cls];
   const trueRange = hexDistance(firer, target);
-  const effRange = trueRange + Math.max(0, netEcm | 0);            // ECM shifts the effective range up
   const struckShield = exposedShield(firer, target);
   const die = dieFn();
+  if (passive && trueRange > 5)                                    // D19.23: passive FC can't fire direct-fire weapons beyond 5 hexes true range
+    return { hit: false, points: 0, struckShield, die, trueRange, effRange: trueRange, feedback: 0, passive: true };
+  const effRange = (passive ? 2 * trueRange : trueRange) + Math.max(0, netEcm | 0);   // D19.11: passive FC has no lock-on → effective range is double true range (ECM still adds)
   const points = def ? damageFor(def, effRange, die, mode) : 0;    // mode: false | 'overload' | 'prox'
   const feedback = def ? feedbackFor(def, trueRange, die, mode, points > 0) : 0;   // point-blank overload feeds back to the firer (E4.431/E3.54)
   return { hit: points > 0, points, struckShield, die, trueRange, effRange, feedback };
@@ -23,7 +25,7 @@ export function resolveMount(firer, mount, target, dieFn, mode = false, netEcm =
 // reinforceOf may be async — it can pause to let the defender pour reserve/battery power into the struck
 // shield before the volley resolves (H7.134). All to-hit rolls are taken before any bucket applies, so the
 // pause does not affect determinism.
-export async function resolveAttackPlan(plan, ships, shipMounts, models, rand = Math.random, modeFn = null, reinforceOf = null, netEcmFn = null, criticals = false) {
+export async function resolveAttackPlan(plan, ships, shipMounts, models, rand = Math.random, modeFn = null, reinforceOf = null, netEcmFn = null, criticals = false, passiveFcFn = null) {
   const byId = Object.fromEntries(ships.map(s => [s.id, s]));
   const d6 = () => 1 + Math.floor(rand() * 6);
   const dice2d6 = makeDice(rand);
@@ -36,7 +38,7 @@ export async function resolveAttackPlan(plan, ships, shipMounts, models, rand = 
       const firer = byId[m.shipId]; if (!firer) continue;
       for (const id of m.mountIds) {
         const mount = (shipMounts[m.shipId] || []).find(x => x.id === id); if (!mount) continue;
-        const r = resolveMount(firer, mount, target, d6, modeFn ? modeFn(m.shipId, id) : false, netEcmFn ? netEcmFn(firer, target) : 0);
+        const r = resolveMount(firer, mount, target, d6, modeFn ? modeFn(m.shipId, id) : false, netEcmFn ? netEcmFn(firer, target) : 0, passiveFcFn ? passiveFcFn(firer) : false);
         log.push({ kind: 'shot', firer: m.shipId, mount: id, cls: mount.cls, target: g.targetShipId, ...r });
         if (r.feedback > 0) {   // E4.431/E3.54: point-blank overload damage to the FIRER's own shield facing the target
           const fbShield = exposedShield(target, firer), key = `fb:${m.shipId}|${fbShield}`;

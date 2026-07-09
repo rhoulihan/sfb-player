@@ -22,6 +22,16 @@ test('effective range = true range + net ECM (floored at 0)', () => {
   assert.equal(resolveMount(firer, PH1, target, () => 1, false, -2).effRange, 5, 'negative ECM floored');
 });
 
+test('passive fire control doubles effective range and caps direct fire at 5 hexes (D19.11/D19.23)', () => {
+  const firer = ship('F1', 0, 0, 0), at = d => ship('E1', d, 0, 0);   // true range d along the row
+  assert.equal(resolveMount(firer, PH1, at(3), () => 1, false, 0, true).effRange, 6, 'passive: eff = 2× true range (D19.11)');
+  assert.equal(resolveMount(firer, PH1, at(2), () => 1, false, 2, true).effRange, 6, 'passive: 2× true + net ECM');
+  const far = resolveMount(firer, PH1, at(6), () => 1, false, 0, true);   // D19.23: no direct fire beyond 5 hexes
+  assert.equal(far.hit, false, 'passive: beyond 5 hexes → miss');
+  assert.equal(far.points, 0, 'passive: beyond 5 hexes → 0 points');
+  assert.equal(resolveMount(firer, PH1, at(3), () => 1, false, 0, false).effRange, 3, 'active FC unchanged: eff = true range');
+});
+
 test('net ECM never increases damage (monotonic in range)', () => {
   const firer = ship('F1', 0, 0, 0), target = ship('E1', 2, 0, 0);
   const clean = resolveMount(firer, PH1, target, () => 1, false, 0).points;
