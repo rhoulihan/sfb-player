@@ -289,7 +289,7 @@ import { resolveAttackPlan } from './direct-fire.js';
 import { makeRng } from './rng.js';
 import { repairBoxes } from './repair.js';
 import { resolveLocks, applyLockGate } from './lock-on.js';
-import { launchSeeker, stepSeeker, seekerImpacts, seekerDamage, seekerExpired, plasmaSpec, pointDefense, SUICIDE_SHUTTLE, weaselFor, ADMIN_SHUTTLE, SCATTER_PACK } from './seeking.js';
+import { launchSeeker, stepSeeker, seekerImpacts, seekerDamage, seekerExpired, plasmaSpec, pointDefense, pointDefenseHits, PD_PLASMA_DMG, SUICIDE_SHUTTLE, weaselFor, ADMIN_SHUTTLE, SCATTER_PACK } from './seeking.js';
 import { makeRack, reloadRack, loadoutSpaces } from './drone-inventory.js';
 import { applyVolley, makeDice } from './dac-allocator.js';
 import { cloakEcm, applyCloakFireGate } from './cloak.js';
@@ -350,6 +350,7 @@ function completePlasmaReserve(firer) {
   saveSoon(firer.id); render();
 }
 const pdRatingOf = s => (s.mounts || []).filter(m => m.cls === 'PH-3').length + (s._ver.groups || []).filter(g => g.family === 'anti-drone').reduce((n, g) => n + (g.boxIds || []).filter(id => !s.status[id]).length, 0);   // point-defense: PH-3 + ADD
+const phaserPdOf = s => (s.mounts || []).filter(m => m.cls === 'PH-3').length;   // only phasers weaken a plasma (FP1.611); ADDs cannot (E5.32)
 const shuttleBaysOf = s => (s._ver.groups || []).filter(g => g.family === 'shuttle-bay').reduce((n, g) => n + (g.boxIds || []).filter(id => !s.status[id]).length, 0);
 const shuttlesLeftOf = s => (s.shuttlesLeft == null ? (s.shuttlesLeft = shuttleBaysOf(s)) : s.shuttlesLeft);
 function launchShuttle(firer, target) {   // suicide shuttle (C6): a slow homing seeker at the target
@@ -438,9 +439,16 @@ function stepSeekers(out) {   // 6A: move every seeker one impulse toward its ta
     const weasel = weaselFor(sk.targetId, seekers);                  // divert to a wild weasel the target deployed
     const home = weasel || target;
     const s2 = stepSeeker(sk, home, clock.impulse);
-    if (!weasel && !seekerImpacts(s2, target) && pointDefense(pdRatingOf(target), rng, hexDistance(s2, target))) {   // point-defense
-      if (s2.hp != null) { const d = damageShuttle(s2, PD_SHUTTLE_DMG); out.push({ kind: 'shot', firer: target.id, cls: 'PD', target: s2.id, points: PD_SHUTTLE_DMG, hit: true }); return shuttleDestroyed(d) ? { ...d, _done: true } : d; }   // a shuttle soaks it
-      out.push({ kind: 'shot', firer: target.id, cls: 'PD', target: s2.id, points: 0, hit: false }); return { ...s2, _done: true };   // drone/plasma one-shot
+    if (!weasel && !seekerImpacts(s2, target)) {                       // point-defense (before impact)
+      const pdRange = hexDistance(s2, target);
+      if (s2.type === 'plasma') {                                     // FP1.611: phasers WEAKEN a plasma, they do not shoot it down
+        const hits = pointDefenseHits(phaserPdOf(target), rng, pdRange);
+        if (hits > 0) { s2.phaserHits = (s2.phaserHits || 0) + hits * PD_PLASMA_DMG; out.push({ kind: 'shot', firer: target.id, cls: 'PD', target: s2.id, points: hits * PD_PLASMA_DMG, hit: true }); }
+        if (seekerDamage(s2) <= 0) return { ...s2, _done: true };     // whittled down to no warhead
+      } else if (pointDefense(pdRatingOf(target), rng, pdRange)) {     // drones / shuttles are shot down
+        if (s2.hp != null) { const d = damageShuttle(s2, PD_SHUTTLE_DMG); out.push({ kind: 'shot', firer: target.id, cls: 'PD', target: s2.id, points: PD_SHUTTLE_DMG, hit: true }); return shuttleDestroyed(d) ? { ...d, _done: true } : d; }   // a shuttle soaks it
+        out.push({ kind: 'shot', firer: target.id, cls: 'PD', target: s2.id, points: 0, hit: false }); return { ...s2, _done: true };
+      }
     }
     if (seekerImpacts(s2, home)) {
       if (weasel) { hitWeasels.add(weasel.id); out.push({ kind: 'shot', firer: sk.targetId, cls: 'WEASEL', target: s2.id, points: 0, hit: false }); }   // decoyed onto the weasel — no ship damage

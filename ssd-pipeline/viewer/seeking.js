@@ -82,6 +82,15 @@ export function pointDefense(pdRating, rng, range) {
   return false;
 }
 
+// A plasma torpedo is not shot down — phasers only WEAKEN it (FP1.611; ADDs cannot touch it, E5.32). Count
+// the phaser shots that connect; the host applies PD_PLASMA_DMG each toward the plasma's phaserHits total.
+export const PD_PLASMA_DMG = 3;   // phaser damage per connecting point-defense shot (a close phaser-3)
+export function pointDefenseHits(pdRating, rng, range) {
+  if (range > PD_RANGE || pdRating <= 0) return 0;
+  let hits = 0; for (let i = 0; i < pdRating; i++) if (rng.d6() >= 4) hits++;
+  return hits;
+}
+
 // Build a plasma-torpedo seeker spec from its mount type name (e.g. "Plasma S (LP)"). The warhead ages per the
 // FP1.53 table (plasmaWarheadAt); all plasma move at speed 32 with a 32-impulse endurance (FP1.42/FP1.43).
 export function plasmaSpec(type) {

@@ -72,6 +72,16 @@ test('seekerDamage: a plasma torpedo delivers its aged warhead (FP1.53)', () => 
   assert.equal(seekerDamage({ ...sk, travelled: 0 }), 50);
   assert.equal(seekerDamage({ ...sk, travelled: 13 }), 35);
   assert.equal(seekerExpired({ ...sk, travelled: 31 }), true, 'plasma removed once the warhead ages to 0 (FP1.51)');
+  // FP1.611: every 2 points of phaser damage reduce the warhead by 1
+  assert.equal(seekerDamage({ ...sk, travelled: 0, phaserHits: 10 }), 45, '10 phaser points → −5 warhead');
+});
+
+import { pointDefenseHits, PD_PLASMA_DMG } from '../viewer/seeking.js';
+test('pointDefenseHits counts the phaser shots that connect (for plasma weakening, FP1.611)', () => {
+  assert.equal(pointDefenseHits(3, { d6: () => 6 }, 2), 3, 'all three phasers hit at close range');
+  assert.equal(pointDefenseHits(3, { d6: () => 6 }, 5), 0, 'out of point-defense range');
+  assert.equal(pointDefenseHits(3, { d6: () => 1 }, 2), 0, 'low rolls all miss');
+  assert.ok(PD_PLASMA_DMG > 0, 'each phaser hit deals some damage to the plasma');
 });
 
 import { pointDefense, PD_RANGE } from '../viewer/seeking.js';
