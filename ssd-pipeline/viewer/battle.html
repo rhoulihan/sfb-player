@@ -288,7 +288,7 @@ import { shuttleMaxHp, damageShuttle, shuttleDestroyed } from './shuttle-invento
 const PD_SHUTTLE_DMG = 2;   // point-defense damage per hit vs a shuttle (shuttles soak, drones one-shot)
 import { movesOnImpulse, neighbor, turnMode } from './movement.js';
 import { shipPower, newEafColumn, validateEaf, foldEaf, sinkMax, specReinfMax, plasmaClsOf } from './energy-model.js';
-import { armLabel, isArmed } from './weapon-arming.js';   // multi-turn arming: EA label + fire-gate (E4.21/FP1.21)
+import { armLabel, isArmed, canHold } from './weapon-arming.js';   // multi-turn arming: EA label + fire-gate + holdability (E4.21/E3.24/FP1.311)
 import { legalNextHexes, tryStep, impulseTimeline, hexesInPlot, setSpeedChange, speedAt, legalSideslips, trySideslip } from './course-plan.js';
 import { family, segmentName } from './battle-phase.js';   // SFB Sequence-of-Play segment cursor
 import { hexPath, rad, plotOverlaySvg, createBattleMap } from './battle-map.js';
@@ -642,7 +642,10 @@ function stepImpulse() {
   }
   const skLog = []; stepSeekers(skLog);   // 6A: seeking weapons advance + impact this impulse
   for (const s of ships) if (aliveBefore.has(s.id) && isDead(s)) skLog.push({ kind: 'death', ship: s.id });   // 6E post-combat: announce the fallen
-  if (wrapped) for (const s of ships) { if (s.drones) s.drones.racks = s.drones.racks.map(r => (loadoutSpaces(r.loaded) < r.capacity && r.reloadsLeft > 0) ? reloadRack(r) : r); s.shuttlesLeft = shuttleBaysOf(s); }   // reload shuttles + drone racks (finitely, from cargo); plasma re-arms through the EAF (FP1.21), no free reload
+  if (wrapped) for (const s of ships) {
+    if (s.drones) s.drones.racks = s.drones.racks.map(r => (loadoutSpaces(r.loaded) < r.capacity && r.reloadsLeft > 0) ? reloadRack(r) : r); s.shuttlesLeft = shuttleBaysOf(s);   // reload shuttles + drone racks (finitely, from cargo); plasma re-arms through the EAF (FP1.21), no free reload
+    for (const w of powerOf(s).weapons) if (!canHold(w.cls) && s.armProgress && isArmed(w.cls, s.armProgress[w.id] || 0)) s.armProgress[w.id] = 0;   // non-holdable weapon armed but not fired → discharge (E3.24 disruptor, FP1.311 plasma-R)
+  }
   pruneUnavailable(); render(); if (skLog.length) renderLog({ log: skLog }, true); save(null, wrapped ? { step: true, phase: 'energy' } : { step: true });   // movement syncs to all commanders
 }
 // a queued turn executes when the ship next moves; applies to the given ship (defaults to the last-clicked one)

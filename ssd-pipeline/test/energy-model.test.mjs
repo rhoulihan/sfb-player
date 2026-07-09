@@ -130,6 +130,21 @@ test('multi-turn arming: validateEaf charges the schedule by progress; a fully-a
   assert.equal(armStepCost('PHOTON', 0) - armStepCost('PHOTON', armTurns('PHOTON')), 1, 'photon: 2 (arming) → 1 (hold)');
 });
 
+test('overload doubles the arming energy but NOT the hold (E4.22 / E4.412)', () => {
+  const p = load('FED-CA');
+  const photon = p.weapons.find(w => w.cls === 'PHOTON');
+  // held (fully armed): an overloaded photon still holds at 1/turn, same as non-overloaded
+  const heldPlain = validateEaf(p, newEafColumn(p, 0, 0, { [photon.id]: armTurns('PHOTON') })).used;
+  const heldCol = newEafColumn(p, 0, 0, { [photon.id]: armTurns('PHOTON') });
+  heldCol.weapons[photon.id].overload = true;
+  assert.equal(validateEaf(p, heldCol).used, heldPlain, 'holding an overloaded photon still costs 1/turn');
+  // while ARMING (progress 0): overload doubles this turn's step (+arm)
+  const armPlain = validateEaf(p, newEafColumn(p, 0, 0, { [photon.id]: 0 })).used;
+  const armCol = newEafColumn(p, 0, 0, { [photon.id]: 0 });
+  armCol.weapons[photon.id].overload = true;
+  assert.equal(validateEaf(p, armCol).used - armPlain, armStepCost('PHOTON', 0), 'overload doubles the arming step');
+});
+
 test('foldEaf advances arming progress one turn per armed turn, resets when un-armed (E4.21 consecutive turns)', () => {
   const p = load('FED-CA');
   const photon = p.weapons.find(w => w.cls === 'PHOTON');

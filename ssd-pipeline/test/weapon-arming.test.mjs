@@ -1,16 +1,25 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ARM_SCHEDULE, armSchedule, armTurns, isArmed, armStepCost, armLabel } from '../viewer/weapon-arming.js';
+import { ARM_SCHEDULE, armSchedule, armTurns, isArmed, armStepCost, armLabel, canHold } from '../viewer/weapon-arming.js';
 
 test('arming schedules match the rulebook (E4.21 photon 2+2, FP2.51 plasma 3-turn)', () => {
   assert.deepEqual(ARM_SCHEDULE.PHOTON.turns, [2, 2]);
   assert.equal(ARM_SCHEDULE.PHOTON.hold, 1);
   assert.deepEqual(ARM_SCHEDULE['PLASMA-R'].turns, [2, 2, 5]);
-  assert.equal(ARM_SCHEDULE['PLASMA-R'].hold, 4);
   assert.deepEqual(ARM_SCHEDULE['PLASMA-S'].turns, [2, 2, 4]);
   assert.equal(ARM_SCHEDULE['PLASMA-S'].hold, 2);
+  assert.deepEqual(ARM_SCHEDULE['PLASMA-F'].turns, [1, 1, 3]);   // FP2.51: F turn-3 is 3, not 1
   assert.equal(armTurns('PHOTON'), 2);
   assert.equal(armTurns('PLASMA-G'), 3);
+});
+
+test('holdability: disruptors and plasma-R cannot be held (E3.24, FP1.311)', () => {
+  assert.equal(canHold('PHOTON'), true);
+  assert.equal(canHold('PLASMA-S'), true);
+  assert.equal(canHold('PLASMA-G'), true);
+  assert.equal(canHold('PLASMA-F'), true);    // holds for free
+  assert.equal(canHold('PLASMA-R'), false);   // FP1.311: type-R armed by a ship cannot be held
+  assert.equal(canHold('DISR'), false);       // E3.24: armed disruptors cannot be held
 });
 
 test('armStepCost: pay the schedule while arming, the hold price once armed', () => {
@@ -18,7 +27,7 @@ test('armStepCost: pay the schedule while arming, the hold price once armed', ()
   assert.equal(armStepCost('PHOTON', 1), 2);    // arming turn 2
   assert.equal(armStepCost('PHOTON', 2), 1);    // armed → hold 1
   assert.equal(armStepCost('PLASMA-R', 2), 5);  // 3rd arming turn
-  assert.equal(armStepCost('PLASMA-R', 3), 4);  // held → 4
+  assert.equal(armStepCost('PLASMA-F', 2), 3);  // FP2.51: F 3rd arming turn = 3
   assert.equal(armStepCost('PLASMA-F', 3), 0);  // F holds free
 });
 

@@ -112,7 +112,10 @@ export function validateEaf(power, column, carried = 0, batteryCharge = power.ba
   let weaponCost = 0;                                     // JOIN column state onto power.weapons (which carries cls + costs)
   for (const w of power.weapons) {
     const st = column.weapons[w.id];
-    if (st && st.armed) weaponCost += (st.overload ? 2 : 1) * armStepCost(w.cls, st.progress || 0);   // schedule step (or hold once armed); overload doubles
+    if (st && st.armed) {   // overload doubles the arming energy (E4.411) but NOT the hold (E4.22)
+      const arming = (st.progress || 0) < armTurns(w.cls);
+      weaponCost += (st.overload && arming ? 2 : 1) * armStepCost(w.cls, st.progress || 0);
+    }
   }
   const spec = Object.values(column.specReinf || {}).reduce((a, v) => a + (v || 0), 0);
   const used = column.lifeSupport + column.fireControl + column.phaserCap + weaponCost
