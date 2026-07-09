@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { shipPower, lifeSupportCost, newEafColumn, validateEaf, foldEaf, sinkMax, specReinfMax } from '../viewer/energy-model.js';
+import { armStepCost, armTurns } from '../viewer/weapon-arming.js';
 
 const load = c => shipPower(
   c,
@@ -115,18 +116,31 @@ test('shipPower detects a cloaking device from the SSD (ROSTER-1: Romulan cloaks
   assert.equal(load('FED-CA').systems.cloak, false, 'Federation CA has no cloak');
 });
 
-import { WEAPON_ARM } from '../viewer/energy-model.js';
-test('multi-turn arming: a held photon costs the hold price, not the arm price (E4.44)', () => {
-  assert.ok(WEAPON_ARM.PHOTON.hold < WEAPON_ARM.PHOTON.arm, 'photon hold cheaper than arm');
+test('multi-turn arming: validateEaf charges the schedule by progress; a fully-armed photon holds cheaper (E4.21/E4.22)', () => {
   const p = load('FED-CA');
   const photon = p.weapons.find(w => w.cls === 'PHOTON');
   assert.ok(photon, 'FED-CA has photons');
-  assert.equal(photon.hold, WEAPON_ARM.PHOTON.hold);
-  assert.equal(photon.holdOverload, WEAPON_ARM.PHOTON.holdOverload);
-  // fresh column: every weapon re-armed (arm price); mark one photon held → save (arm - hold)
-  const base = validateEaf(p, newEafColumn(p, 0, 0)).used;
-  const heldCol = newEafColumn(p, 0, 0, { [photon.id]: true });
-  assert.equal(heldCol.weapons[photon.id].held, true, 'column marks the weapon held');
-  const heldUsed = validateEaf(p, heldCol).used;
-  assert.equal(base - heldUsed, photon.arm - photon.hold, 'holding one photon saves (arm - hold)');
+  // fresh column: every photon at progress 0 (first arming turn). Move ONE to fully-armed → it holds instead.
+  const arming = validateEaf(p, newEafColumn(p, 0, 0)).used;
+  const heldCol = newEafColumn(p, 0, 0, { [photon.id]: armTurns('PHOTON') });   // progress = 2 → fully armed
+  assert.equal(heldCol.weapons[photon.id].progress, armTurns('PHOTON'), 'column carries the arming progress');
+  const held = validateEaf(p, heldCol).used;
+  assert.equal(arming - held, armStepCost('PHOTON', 0) - armStepCost('PHOTON', armTurns('PHOTON')),
+    'holding one photon saves (first arm step − hold)');
+  assert.equal(armStepCost('PHOTON', 0) - armStepCost('PHOTON', armTurns('PHOTON')), 1, 'photon: 2 (arming) → 1 (hold)');
+});
+
+test('foldEaf advances arming progress one turn per armed turn, resets when un-armed (E4.21 consecutive turns)', () => {
+  const p = load('FED-CA');
+  const photon = p.weapons.find(w => w.cls === 'PHOTON');
+  const col = newEafColumn(p, 0, 0);                              // all weapons armed
+  const t1 = foldEaf(p, col, 0, {});                             // turn 1 → progress 1
+  assert.equal(t1.armProgress[photon.id], 1, 'one armed turn → progress 1');
+  const t2 = foldEaf(p, col, 0, t1.armProgress);                // turn 2 → progress 2 (fully armed, capped)
+  assert.equal(t2.armProgress[photon.id], armTurns('PHOTON'), 'second armed turn → fully armed');
+  const t3 = foldEaf(p, col, 0, t2.armProgress);                // held → stays capped at fully armed
+  assert.equal(t3.armProgress[photon.id], armTurns('PHOTON'), 'holding does not advance past armed');
+  const dropCol = { ...col, weapons: { ...col.weapons, [photon.id]: { ...col.weapons[photon.id], armed: false } } };
+  const dropped = foldEaf(p, dropCol, 0, t2.armProgress);       // un-arm → discharged
+  assert.equal(dropped.armProgress[photon.id], 0, 'skipping a turn discharges the weapon');
 });

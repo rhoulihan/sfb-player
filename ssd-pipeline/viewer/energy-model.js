@@ -3,6 +3,7 @@
 // (SFB B3 / H sections); the per-box output, life-support, capacitor, and weapon-arm values are
 // verified by unit tests and calibrated against known ship totals.
 import { shipLoadout } from './ship-loadout.js';
+import { armStepCost, armTurns } from './weapon-arming.js';   // multi-turn arming (E4.21/E4.22, FP1.21/FP2.51)
 
 export const PER_BOX_OUTPUT = { 'warp-engine': 1, 'impulse-engine': 1, 'apr': 1 };   // power per undestroyed box
 export const LIFE_SUPPORT = { 1: 3, 2: 1.5, 3: 1, 4: 0.5, 5: 0 };                    // by size class (B3.3)
@@ -74,9 +75,9 @@ export function lifeSupportCost(power) { return LIFE_SUPPORT[power.sizeClass] ??
 // the default "charge / hold / power all" column each turn opens with (spec §1.3).
 // carried = phaser-capacitor charge left from last turn (H6 carry-over); the capacitor only needs
 // topping up to full, so default fill = capacitorCap - carried.
-export function newEafColumn(power, prevSpeed = 0, carried = 0, held = {}) {
-  const weapons = {};
-  for (const w of power.weapons) { const h = held[w.id]; weapons[w.id] = { armed: true, overload: !!(h && h.overload), prox: false, held: !!h }; }
+export function newEafColumn(power, prevSpeed = 0, carried = 0, progress = {}) {
+  const weapons = {};                                    // progress[id] = arming turns already completed (drives cost + label)
+  for (const w of power.weapons) weapons[w.id] = { armed: true, overload: false, prox: false, progress: progress[w.id] || 0 };
   return {
     lifeSupport: lifeSupportCost(power),
     fireControl: power.systems.fireControl ? 1 : 0,
@@ -101,7 +102,7 @@ export function validateEaf(power, column, carried = 0, batteryCharge = power.ba
   let weaponCost = 0;                                     // JOIN column state onto power.weapons (which carries cls + costs)
   for (const w of power.weapons) {
     const st = column.weapons[w.id];
-    if (st && st.armed) weaponCost += st.held ? (st.overload ? w.holdOverload : w.hold) : (st.overload ? w.overload : w.arm);
+    if (st && st.armed) weaponCost += (st.overload ? 2 : 1) * armStepCost(w.cls, st.progress || 0);   // schedule step (or hold once armed); overload doubles
   }
   const spec = Object.values(column.specReinf || {}).reduce((a, v) => a + (v || 0), 0);
   const used = column.lifeSupport + column.fireControl + column.phaserCap + weaponCost
@@ -126,15 +127,18 @@ export function validateEaf(power, column, carried = 0, batteryCharge = power.ba
 
 // apply a locked column to the ship's turn state (consumed by the impulse phase). carried carries
 // residual phaser-capacitor charge in from last turn.
-export function foldEaf(power, column, carried = 0) {
-  const armed = {};
+export function foldEaf(power, column, carried = 0, progress = {}) {
+  const armed = {}, armProgress = {};
   for (const w of power.weapons) {
     const st = column.weapons[w.id];
-    if (st && st.armed) armed[w.id] = { overload: !!st.overload, prox: !!st.prox };
+    if (st && st.armed) {
+      armed[w.id] = { overload: !!st.overload, prox: !!st.prox };
+      armProgress[w.id] = Math.min(armTurns(w.cls), (progress[w.id] || 0) + 1);   // one armed turn advances the cycle (caps at fully armed)
+    } else armProgress[w.id] = 0;                                                  // skipped a turn → discharged (E4.21 consecutive)
   }
   return {
     speed: Math.min(30, Math.floor(column.movement / power.moveCost)),
-    armed,
+    armed, armProgress,
     capacitor: carried + column.phaserCap,
     reinforce: { gen: column.genReinf, spec: { ...column.specReinf } },
     ecmLevel: column.ecm, eccmLevel: column.eccm,
