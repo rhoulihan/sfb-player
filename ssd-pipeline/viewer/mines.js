@@ -11,6 +11,7 @@ const dist = (a, b) => {
 export const MINE = { warhead: 20, radius: 1 };   // functional sandbox values, not rulebook tables
 export const NUCLEAR_MINE = { warhead: 40, radius: 2 };   // C10: a heavier nuclear space mine — bigger blast, wider trigger
 export const TRANSPORTER_RANGE = 1;   // a transporter bomb / raid reaches an adjacent enemy
+export const TBOMB_WARHEAD = 10;      // M3.0: the transporter bomb has a yield of ten damage points
 
 // the nearest enemy within transporter range — where a transporter bomb is beamed
 export function transporterTarget(ship, ships, range = TRANSPORTER_RANGE) {

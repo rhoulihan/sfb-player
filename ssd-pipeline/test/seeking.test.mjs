@@ -81,5 +81,5 @@ test('ADMIN_SHUTTLE is a non-combat shuttle; SCATTER_PACK releases several drone
   assert.equal(ADMIN_SHUTTLE.type, 'shuttle');
   assert.equal(ADMIN_SHUTTLE.warhead, 0, 'admin shuttle carries no warhead');
   assert.ok(ADMIN_SHUTTLE.speed > 0);
-  assert.ok(SCATTER_PACK > 1, 'a scatter-pack is a burst of drones');
+  assert.equal(SCATTER_PACK, 6, 'a scatter-pack releases six drones (FD7)');
 });

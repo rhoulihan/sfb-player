@@ -105,7 +105,7 @@ export function newEafColumn(power, prevSpeed = 0, carried = 0, progress = {}) {
 
 // fixed line costs (calibration-flagged). Shields are up for free in v1 — the paid shield allocation
 // is reinforcement (genReinf/specReinf, variable). Fire control cost is the value itself (0/0.5/1).
-export const SHIELD_COST = 0, HET_COST = 2, WW_COST = 1, SUICIDE_COST = 1, CLOAK_COST = 0;
+export const SHIELD_COST = 0, HET_COST = 5, WW_COST = 1, SUICIDE_COST = 1, CLOAK_COST = 0;   // HET = 5 hexes of warp energy (C6.21)
 
 // the balance referee. carried = phaser-capacitor charge left from last turn (H6 carry-over).
 export function validateEaf(power, column, carried = 0, batteryCharge = power.batteries) {

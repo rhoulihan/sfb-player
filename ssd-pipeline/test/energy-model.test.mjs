@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { shipPower, lifeSupportCost, newEafColumn, validateEaf, foldEaf, sinkMax, specReinfMax, plasmaClsOf } from '../viewer/energy-model.js';
+import { shipPower, lifeSupportCost, newEafColumn, validateEaf, foldEaf, sinkMax, specReinfMax, plasmaClsOf, HET_COST } from '../viewer/energy-model.js';
 import { armStepCost, armTurns } from '../viewer/weapon-arming.js';
 
 const load = c => shipPower(
@@ -170,6 +170,10 @@ test('foldEaf: a rolling plasma holds at the final arming turn instead of comple
   const rollCol = { ...col, weapons: { ...col.weapons, [plasma.id]: { ...col.weapons[plasma.id], roll: true } } };
   assert.equal(foldEaf(p, rollCol, 0, prog).armProgress[plasma.id], 2, 'rolling holds at the final arming turn');
   assert.equal(foldEaf(p, col, 0, prog).armProgress[plasma.id], 3, 'completing (no roll) advances to fully armed');
+});
+
+test('HET costs 5 hexes of warp energy (C6.21)', () => {
+  assert.equal(HET_COST, 5);
 });
 
 test('foldEaf holds allocated reserve warp for reactive use (H7.4/H7.36)', () => {

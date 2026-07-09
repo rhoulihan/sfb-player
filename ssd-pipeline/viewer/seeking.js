@@ -48,7 +48,7 @@ export const SUICIDE_SHUTTLE = { type: 'shuttle', speed: 8, warhead: 12, fade: 0
 // An admin shuttle (C6) — a non-combat shuttle: it moves like a shuttle but carries no warhead.
 export const ADMIN_SHUTTLE = { type: 'shuttle', speed: 8, warhead: 0, fade: 0, endurance: 40 };
 // A scatter-pack (C6) is a shuttle that releases a burst of drones.
-export const SCATTER_PACK = 4;
+export const SCATTER_PACK = 6;   // FD7: a scatter-pack releases six drones
 
 // A wild weasel is a decoy token (type 'weasel', owned by the ship it protects). Returns the weasel
 // currently protecting shipId, if any — seeking weapons homing on that ship divert to the weasel instead.

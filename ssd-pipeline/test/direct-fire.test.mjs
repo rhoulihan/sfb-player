@@ -13,6 +13,22 @@ test('resolveMount reports the struck shield and non-negative points', () => {
   assert.equal(r.hit, r.points > 0);
 });
 
+test('overloaded photon at range 1 that hits feeds 2 points back to the firer (E4.431)', async () => {
+  const firer = ship('F1', 0, 0, 0), target = ship('E1', 1, 0, 0);   // adjacent → true range 1
+  const ships = [firer, target];
+  const mounts = { F1: [{ id: 'F1.PHOTON.0', cls: 'PHOTON', arc: { arcs: ['FH'] } }] };
+  const plan = { groups: [{ id: 'A', color: '#000', targetShipId: 'E1', members: [{ shipId: 'F1', mountIds: ['F1.PHOTON.0'] }] }] };
+  const mk = () => ({ shields: { 1: { boxIds: new Array(20).fill('s'), down: 0, max: 20 }, 2: { boxIds: new Array(20).fill('s'), down: 0, max: 20 },
+    3: { boxIds: [], down: 0, max: 0 }, 4: { boxIds: [], down: 0, max: 0 }, 5: { boxIds: [], down: 0, max: 0 }, 6: { boxIds: [], down: 0, max: 0 } },
+    armor: { boxIds: [], destroyed: new Set() }, pools: {}, neverTargets: new Set(), groupOf: {}, boxById: {} });
+  const models = { F1: mk(), E1: mk() };
+  const res = await resolveAttackPlan(plan, ships, mounts, models, () => 0.5, () => 'overload');   // die 4 → R1 overload hits (1-6)
+  const fb = res.volleys.find(v => v.feedback);
+  assert.ok(fb, 'a feedback volley is produced');
+  assert.equal(fb.targetShipId, 'F1', 'feedback strikes the firer, not the target');
+  assert.equal(fb.points, 2, 'feedback is 2 points (E4.431)');
+});
+
 test('resolveMount at long range beyond a phaser table returns 0 points', () => {
   const firer = ship('F1', 0, 0, 0), target = ship('E1', 30, 0, 0);   // ~30 hexes, past PH-3 max (15)
   const mount = { id: 'F1.PH-3.0', cls: 'PH-3', arc: { arcs: ['FH'] } };

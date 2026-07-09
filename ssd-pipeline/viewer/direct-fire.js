@@ -1,7 +1,7 @@
 // Direct-fire resolution: roll each committed mount against its weapon chart, stack hits by struck
 // shield into combined volleys (D4.34), and apply each volley through the existing DAC damage engine.
 import { exposedShield, hexDistance } from './battle-geom.js';
-import { WEAPONS, damageFor } from './weapon-charts.js';
+import { WEAPONS, damageFor, feedbackFor } from './weapon-charts.js';
 import { applyVolley, makeDice } from './dac-allocator.js';
 
 // dieFn() returns a d6 (1..6). netEcm (target ECM beyond firer ECCM, D6.3) is added to the range the weapon
@@ -14,7 +14,8 @@ export function resolveMount(firer, mount, target, dieFn, mode = false, netEcm =
   const struckShield = exposedShield(firer, target);
   const die = dieFn();
   const points = def ? damageFor(def, effRange, die, mode) : 0;    // mode: false | 'overload' | 'prox'
-  return { hit: points > 0, points, struckShield, die, trueRange, effRange };
+  const feedback = def ? feedbackFor(def, trueRange, die, mode, points > 0) : 0;   // point-blank overload feeds back to the firer (E4.431/E3.54)
+  return { hit: points > 0, points, struckShield, die, trueRange, effRange, feedback };
 }
 
 // models[shipId] is that ship's buildShipModel() result. Rolls every committed mount, buckets hits by
@@ -37,6 +38,11 @@ export async function resolveAttackPlan(plan, ships, shipMounts, models, rand = 
         const mount = (shipMounts[m.shipId] || []).find(x => x.id === id); if (!mount) continue;
         const r = resolveMount(firer, mount, target, d6, modeFn ? modeFn(m.shipId, id) : false, netEcmFn ? netEcmFn(firer, target) : 0);
         log.push({ kind: 'shot', firer: m.shipId, mount: id, cls: mount.cls, target: g.targetShipId, ...r });
+        if (r.feedback > 0) {   // E4.431/E3.54: point-blank overload damage to the FIRER's own shield facing the target
+          const fbShield = exposedShield(target, firer), key = `fb:${m.shipId}|${fbShield}`;
+          const fb = buckets.get(key) || { targetShipId: m.shipId, shield: fbShield, points: 0, firers: new Set(), feedback: true };
+          fb.points += r.feedback; fb.firers.add(g.targetShipId); buckets.set(key, fb);
+        }
         if (r.points <= 0) continue;
         const key = `${g.targetShipId}|${r.struckShield}`;
         const b = buckets.get(key) || { targetShipId: g.targetShipId, shield: r.struckShield, points: 0, firers: new Set() };
@@ -51,7 +57,7 @@ export async function resolveAttackPlan(plan, ships, shipMounts, models, rand = 
     const absorbed = reinforceOf ? (await reinforceOf(b.targetShipId, b.shield, b.points)) || 0 : 0;   // reinforcement soaks first (may pause for reactive reserve, H7.134)
     const pts = b.points - absorbed;
     const effects = model ? applyVolley(model, { shield: b.shield, points: pts, criticals }, dice2d6) : [];
-    volleys.push({ targetShipId: b.targetShipId, shield: b.shield, points: b.points, absorbed, firers: [...b.firers], effects });
+    volleys.push({ targetShipId: b.targetShipId, shield: b.shield, points: b.points, absorbed, firers: [...b.firers], effects, feedback: !!b.feedback });
     log.push({ kind: 'volley', target: b.targetShipId, shield: b.shield, points: b.points, absorbed, effects });
   }
   return { volleys, log };

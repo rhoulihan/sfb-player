@@ -48,7 +48,8 @@ test('self-destruct damage falls off with distance', () => {
   assert.ok(selfDestructDamage(1, 30) > 0);
 });
 
-import { NUCLEAR_MINE, transporterTarget, TRANSPORTER_RANGE } from '../viewer/mines.js';
+import { NUCLEAR_MINE, transporterTarget, TRANSPORTER_RANGE, TBOMB_WARHEAD } from '../viewer/mines.js';
+test('transporter bomb yields ten damage points (M3.0)', () => { assert.equal(TBOMB_WARHEAD, 10); });
 test('NUCLEAR_MINE hits harder and wider than a standard mine', () => {
   assert.ok(NUCLEAR_MINE.warhead > MINE.warhead, 'bigger warhead');
   assert.ok(NUCLEAR_MINE.radius >= MINE.radius, 'at least as wide');

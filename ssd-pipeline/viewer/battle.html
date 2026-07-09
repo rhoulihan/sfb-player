@@ -294,7 +294,7 @@ import { makeRack, reloadRack, loadoutSpaces } from './drone-inventory.js';
 import { applyVolley, makeDice } from './dac-allocator.js';
 import { cloakEcm, applyCloakFireGate } from './cloak.js';
 import { makeScenario, applyLoSGate } from './terrain.js';
-import { MINE, mineTriggeredBy, hitAndRunSucceeds, SELF_DESTRUCT, selfDestructHits, selfDestructDamage, NUCLEAR_MINE, transporterTarget } from './mines.js';
+import { MINE, mineTriggeredBy, hitAndRunSucceeds, SELF_DESTRUCT, selfDestructHits, selfDestructDamage, NUCLEAR_MINE, transporterTarget, TBOMB_WARHEAD } from './mines.js';
 import { shuttleMaxHp, damageShuttle, shuttleDestroyed } from './shuttle-inventory.js';
 const PD_SHUTTLE_DMG = 2;   // point-defense damage per hit vs a shuttle (shuttles soak, drones one-shot)
 import { movesOnImpulse, neighbor, turnMode } from './movement.js';
@@ -388,7 +388,7 @@ function transporterBomb(ship) {   // D15: beam a bomb onto an adjacent enemy â€
   if (!ship) return;
   const tgt = transporterTarget(ship, ships.filter(s => !isDead(s)));
   if (!tgt) { renderLog({ log: [{ kind: 'shot', firer: ship.id, cls: 'T-BOMB', target: '\u2014', points: 0, hit: false }] }, true); return; }
-  seekers.push({ id: `tb${++seekerSeq}`, owner: ship.id, side: ship.side, type: 'mine', q: tgt.q, r: tgt.r, facing: ship.facing, warhead: MINE.warhead, radius: 0 });
+  seekers.push({ id: `tb${++seekerSeq}`, owner: ship.id, side: ship.side, type: 'mine', q: tgt.q, r: tgt.r, facing: ship.facing, warhead: TBOMB_WARHEAD, radius: 0 });
   saveSoon(ship.id); render();
 }
 function boardingRaid(ship) {   // D15: a transporter hit-and-run raid on an adjacent enemy â€” on 4+ it knocks out a random enemy system
@@ -1486,7 +1486,7 @@ fetch('weapons.html', { method: 'HEAD' }).then(r => { if (!r.ok) throw 0; }).cat
 async function resolvePlanInto(p, models, log, affected) {
   ensureLocks(); p = applyLockGate(p, lockOn); p = applyCloakFireGate(p, byId); p = applyLoSGate(p, byId, terrain);   // D6.1 lock; G13 cloak holds fire; P3 asteroids block LoS
   const mk = t => t.model || (t.model = buildShipModel(t._ver, t._det));
-  for (const g of (p.groups || [])) { const t = byId(g.targetShipId); if (t) models[t.id] = mk(t); }
+  for (const g of (p.groups || [])) { const t = byId(g.targetShipId); if (t) models[t.id] = mk(t); for (const m of (g.members || [])) { const f = byId(m.shipId); if (f) models[f.id] = mk(f); } }   // firer models too, for overload feedback (E4.431)
   const capLeft = {}; for (const s of ships) capLeft[s.id] = Math.floor(s.capacitor || 0);   // phaser budget for this resolution
   const clean = { groups: (p.groups || []).map(g => ({ ...g, members: g.members.map(m => {
     const s = byId(m.shipId), el = eligForTarget(s, byId(g.targetShipId));

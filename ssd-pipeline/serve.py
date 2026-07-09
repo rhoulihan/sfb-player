@@ -214,21 +214,46 @@ export function bandIndex(def, trueRange) {
   return def.bands.findIndex(b => trueRange >= b.minTrue && trueRange <= b.maxTrue);
 }
 
-export function damageFor(def, trueRange, die, mode = false) {
+// overload warhead: photon carries a fixed value; a disruptor doubles the standard band damage (E3.52)
+function overloadDmg(def, trueRange) {
+  if (def.overload.fixedDamage != null) return def.overload.fixedDamage;
+  const bi = bandIndex(def, Math.max(1, trueRange));   // clamp so a point-blank (R0) bolt reads the R1 band
+  return 2 * (def.fixedDamage[bi] || 0);
+}
+
+export function damageFor(def, trueRange, die, mode = false) {   // mode: false | true/'overload' | 'prox'
   const ov = (mode === true || mode === 'overload') && def.overload;
   const prox = mode === 'prox' && def.proximity;
-  const maxRange = ov ? def.overload.maxRange : prox ? def.proximity.maxRange : def.maxRange;
-  if (!prox && def.minRange && trueRange < def.minRange) return 0;
-  if (trueRange > maxRange) return 0;
-  const bi = bandIndex(def, trueRange);
-  if (bi < 0) return 0;
+  if (prox) {
+    const pd = def.proximity;
+    if (trueRange < (pd.minRange || 0) || trueRange > pd.maxRange) return 0;   // E4.32: automatic miss inside min range
+    const bi = bandIndex(def, trueRange); if (bi < 0) return 0;
+    const hb = def.hitBand1d[bi]; if (!hb) return 0;
+    return (die >= hb[0] && die <= hb[1] + (pd.dieBonus || 0)) ? pd.fixedDamage : 0;
+  }
+  if (ov) {
+    const od = def.overload;
+    if (trueRange > od.maxRange) return 0;
+    if (trueRange <= (od.feedbackRange ?? -1)) return (die >= 1 && die <= 6) ? overloadDmg(def, trueRange) : 0;   // R0-1 overload hits 1-6 (E4.43)
+    if (def.minRange && trueRange < def.minRange) return 0;
+    const bi = bandIndex(def, trueRange); if (bi < 0) return 0;
+    const hb = def.hitBand1d[bi]; if (!hb) return 0;
+    return (die >= hb[0] && die <= hb[1]) ? overloadDmg(def, trueRange) : 0;
+  }
+  if (def.minRange && trueRange < def.minRange) return 0;
+  if (trueRange > def.maxRange) return 0;
+  const bi = bandIndex(def, trueRange); if (bi < 0) return 0;
   if (def.resolution === 'range-of-effect') return def.effectGrid[die - 1]?.[bi] ?? 0;
-  if (prox) { const [lo, hi] = def.proximity.hitBand; return (die >= lo && die <= hi) ? def.proximity.fixedDamage : 0; }
-  const hb = def.hitBand1d[bi];
-  if (!hb) return 0;
-  const [lo, hi] = hb;
-  if (die < lo || die > hi) return 0;
-  return ov ? def.overload.fixedDamage : def.fixedDamage[bi];
+  const hb = def.hitBand1d[bi]; if (!hb) return 0;
+  return (die >= hb[0] && die <= hb[1]) ? def.fixedDamage[bi] : 0;
+}
+
+// Feedback damage (E4.431 photon, E3.54 disruptor): a point-blank overloaded bolt that HITS scores damage on
+// the FIRING ship's facing shield. A miss produces no feedback (D6.1264).
+export function feedbackFor(def, trueRange, die, mode, hit) {
+  const ov = (mode === true || mode === 'overload') && def.overload;
+  if (!ov || !hit) return 0;
+  return trueRange <= (def.overload.feedbackRange ?? -1) ? (def.overload.feedback || 0) : 0;
 }
 """
 
