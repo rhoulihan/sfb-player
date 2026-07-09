@@ -1542,7 +1542,7 @@ async function resolvePlanInto(p, models, log, affected) {
     const preAbsorb = Math.min(pts, (rl.spec[sh] || 0) + (rl.gen || 0));     // what already-allocated reinforcement soaks
     if (settings.solo && pts > preAbsorb && reservePoolS(t) > 0) await promptReserveReinforce(t, sh, pts, preAbsorb);   // H7.134: reactive reserve reinforcement before the volley applies
     const used = Math.min(pts, (rl.spec[sh] || 0) + (rl.gen || 0));
-    let u = used; const fromSpec = Math.min(u, rl.spec[sh] || 0); rl.spec[sh] = (rl.spec[sh] || 0) - fromSpec; u -= fromSpec; rl.gen = Math.max(0, (rl.gen || 0) - u);
+    let u = used; const fromGen = Math.min(u, rl.gen || 0); rl.gen = (rl.gen || 0) - fromGen; u -= fromGen; rl.spec[sh] = Math.max(0, (rl.spec[sh] || 0) - u);   // D3.3411: general reinforcement is spent before specific
     return used;
   };
   const rng = makeRng(seed, rngCursor);   // deterministic shared dice — both clients agree, replayable

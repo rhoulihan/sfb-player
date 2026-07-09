@@ -158,7 +158,7 @@ export function foldEaf(power, column, carried = 0, progress = {}) {
     speed: Math.min(30, Math.floor(column.movement / power.moveCost)),
     armed, armProgress,
     capacitor: carried + column.phaserCap,
-    reinforce: { gen: column.genReinf, spec: { ...column.specReinf } },
+    reinforce: { gen: Math.floor((column.genReinf || 0) / 2), spec: { ...column.specReinf } },   // D3.341: general reinforcement energy ÷2 = points (2 energy = 1 point)
     ecmLevel: column.ecm, eccmLevel: column.eccm,
     wildWeasel: column.wildWeasel, suicide: column.suicide,
     reserveWarp: column.reserveWarp || 0,   // held for reactive use during the turn (H7.4); unused → batteries (H7.36)

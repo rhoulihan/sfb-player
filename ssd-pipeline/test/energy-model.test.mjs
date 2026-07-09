@@ -93,7 +93,7 @@ test('foldEaf applies a locked column to turn state', () => {
   assert.equal(ts.speed, 8, 'movement 8 / moveCost 1 = speed 8');
   assert.equal(ts.armed[wId].overload, true, 'overloaded weapon folded');
   assert.equal(ts.capacitor, 9, 'carried 4 + charged 5');
-  assert.equal(ts.reinforce.gen, 3);
+  assert.equal(ts.reinforce.gen, 1, 'general reinforcement 3 energy → 1 point (D3.341, ÷2 round down)');
   assert.equal(ts.ecmLevel, 2);
   // an un-armed weapon is absent from armed{}
   const noFire = foldEaf(fed, { ...base, weapons: Object.fromEntries(fed.weapons.map(w => [w.id, { armed: false, overload: false }])) }, 0);
@@ -182,6 +182,14 @@ test('cloak costs the ship\'s per-ship SSD energy (G13.21) — Romulan KR = 20, 
   const base = validateEaf(p, newEafColumn(p, 0, 0)).used;
   const col = newEafColumn(p, 0, 0); col.cloak = true;
   assert.equal(validateEaf(p, col).used - base, 20, 'activating the cloak adds 20 energy');
+});
+
+test('general-reinforcement energy halves to points at 2 energy = 1 point (D3.341)', () => {
+  const p = load('FED-CA');
+  const col = newEafColumn(p, 0, 0); col.genReinf = 10;
+  assert.equal(foldEaf(p, col, 0, {}).reinforce.gen, 5, '10 energy of general reinforcement → 5 points');
+  col.genReinf = 7;
+  assert.equal(foldEaf(p, col, 0, {}).reinforce.gen, 3, 'odd energy rounds down (7 → 3)');
 });
 
 test('foldEaf holds allocated reserve warp for reactive use (H7.4/H7.36)', () => {
