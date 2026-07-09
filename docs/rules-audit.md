@@ -11,7 +11,8 @@ the cruisers actually in the game (Fed CA/CL/NCL, Klingon D7, Gorn CA, Romulan K
 - ✅ **Plasma rolling delay + reserve completion** — FP1.221 roll (2, 1 for F) to stall on the final arming turn `8472b80`; FP1.222 reserve-warp completion mid-turn (R3/S2/G1/F2, warp only) `7149811`.
 - ✅ **Tier 0 quick fixes + feedback damage** — disruptor overload doubled (E3.52), overloaded photon R0-1 hit 1-6 (E4.43), photon proximity auto-miss <9 → 1-4/1-3 (E4.32/33), overload **feedback damage** to the firer (E4.431/E3.54), HET 5 (C6.21), scatter-pack 6 (FD7), T-bomb 10 (M3.0). `d7284e2`
 - ⏳ **Reactive power remaining:** proactive impulse allocation + queued-at-segment; on-hit modal showing queued allocations w/ adjust-override; reactive ECCM (H7.33); reactive weapon overload/capacitor (H7.54/E2.33); multiplayer defender sync.
-- ⏳ **Tier 1 remaining:** plasma warhead/aging/phaser-weakening; drone fire-rate/warhead-by-type/endurance/reload; turn-mode-by-ship-class; acceleration limit; cloak cost; control channels; ADD-as-ammo; general-reinforcement cost/order.
+- ✅ **Tier 1 plasma damage** — FP1.53 warhead + stepwise aging table + 32-impulse endurance (`404e8b1`); FP1.611 phaser-weakening — PD weakens, never one-shots, ADDs excluded per E5.32 (`f27de1f`).
+- ⏳ **Tier 1 remaining:** drone fire-rate/warhead-by-type/endurance/reload; turn-mode-by-ship-class; acceleration limit; cloak cost; control channels; ADD-as-ammo; general-reinforcement cost/order.
 
 ## Headline
 
