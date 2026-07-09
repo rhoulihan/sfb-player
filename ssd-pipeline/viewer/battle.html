@@ -739,7 +739,7 @@ function render() {
   renderClock();   // both phases — the energy phase must reflect a turn wrap too
   document.getElementById('ghostBanner').style.display = hasGhosts() ? 'flex' : 'none';   // clear-to-continue prompt
   renderFireSummary();
-  if (getPhase() === 'energy') { renderEnergy(); if (working() && working().targetShipId) renderPanel(); }   // weapons panel too, once a target is set
+  if (getPhase() === 'energy') { renderEnergy(); if (working() && working().targetShipId) renderPanel(); for (const id of ['launchBtn', 'launchPlasmaBtn', 'launchShuttleBtn', 'launchScatterBtn']) document.getElementById(id).style.display = 'none'; }   // energy: seeking-weapon launch is movement-phase only
   else { renderFleet(); renderGroups(); renderPanel(); renderTray(); if (ui.viewEA) renderEnergy(); }   // read-only EA console in battle
 }
 // floating combined-damage summary anchored beside the target on the map (both phases; ghost-aware)
