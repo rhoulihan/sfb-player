@@ -1478,6 +1478,8 @@
  "pass": "b4-verify",
  "stats": {
   "turnCategory": "C",
-  "turnCategorySource": "inferred \u2014 verify vs MSC"
+  "turnCategorySource": "inferred \u2014 verify vs MSC",
+  "sizeClass": 3,
+  "moveCost": 1
  }
 }

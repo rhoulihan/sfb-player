@@ -47,7 +47,7 @@ export function shipPower(code, verified, detection) {
   for (const g of (verified.groups || []))
     if (g.family === 'heavy-weapon' && /plasma/i.test(g.type || '') && !/pseudo/i.test(g.type || ''))
       weapons.push({ id: g.id, cls: plasmaClsOf(g.type), arc: g.arc || '', label: g.arc || '', plasma: true, gtype: g.type });
-  const prof = SHIP_PROFILES[code] || DEFAULT_PROFILE;
+  const prof = { ...(SHIP_PROFILES[code] || DEFAULT_PROFILE), ...(verified.stats || {}) };   // verified.json stats (sizeClass/moveCost) drive it; SHIP_PROFILES is only a fallback
   return {
     warp, impulse, apr, total: warp + impulse + apr,
     batteries: n('battery'),

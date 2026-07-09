@@ -1712,6 +1712,8 @@
  "pass": "b4-verify",
  "stats": {
   "turnCategory": "B",
-  "turnCategorySource": "MSC C3.3"
+  "turnCategorySource": "MSC C3.3",
+  "sizeClass": 3,
+  "moveCost": 1
  }
 }
