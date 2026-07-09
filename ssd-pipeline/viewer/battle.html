@@ -290,7 +290,7 @@ import { makeRng } from './rng.js';
 import { repairBoxes } from './repair.js';
 import { resolveLocks, applyLockGate } from './lock-on.js';
 import { launchSeeker, stepSeeker, seekerImpacts, seekerDamage, seekerExpired, plasmaSpec, pointDefense, pointDefenseHits, PD_PLASMA_DMG, SUICIDE_SHUTTLE, weaselFor, ADMIN_SHUTTLE, SCATTER_PACK } from './seeking.js';
-import { makeRack, reloadRack, loadoutSpaces, droneWarhead } from './drone-inventory.js';
+import { makeRack, reloadStep, loadoutSpaces, droneWarhead } from './drone-inventory.js';
 import { applyVolley, makeDice } from './dac-allocator.js';
 import { cloakEcm, applyCloakFireGate } from './cloak.js';
 import { makeScenario, applyLoSGate } from './terrain.js';
@@ -676,7 +676,7 @@ function stepImpulse() {
   const skLog = []; stepSeekers(skLog);   // 6A: seeking weapons advance + impact this impulse
   for (const s of ships) if (aliveBefore.has(s.id) && isDead(s)) skLog.push({ kind: 'death', ship: s.id });   // 6E post-combat: announce the fallen
   if (wrapped) for (const s of ships) {
-    if (s.drones) s.drones.racks = s.drones.racks.map(r => (loadoutSpaces(r.loaded) < r.capacity && r.reloadsLeft > 0) ? reloadRack(r) : r); s.shuttlesLeft = shuttleBaysOf(s);   // reload shuttles + drone racks (finitely, from cargo); plasma re-arms through the EAF (FP1.21), no free reload
+    if (s.drones) s.drones.racks = s.drones.racks.map(r => (loadoutSpaces(r.loaded) < r.capacity && r.reloadsLeft > 0 && r.firedTurn !== clock.turn - 1) ? reloadStep(r) : r); s.shuttlesLeft = shuttleBaysOf(s);   // FD2.421: reload 2 spaces/turn from the magazine, only if the rack did not fire the turn just ended; plasma re-arms through the EAF (FP1.21)
     for (const w of powerOf(s).weapons) if (!canHold(w.cls) && s.armProgress && isArmed(w.cls, s.armProgress[w.id] || 0)) s.armProgress[w.id] = 0;   // non-holdable weapon armed but not fired → discharge (E3.24 disruptor, FP1.311 plasma-R)
     if (s.reserveWarp) { s.batteryCharge = Math.min(powerOf(s).batteries, batteryOf(s) + s.reserveWarp); s.reserveWarp = 0; }   // H7.36: unused reserve warp drains into the batteries at end of turn
   }

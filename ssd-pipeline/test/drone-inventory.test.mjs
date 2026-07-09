@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { RACK_CAPACITY, DRONE_CATALOG, rackCapacity, droneSpaces, droneWarhead, loadoutSpaces, spaceLeft, canFit, fillRack, makeRack, reloadRack } from '../viewer/drone-inventory.js';
+import { RACK_CAPACITY, DRONE_CATALOG, rackCapacity, droneSpaces, droneWarhead, loadoutSpaces, spaceLeft, canFit, fillRack, makeRack, reloadStep } from '../viewer/drone-inventory.js';
 
 test('droneWarhead delivers the loaded type warhead — Type-IV 24, not a fixed 12 (FD2.1)', () => {
   assert.equal(droneWarhead('Type-I'), 12);
@@ -45,17 +45,17 @@ test('fillRack: fills a rack to capacity with one drone type', () => {
   assert.equal(fillRack('A', 'heavy').length, 2, '4 spaces / 2 = 2 heavy drones');
 });
 
-test('makeRack + reloadRack: a rack carries reloads; reloading refills to capacity, one set at a time', () => {
+test('makeRack magazine is in spaces; reloadStep loads at most 2 spaces per turn (FD2.421)', () => {
   const r = makeRack('A', 'Type-I', 2);
   assert.equal(r.capacity, 4);
   assert.equal(r.loaded.length, 4);
-  assert.equal(r.reloadsLeft, 2);
-  const spent = { ...r, loaded: ['Type-I'] };      // fired 3
-  const re = reloadRack(spent, 'Type-I');
-  assert.equal(re.loaded.length, 4, 'refilled to capacity');
-  assert.equal(re.reloadsLeft, 1, 'one reload consumed');
-  const dry = reloadRack({ ...re, reloadsLeft: 0 }, 'Type-I');
-  assert.equal(dry.loaded.length, 4, 'no reloads left → unchanged');
+  assert.equal(r.reloadsLeft, 8, 'two reload sets × 4-space A-rack = an 8-space magazine');
+  const spent = { ...r, loaded: [] };              // rack fired empty
+  const re = reloadStep(spent, 'Type-I');
+  assert.equal(loadoutSpaces(re.loaded), 2, 'only 2 spaces reload in a turn (rate cannot be increased)');
+  assert.equal(re.reloadsLeft, 6, 'magazine drops by the 2 spaces loaded');
+  const dry = reloadStep({ ...re, reloadsLeft: 0 }, 'Type-I');
+  assert.equal(loadoutSpaces(dry.loaded), 2, 'no reload when the magazine is dry');
   assert.equal(dry.reloadsLeft, 0);
 });
 

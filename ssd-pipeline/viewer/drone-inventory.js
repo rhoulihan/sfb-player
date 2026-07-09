@@ -26,12 +26,18 @@ export function fillRack(type, droneType) {
   return out;
 }
 
-export function makeRack(type, droneType = 'Type-I', reloads = 0) {
-  return { type, capacity: rackCapacity(type), loaded: fillRack(type, droneType), reloadsLeft: reloads };
+// reloadSets = full-rack magazines carried; reloadsLeft is the magazine measured in SPACES (FD2.421 reloads by space).
+export function makeRack(type, droneType = 'Type-I', reloadSets = 0) {
+  return { type, capacity: rackCapacity(type), loaded: fillRack(type, droneType), reloadsLeft: reloadSets * rackCapacity(type) };
 }
 
-// consume one reload set to refill the rack to capacity (no-op when dry)
-export function reloadRack(rack, droneType = 'Type-I') {
+// FD2.421: a rack reloads at most `maxSpaces` (two) spaces of drones per turn from its finite magazine — the
+// rate cannot be increased. No-op when the rack is full or the magazine is dry.
+export function reloadStep(rack, droneType = 'Type-I', maxSpaces = 2) {
   if (!rack || rack.reloadsLeft <= 0) return rack;
-  return { ...rack, loaded: fillRack(rack.type, droneType), reloadsLeft: rack.reloadsLeft - 1 };
+  const per = droneSpaces(droneType), room = rackCapacity(rack.type) - loadoutSpaces(rack.loaded);
+  const budget = Math.min(maxSpaces, rack.reloadsLeft, room);
+  const loaded = [...rack.loaded]; let used = 0;
+  while (budget - used >= per - 1e-9) { loaded.push(droneType); used += per; }
+  return { ...rack, loaded, reloadsLeft: rack.reloadsLeft - used };
 }
