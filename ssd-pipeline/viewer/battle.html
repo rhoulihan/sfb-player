@@ -103,6 +103,8 @@
   .ctl{transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:1px;text-align:center;text-shadow:0 1px 3px #000,0 0 5px #000;white-space:nowrap;z-index:1}
   .ctl .lab{font-size:8.5px;letter-spacing:.3px;opacity:.92}
   .ctl .val{font-weight:800;font-size:13px;line-height:1}
+  .ctl.reinf .lab,.ctl.reinf .val{color:#fde047;text-shadow:0 0 6px #facc15,0 0 12px #f59e0b,0 1px 3px #000}
+  .ctl.reinf::before{content:"";position:absolute;left:50%;top:50%;width:52px;height:52px;transform:translate(-50%,-50%);border-radius:50%;background:radial-gradient(closest-side,rgba(250,204,21,.32),transparent);z-index:-1;pointer-events:none}
   .ctl.pwr{gap:6px}
   .ctl.pwr .val{font-size:18px}
   .ctl .row{display:flex;align-items:center;gap:3px}
@@ -916,11 +918,11 @@ const CONSOLE = {
     bays: [[17, 16], [17, 25.6], [17, 35.2], [17, 44.8], [17, 54.2], [17, 63.6], [17, 72.2]],
     move: [90.6, 25.9], reserve: [90.6, 63.9], activate: [50, 44],
     systems: { labs: [16.3, 92], tractor: [33.4, 92], transporter: [49.8, 92], damageControl: [66.8, 92], ew: [86.5, 91.5] } },
-  kli: { art: 'Klingon_EAF', cls: 'con-kli',
-    shields: { 1: [50, 20], 2: [61, 33], 3: [61, 58], 4: [50, 72], 5: [39, 58], 6: [39, 33] },
-    bays: [[14, 24], [14, 40], [14, 56], [14, 71]],
-    move: [88, 22], reserve: [88, 58], activate: [50, 46],
-    systems: { labs: [19.5, 90], tractor: [35.5, 90], transporter: [53, 90], damageControl: [70, 90], ew: [86.5, 89] } },
+  kli: { art: 'newKlingon_EAF', cls: 'con-kli',
+    shields: { 1: [50, 22], 2: [62, 33], 3: [62, 57], 4: [50, 67], 5: [38, 57], 6: [38, 33] },
+    bays: [[13, 27], [13, 41], [13, 55], [13, 69], [87, 27], [87, 41], [87, 55], [87, 69]],   // L column then R column — parity with Fed's 7 bays
+    move: [86, 8], reserve: [14, 8], activate: [50, 45],   // SPEED top-right rectangle, RESERVE top-left rectangle
+    systems: { labs: [21, 93], tractor: [38, 93], transporter: [54, 93], damageControl: [70, 93], ew: [88, 93] } },   // bottom bar: BATTERIES/TRACTOR/TRANSPORTERS/DAMAGE CONTROL/EW
 };
 const stColor = st => st === 'over' ? '#ef4444' : st === 'under' ? '#f59e0b' : '#22c55e';
 const ctl = (x, y, inner, extra = '') => `<div class="ctl ${extra}" style="left:${x}%;top:${y}%">${inner}</div>`;
@@ -944,9 +946,10 @@ const ewCtl = (x, y, ecm, eccm, max) =>   // EW box: ECM/ECCM label, value/value
   ctl(x, y, `<div class="lab">ECM/ECCM</div><div class="row">${stepPair('ecm', ecm, max)}<span class="val">${ecm}/${eccm}</span>${stepPair('eccm', eccm, max)}</div>`);
 const toggleCtl = (x, y, label, key, on, num) =>
   ctl(x, y, `<div class="lab">${label}</div><button class="${on ? 'on' : ''}" data-ea="toggle" data-key="${key}"${num ? ' data-num="1"' : ''}>${on ? 'ON' : 'OFF'}</button>`);
-function shieldCtl(n, x, y, strength, reinf, max) {
-  return ctl(x, y, `<div class="lab">SHLD ${n}</div><div class="val">${strength}${reinf ? '+' + reinf : ''}</div>
-    <div class="row"><button class="stepbtn" data-ea="specstep" data-shield="${n}" data-d="-1">−</button><button class="stepbtn" data-ea="specstep" data-shield="${n}" data-d="1"${reinf >= max ? ' disabled' : ''}>+</button></div>`);
+function shieldCtl(n, x, y, strength, reinf, max, gen = 0) {
+  const hl = reinf > 0 || gen > 0;   // highlight on specific OR general reinforcement (general lights all 6 — Rick)
+  return ctl(x, y, `<div class="lab">SHLD ${n}</div><div class="val">${strength}${reinf ? '+' + reinf : ''}${gen ? `<span style="font-size:9px;opacity:.85"> +${gen}g</span>` : ''}</div>
+    <div class="row"><button class="stepbtn" data-ea="specstep" data-shield="${n}" data-d="-1">−</button><button class="stepbtn" data-ea="specstep" data-shield="${n}" data-d="1"${reinf >= max ? ' disabled' : ''}>+</button></div>`, hl ? 'reinf' : '');
 }
 function weaponCtl(x, y, w, st) {
   const name = w.cls === 'DISR' ? 'DISRUPTOR' : w.cls;   // full weapon name + SSD box label (A–D)
@@ -975,7 +978,7 @@ function fedShieldSvg(s, p) {
     const sector = `M${xo0} ${yo0} A${R.ro} ${R.ro} 0 0 1 ${xo1} ${yo1} L${xi1} ${yi1} A${R.ri} ${R.ri} 0 0 0 ${xi0} ${yi0} Z`;
     const max = p.shields[n - 1] || 1, t = Math.max(0, Math.min(1, (sn[n - 1] || 0) / max));   // 1=full→green, 0=down→red
     fills += `<path d="${sector}" fill="hsl(${Math.round(120 * t)},85%,48%)" fill-opacity="0.4"/>`;
-    const reinf = col.specReinf[n] || 0;
+    const reinf = (col.specReinf[n] || 0) + Math.floor((col.genReinf || 0) / 2);   // specific + general (general glows all 6 — Rick)
     if (reinf > 0) { const rr = R.ro + 16, [gx0, gy0] = pt(rr, a0), [gx1, gy1] = pt(rr, a1);
       glows += `<path d="M${gx0} ${gy0} A${rr} ${rr} 0 0 1 ${gx1} ${gy1}" fill="none" stroke="#fde047" stroke-linecap="round" filter="url(#shGlow)" stroke-width="${8 + reinf * 5}" stroke-opacity="${Math.min(0.95, 0.3 + reinf * 0.22)}"/>`; }
   }
@@ -1001,7 +1004,8 @@ function renderEnergy() {
   lock.disabled = ui.viewEA ? false : (myLockedEnergy || anyOver);
   lock.textContent = ui.viewEA ? '✕ Close (read-only)' : (myLockedEnergy ? '🔒 LOCKED' : '🔒 LOCK');
   let h = '';
-  for (const n of [1, 2, 3, 4, 5, 6]) { const [x, y] = L.shields[n]; h += shieldCtl(n, x, y, sn[n - 1], col.specReinf[n] || 0, specReinfMax(p, n)); }
+  const genPts = Math.floor((col.genReinf || 0) / 2);   // D3.341 points; general reinforcement lights all 6 shields (Rick)
+  for (const n of [1, 2, 3, 4, 5, 6]) { const [x, y] = L.shields[n]; h += shieldCtl(n, x, y, sn[n - 1], col.specReinf[n] || 0, specReinfMax(p, n), genPts); }
   h += toggleCtl(L.activate[0], L.activate[1], 'SHIELDS', 'shieldsActive', col.shieldsActive);
   const bays = L.bays; let bi = 0;
   if (bi < bays.length) { h += capCtl(bays[bi][0], bays[bi][1], carriedOf(s), col.phaserCap, p.capacitorCap); bi++; }

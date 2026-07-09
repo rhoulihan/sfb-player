@@ -122,7 +122,8 @@ same occurrence. No repair stage exists today.
 - [ ] **EM erratic maneuvers (C10.52)** — referenced by the maneuver crit ("no EM") and passive FC; entirely absent today.
 - [ ] **Tractor beams (G7)** — tractor links to release on a tractor crit; currently allocation-only.
 - [ ] **D14 emergency damage repair** + lab combat functions — absent; the labs crit is authoritative-flag-only until built.
-- [ ] **D22 power-loss reallocation** — mid-turn EAF adjust for the warp crit; simplify (cancel movement energy) or defer.
+- [ ] **D22 power-loss reallocation (warp crit)** — uses D8.23's own allowance (cancel movement energy) for now.
+- [ ] **Full D22 energy-balance engine (DEFERRED — Rick-flagged TODO)** — incremental / instantaneous / continuous power-loss reallocation (D22.1–D22.6); the simplified path above stands in until this lands.
 - [ ] **Relabel the DAC-1 toggle** to "Secondary explosions" and add a separate **optional, default-off** "D8 Critical hits" toggle (D8.0 is optional).
 - [ ] **Cloak ×2 no-lock range** (G13.301) — the +5 is modeled, the range-doubling when there's no lock is not.
 - [ ] **Enveloping plasma (FP5), pseudo-plasma bluff (FP6), plasma shotgun (FP7), rolling delay (FP1.221)** — advanced plasma options, unimplemented.
