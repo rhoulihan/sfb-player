@@ -51,3 +51,16 @@ test('makeRack + reloadRack: a rack carries reloads; reloading refills to capaci
   assert.equal(dry.loaded.length, 4, 'no reloads left → unchanged');
   assert.equal(dry.reloadsLeft, 0);
 });
+
+import { DRONE_SPEEDS } from '../viewer/drone-inventory.js';
+test('full drone type/speed matrix: types by warhead/space + speed classes', () => {
+  // types: light Type-VI (½ space) < Type-I (1) < heavy Type-IV (2 space, "two-space drone")
+  assert.equal(droneSpaces('Type-VI'), 0.5);
+  assert.equal(droneSpaces('Type-I'), 1);
+  assert.equal(droneSpaces('Type-IV'), 2);
+  assert.ok(DRONE_CATALOG['Type-IV'].warhead > DRONE_CATALOG['Type-I'].warhead, 'heavy hits harder');
+  assert.ok(DRONE_CATALOG['Type-VI'].warhead < DRONE_CATALOG['Type-I'].warhead, 'light hits softer');
+  assert.equal(DRONE_CATALOG['ADD'].spaces, 0.5);
+  // speed classes by era/refit (FD): 8 / 12 / 20 / 32
+  assert.deepEqual(DRONE_SPEEDS, [8, 12, 20, 32]);
+});
