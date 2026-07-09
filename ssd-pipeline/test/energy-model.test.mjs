@@ -114,3 +114,19 @@ test('shipPower detects a cloaking device from the SSD (ROSTER-1: Romulan cloaks
   assert.equal(load('ROM-KR').systems.cloak, true, 'Romulan King Eagle has a cloaking device');
   assert.equal(load('FED-CA').systems.cloak, false, 'Federation CA has no cloak');
 });
+
+import { WEAPON_ARM } from '../viewer/energy-model.js';
+test('multi-turn arming: a held photon costs the hold price, not the arm price (E4.44)', () => {
+  assert.ok(WEAPON_ARM.PHOTON.hold < WEAPON_ARM.PHOTON.arm, 'photon hold cheaper than arm');
+  const p = load('FED-CA');
+  const photon = p.weapons.find(w => w.cls === 'PHOTON');
+  assert.ok(photon, 'FED-CA has photons');
+  assert.equal(photon.hold, WEAPON_ARM.PHOTON.hold);
+  assert.equal(photon.holdOverload, WEAPON_ARM.PHOTON.holdOverload);
+  // fresh column: every weapon re-armed (arm price); mark one photon held → save (arm - hold)
+  const base = validateEaf(p, newEafColumn(p, 0, 0)).used;
+  const heldCol = newEafColumn(p, 0, 0, { [photon.id]: true });
+  assert.equal(heldCol.weapons[photon.id].held, true, 'column marks the weapon held');
+  const heldUsed = validateEaf(p, heldCol).used;
+  assert.equal(base - heldUsed, photon.arm - photon.hold, 'holding one photon saves (arm - hold)');
+});

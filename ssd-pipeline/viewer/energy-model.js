@@ -6,7 +6,9 @@ import { shipLoadout } from './ship-loadout.js';
 
 export const PER_BOX_OUTPUT = { 'warp-engine': 1, 'impulse-engine': 1, 'apr': 1 };   // power per undestroyed box
 export const LIFE_SUPPORT = { 1: 3, 2: 1.5, 3: 1, 4: 0.5, 5: 0 };                    // by size class (B3.3)
-export const WEAPON_ARM = { PHOTON: { arm: 2, overload: 4 }, DISR: { arm: 2, overload: 4 } }; // per-turn arming cost (disruptor at photon parity, E3.5 — calibration-flagged)
+// per-turn arming cost + hold cost (E4.44): a photon armed last turn but not fired can be HELD in the tube
+// for the hold price instead of re-armed. Disruptors have no hold (re-armed each turn) → hold defaults to arm.
+export const WEAPON_ARM = { PHOTON: { arm: 2, overload: 4, hold: 1, holdOverload: 2 }, DISR: { arm: 2, overload: 4 } };
 export const CAP_PER_PHASER = { 'PH-1': 1, 'PH-2': 1, 'PH-3': 0.5 };                 // capacitor capacity (H6.21)
 export const SHIP_PROFILES = {   // size class + movement cost per ship code (default SC3 / cost 1)
   'FED-CA': { sizeClass: 3, moveCost: 1 }, 'FED-CL': { sizeClass: 3, moveCost: 1 },
@@ -31,7 +33,8 @@ export function shipPower(code, verified, detection) {
   const weapons = mounts.filter(m => WEAPON_ARM[m.cls]).map(m => {
     const grp = m.id.split('.')[0], seq = (wSeq[grp] = (wSeq[grp] || 0) + 1) - 1;
     const label = (labels[m.boxId] || '').trim() || String.fromCharCode(65 + seq);   // saved label, else A/B/C… by position
-    return { id: m.id, cls: m.cls, arc: (m.arc && m.arc.arcs && m.arc.arcs[0]) || '', label, arm: WEAPON_ARM[m.cls].arm, overload: WEAPON_ARM[m.cls].overload };
+    const wa = WEAPON_ARM[m.cls];
+    return { id: m.id, cls: m.cls, arc: (m.arc && m.arc.arcs && m.arc.arcs[0]) || '', label, arm: wa.arm, overload: wa.overload, hold: wa.hold ?? wa.arm, holdOverload: wa.holdOverload ?? wa.overload };
   });
   const prof = SHIP_PROFILES[code] || DEFAULT_PROFILE;
   return {
@@ -71,9 +74,9 @@ export function lifeSupportCost(power) { return LIFE_SUPPORT[power.sizeClass] ??
 // the default "charge / hold / power all" column each turn opens with (spec §1.3).
 // carried = phaser-capacitor charge left from last turn (H6 carry-over); the capacitor only needs
 // topping up to full, so default fill = capacitorCap - carried.
-export function newEafColumn(power, prevSpeed = 0, carried = 0) {
+export function newEafColumn(power, prevSpeed = 0, carried = 0, held = {}) {
   const weapons = {};
-  for (const w of power.weapons) weapons[w.id] = { armed: true, overload: false, prox: false };
+  for (const w of power.weapons) { const h = held[w.id]; weapons[w.id] = { armed: true, overload: !!(h && h.overload), prox: false, held: !!h }; }
   return {
     lifeSupport: lifeSupportCost(power),
     fireControl: power.systems.fireControl ? 1 : 0,
@@ -98,7 +101,7 @@ export function validateEaf(power, column, carried = 0, batteryCharge = power.ba
   let weaponCost = 0;                                     // JOIN column state onto power.weapons (which carries cls + costs)
   for (const w of power.weapons) {
     const st = column.weapons[w.id];
-    if (st && st.armed) weaponCost += st.overload ? w.overload : w.arm;
+    if (st && st.armed) weaponCost += st.held ? (st.overload ? w.holdOverload : w.hold) : (st.overload ? w.overload : w.arm);
   }
   const spec = Object.values(column.specReinf || {}).reduce((a, v) => a + (v || 0), 0);
   const used = column.lifeSupport + column.fireControl + column.phaserCap + weaponCost

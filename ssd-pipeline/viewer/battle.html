@@ -799,7 +799,9 @@ const carriedOf = s => Math.floor(s.capacitor || 0);   // phaser charge carried 
 const batteryOf = s => s.batteryCharge ?? powerOf(s).batteries;   // current battery charge (starts full)
 function eaColOf(s) {
   const c = carriedOf(s);
-  if (!eafDraft[s.id]) eafDraft[s.id] = s.eaf ? { ...newEafColumn(powerOf(s), s.speed, c), ...s.eaf } : newEafColumn(powerOf(s), s.speed, c);
+  const held = {};   // E4.44: a heavy weapon armed last turn but NOT fired can be HELD (cheaper than re-arming)
+  for (const w of powerOf(s).weapons) if (s.armed && s.armed[w.id] && !(s.firedAt && s.firedAt[w.id] && s.firedAt[w.id].turn === clock.turn - 1)) held[w.id] = s.armed[w.id];
+  if (!eafDraft[s.id]) eafDraft[s.id] = s.eaf ? { ...newEafColumn(powerOf(s), s.speed, c, held), ...s.eaf } : newEafColumn(powerOf(s), s.speed, c, held);
   return eafDraft[s.id];
 }
 const validateShip = s => validateEaf(powerOf(s), eaColOf(s), carriedOf(s), batteryOf(s));
@@ -844,7 +846,7 @@ function shieldCtl(n, x, y, strength, reinf, max) {
 }
 function weaponCtl(x, y, w, st) {
   const name = w.cls === 'DISR' ? 'DISRUPTOR' : w.cls;   // full weapon name + SSD box label (A–D)
-  return ctl(x, y, `<div class="lab">${name} ${w.label || ''}</div><div class="row"><button class="${st.armed ? 'on' : ''}" data-ea="weap" data-wid="${w.id}" data-what="armed">ARM</button><button class="${st.overload ? 'on' : ''}" data-ea="weap" data-wid="${w.id}" data-what="overload">OL</button>${w.cls === 'PHOTON' ? `<button class="${st.prox ? 'on' : ''}" data-ea="weap" data-wid="${w.id}" data-what="prox">PX</button>` : ''}</div>`);
+  return ctl(x, y, `<div class="lab">${name} ${w.label || ''}</div><div class="row"><button class="${st.armed ? 'on' : ''}" data-ea="weap" data-wid="${w.id}" data-what="armed" title="${st.held ? 'held in the tube — cheaper than re-arming (E4.44)' : 'arm this weapon'}">${st.held ? 'HOLD' : 'ARM'}</button><button class="${st.overload ? 'on' : ''}" data-ea="weap" data-wid="${w.id}" data-what="overload">OL</button>${w.cls === 'PHOTON' ? `<button class="${st.prox ? 'on' : ''}" data-ea="weap" data-wid="${w.id}" data-what="prox">PX</button>` : ''}</div>`);
 }
 // phaser capacitor: spell it out, show existing (carried) charge, and never allow overcharging past capacity
 function capCtl(x, y, carried, charging, cap) {
