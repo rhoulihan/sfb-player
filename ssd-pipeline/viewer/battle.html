@@ -289,7 +289,7 @@ import { resolveAttackPlan } from './direct-fire.js';
 import { makeRng } from './rng.js';
 import { repairBoxes } from './repair.js';
 import { resolveLocks, applyLockGate } from './lock-on.js';
-import { launchSeeker, stepSeeker, seekerImpacts, seekerDamage, seekerExpired, plasmaSpec, pointDefense, pointDefenseHits, PD_PLASMA_DMG, SUICIDE_SHUTTLE, weaselFor, ADMIN_SHUTTLE, SCATTER_PACK } from './seeking.js';
+import { launchSeeker, stepSeeker, seekerImpacts, seekerDamage, seekerExpired, plasmaSpec, pointDefense, pointDefenseHits, PD_PLASMA_DMG, controlLimit, controlledCount, SUICIDE_SHUTTLE, weaselFor, ADMIN_SHUTTLE, SCATTER_PACK } from './seeking.js';
 import { makeRack, reloadStep, loadoutSpaces, droneWarhead } from './drone-inventory.js';
 import { applyVolley, makeDice } from './dac-allocator.js';
 import { cloakEcm, applyCloakFireGate } from './cloak.js';
@@ -330,8 +330,11 @@ function initDrones(s) {   // Phase 2: real rack inventory — capacity in space
 const dronesOf = s => (s.drones || (s.drones = initDrones(s)));
 const dronesLeftOf = s => dronesOf(s).racks.reduce((n, r) => n + r.loaded.length, 0);
 const dronesLaunchableOf = s => dronesOf(s).racks.filter(r => r.loaded.length && r.firedTurn !== clock.turn).length;   // FD3.1: one drone per rack per turn
+const seekingArmedOf = s => dronesOf(s).racks.length > 0 || plasmaGroupsOf(s).length > 0;   // armed with drones or plasma (F3.211)
+const controlLimitOf = s => controlLimit(sensorRating(s), seekingArmedOf(s));                 // F3.21 control channels (sensor rating, or half)
+const canControlMore = s => controlledCount(seekers, s.id) < controlLimitOf(s);               // room to guide another seeker
 function launchDrone(firer, target) {   // 6B: an armed rack puts a drone on the map, homing at the target
-  if (!firer || !target) return;
+  if (!firer || !target || !canControlMore(firer)) return;   // F3.21: cannot guide more seekers than the control limit
   const rack = dronesOf(firer).racks.find(r => r.loaded.length && r.firedTurn !== clock.turn);   // a rack that is loaded AND has not fired this turn
   if (!rack) return;
   const dtype = rack.loaded.shift();   // consume the loaded drone; its type sets the warhead delivered (FD2.1)
@@ -358,16 +361,16 @@ const phaserPdOf = s => (s.mounts || []).filter(m => m.cls === 'PH-3').length;  
 const shuttleBaysOf = s => (s._ver.groups || []).filter(g => g.family === 'shuttle-bay').reduce((n, g) => n + (g.boxIds || []).filter(id => !s.status[id]).length, 0);
 const shuttlesLeftOf = s => (s.shuttlesLeft == null ? (s.shuttlesLeft = shuttleBaysOf(s)) : s.shuttlesLeft);
 function launchShuttle(firer, target) {   // suicide shuttle (C6): a slow homing seeker at the target
-  if (!firer || !target || shuttlesLeftOf(firer) <= 0) return;
+  if (!firer || !target || shuttlesLeftOf(firer) <= 0 || !canControlMore(firer)) return;   // F3.21 control limit
   firer.shuttlesLeft = shuttlesLeftOf(firer) - 1;
   const shHp = shuttleMaxHp('admin', settings.advancedShuttles);
   seekers.push({ ...launchSeeker({ id: `sh${++seekerSeq}`, owner: firer.id, q: firer.q, r: firer.r, facing: firer.facing, targetId: target.id, ...SUICIDE_SHUTTLE }), hp: shHp, maxHp: shHp });
   saveSoon(firer.id); render();
 }
 function launchScatterPack(firer, target) {   // C6: a shuttle releases a burst of drones at the target
-  if (!firer || !target || shuttlesLeftOf(firer) <= 0) return;
+  if (!firer || !target || shuttlesLeftOf(firer) <= 0 || !canControlMore(firer)) return;
   firer.shuttlesLeft = shuttlesLeftOf(firer) - 1;
-  for (let i = 0; i < SCATTER_PACK; i++) seekers.push(launchSeeker({ id: `dr${++seekerSeq}`, owner: firer.id, q: firer.q, r: firer.r, facing: firer.facing, targetId: target.id, ...droneSpec() }));
+  for (let i = 0; i < SCATTER_PACK && canControlMore(firer); i++) seekers.push(launchSeeker({ id: `dr${++seekerSeq}`, owner: firer.id, q: firer.q, r: firer.r, facing: firer.facing, targetId: target.id, ...droneSpec() }));   // release drones up to the control limit (F3.21)
   saveSoon(firer.id); render();
 }
 function launchAdminShuttle(ship) {   // C6: a non-combat shuttle (0 warhead) sent toward the nearest enemy as a scout/decoy
@@ -426,7 +429,7 @@ function selfDestruct(ship) {   // D19 (SOP phase-3): the ship explodes, hitting
   saveSoon(ship.id); render(); renderLog({ log }, true);
 }
 function launchPlasma(firer, target) {   // 6B: fire a plasma torpedo — a fading seeker (FP)
-  const g = firer && target && plasmaReadyOf(firer)[0]; if (!g) return;   // fire the first fully-armed launcher
+  const g = firer && target && canControlMore(firer) && plasmaReadyOf(firer)[0]; if (!g) return;   // fully-armed launcher, within the control limit (F3.21)
   if (firer.armProgress) firer.armProgress[g.id] = 0;                     // launched → re-arm from scratch (3-turn cycle)
   seekers.push(launchSeeker({ id: `pl${++seekerSeq}`, owner: firer.id, q: firer.q, r: firer.r, facing: firer.facing, targetId: target.id, ...plasmaSpec(g.type) }));
   saveSoon(firer.id); render();
@@ -1104,19 +1107,20 @@ function renderTray() {
     : ['friendly', 'enemy'].map(s => `${fleets[s]?.name || s} ${committed[s] ? '✓ committed' : '…'}`).join('  ·  ');
   const lb = document.getElementById('launchBtn'), af = byId(ui.activeId), wg = working();
   const targeted = getPhase() !== 'energy' && af && isMine(af) && modelFleet === myFleet && wg && wg.targetShipId;
-  const canLaunch = targeted && dronesLaunchableOf(af) > 0;
+  const room = targeted && canControlMore(af);   // F3.21: within the control-channel limit
+  const canLaunch = room && dronesLaunchableOf(af) > 0;
   lb.style.display = canLaunch ? '' : 'none';
   if (canLaunch) lb.textContent = `🚀 Launch drone (${dronesLaunchableOf(af)}/turn · ${dronesLeftOf(af)} left)`;
-  const pb = document.getElementById('launchPlasmaBtn'), ready = targeted ? plasmaReadyOf(af).length : 0;
+  const pb = document.getElementById('launchPlasmaBtn'), ready = room ? plasmaReadyOf(af).length : 0;
   pb.style.display = ready > 0 ? '' : 'none';
   if (ready > 0) pb.textContent = `☄ Launch plasma (${ready})`;
   const cpb = document.getElementById('completePlasmaBtn'), comp = af ? plasmaCompletableOf(af).filter(g => (af.reserveWarp || 0) >= reserveCompletionCost(plasmaClsOf(g.type))) : [];
   cpb.style.display = comp.length ? '' : 'none';
   if (comp.length) cpb.textContent = `⚡ Complete plasma — reserve ${reserveCompletionCost(plasmaClsOf(comp[0].type))} (${comp.length})`;
-  const sb = document.getElementById('launchShuttleBtn'), canShuttle = targeted && shuttlesLeftOf(af) > 0;
+  const sb = document.getElementById('launchShuttleBtn'), canShuttle = room && shuttlesLeftOf(af) > 0;
   sb.style.display = canShuttle ? '' : 'none';
   if (canShuttle) sb.textContent = `🛰 Launch shuttle (${shuttlesLeftOf(af)})`;
-  const scb = document.getElementById('launchScatterBtn'), canScatter = targeted && shuttlesLeftOf(af) > 0;
+  const scb = document.getElementById('launchScatterBtn'), canScatter = room && shuttlesLeftOf(af) > 0;
   scb.style.display = canScatter ? '' : 'none';
   if (canScatter) scb.textContent = `☄ Scatter-pack (${shuttlesLeftOf(af)})`;
 }

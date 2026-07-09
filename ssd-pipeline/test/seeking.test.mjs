@@ -90,6 +90,19 @@ test('pointDefenseHits counts the phaser shots that connect (for plasma weakenin
   assert.ok(PD_PLASMA_DMG > 0, 'each phaser hit deals some damage to the plasma');
 });
 
+import { controlLimit, controlledCount } from '../viewer/seeking.js';
+test('control channels: seeking-armed ships guide their sensor rating; others half, rounded up (F3.21/F3.211)', () => {
+  assert.equal(controlLimit(6, true), 6);
+  assert.equal(controlLimit(6, false), 3);
+  assert.equal(controlLimit(5, false), 3, 'half of 5 rounds up to 3');
+  assert.equal(controlLimit(8, true), 8);
+});
+test('controlledCount tallies a ship\'s guided seekers — drones/plasma/shuttles, not mines', () => {
+  const sk = [{ owner: 'F1', type: 'drone' }, { owner: 'F1', type: 'plasma' }, { owner: 'F1', type: 'mine' }, { owner: 'E1', type: 'drone' }];
+  assert.equal(controlledCount(sk, 'F1'), 2);
+  assert.equal(controlledCount(sk, 'E1'), 1);
+});
+
 import { pointDefense, PD_RANGE } from '../viewer/seeking.js';
 test('point-defense: a close seeker is shot down on a good roll, spared on a bad one, safe out of range', () => {
   assert.ok(PD_RANGE >= 1);

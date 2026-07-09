@@ -63,6 +63,17 @@ export function seekerExpired(seeker) {
 
 export const PD_RANGE = 3;   // point-defense only engages seekers this close
 
+// F3.21 control channels: a ship guides seeking weapons up to its sensor rating; one NOT armed with drones or
+// plasma controls only half (rounded up, F3.211). Drones, plasma, pseudo-plasma, scatter-packs, and suicide
+// shuttles all count against the limit.
+export const CONTROLLED_TYPES = new Set(['drone', 'plasma', 'shuttle']);
+export function controlLimit(sensorRating, seekingArmed) {
+  return seekingArmed ? sensorRating : Math.ceil(sensorRating / 2);
+}
+export function controlledCount(seekers, ownerId) {
+  return (seekers || []).filter(sk => sk.owner === ownerId && CONTROLLED_TYPES.has(sk.type)).length;
+}
+
 // A suicide shuttle (C6/J) — a slow, cheap homing seeker a ship launches at a target.
 export const SUICIDE_SHUTTLE = { type: 'shuttle', speed: 8, warhead: 12, fade: 0, endurance: 40 };
 // An admin shuttle (C6) — a non-combat shuttle: it moves like a shuttle but carries no warhead.
