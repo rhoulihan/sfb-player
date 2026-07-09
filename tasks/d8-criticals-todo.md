@@ -27,8 +27,8 @@ reinforcement functionality, **general reinforcement highlights all 6 shield fie
 - [x] 3 Battery failure: batteryOf → 0 (verified 42→39) — `643f02e`
 - [x] 4 Transporter: raid + T-bomb blocked (verified) — `5ef5c18`
 - [x] 5 Labs: EDR hidden/zeroed (verified) — `5ef5c18`
-- [ ] 9 Tractor: release all links (needs `tractor.js` — Phase 3)
-- [ ] 10 Shuttle bay jammed (one bay): needs bay identity (Phase 3)
+- [ ] 9 Tractor: release all links (needs `tractor.js` — G7 subsystem; last outcome)
+- [x] 10 Shuttle bay jammed: each crit removes a bay from shuttleBaysOf; launches gate on it (verified) — `49469da`
 - [x] 11 Maneuver restricted: speed ≤ 8 + TM +1 (verified 23→8) — `32199b7` [no-HET/no-EM once executable]
 - [x] 12 Warp: halt + no warp-move (verified max→0) — `643f02e` [½-output loss = deferred D22]
 
