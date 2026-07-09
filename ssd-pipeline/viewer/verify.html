@@ -81,6 +81,7 @@
     <label style="font-size:11px;color:#cbd5e1;display:flex;align-items:center;gap:5px" title="fill opacity — lower to peek at the underlying labels">fill<input type="range" id="ovlOp" min="15" max="100" value="100" style="width:78px"></label>
     <label style="font-size:11px;color:#cbd5e1;display:flex;align-items:center;gap:4px" title="snap each group's boxes to one uniform cell size + pitch"><input type="checkbox" id="uniCells" checked>cells</label>
     <div class="prog"><span id="ptxt">0/0</span><span class="pbar"><i id="pbar"></i></span></div>
+    <label style="font-size:12px;color:#64748b;display:flex;align-items:center;gap:4px" title="Turn-mode category from the Master Ship Chart (C3.3) — saved into verified.json">Turn cat <select id="turnCatSel" style="padding:3px;border:1px solid #cbd5e1;border-radius:6px"><option value="">–</option><option>AA</option><option>A</option><option>B</option><option>C</option><option>D</option><option>E</option></select></label>
     <button class="btn" id="auditBtn">Audit</button>
     <button class="btn primary" id="saveBtn">Save</button>
   </header>
@@ -224,7 +225,7 @@ const BASE=["RF","R","RR","LR","L","LF"];           // sector i = (60*i , 60*i+6
 const COMBINED={FA:["RF","LF"],FX:["L","LF","RF","R"],RA:["LR","RR"],RX:["L","LR","RR","R"],RS:["RF","R","RR"],LS:["LF","L","LR"],FH:["_FH"],RH:["_RH"]};
 const PLASMA=["FP","LP","RP","AP","LPR","RPR"];   // 180° swivel arcs (D2.34/D2.36)
 const ship=new URLSearchParams(location.search).get("ship")||"FED-CA";
-let DET,IMGW,IMGH,groups=[],extraBoxes=[],boxIndex={},groupOf={},sel=new Set(),curG=null,mode="select",deleted=new Set();
+let DET,IMGW,IMGH,groups=[],extraBoxes=[],boxIndex={},groupOf={},sel=new Set(),curG=null,mode="select",deleted=new Set(),stats={};   // stats = rule/chart-derived ship data (turn category, …) saved into verified.json
 
 // ---------- load ----------
 async function load(){
@@ -245,6 +246,8 @@ async function load(){
   }
   labelOv=(saved&&saved.labels)||{};
   deleted=new Set((saved&&saved.deleted)||[]);
+  stats=(saved&&saved.stats)||{};
+  syncStatsUI();
   reindex();fit();renderAll();
   fetch(`/api/labels/${ship}`).then(r=>r.json()).then(m=>{if(m&&!m.error){BOXLABELS=m;renderOverlay();}}).catch(()=>{});
 }
@@ -462,7 +465,7 @@ document.getElementById("arcSave").onclick=()=>{arcDef.note=document.getElementB
 document.getElementById("paintMode").onchange=drawHex;
 
 // ---------- save / audit / modes ----------
-function state(){return {ship,groups:groups.map(g=>({id:g.id,boxIds:g.boxIds,family:g.family,type:g.type,arc:g.arc,arcDef:g.arcDef,verified:g.verified})),extraBoxes,labels:labelOv,deleted:[...deleted],pass:"b4-verify"};}
+function state(){return {ship,groups:groups.map(g=>({id:g.id,boxIds:g.boxIds,family:g.family,type:g.type,arc:g.arc,arcDef:g.arcDef,verified:g.verified})),extraBoxes,labels:labelOv,deleted:[...deleted],stats,pass:"b4-verify"};}
 async function save(){const r=await fetch(`/api/save/${ship}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(state())});const j=await r.json();const b=document.getElementById("saveBtn");b.textContent=j.ok?"Saved ✓":"Failed";setTimeout(()=>b.textContent="Save",1400);}
 async function runAudit(){await save();const r=await fetch(`/api/audit/${ship}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(state())});const rep=await r.json();const el=document.getElementById("auditOut");if(!el)return;
   let h=`<div class="aline"><span>Status</span><b class="${rep.clean?'ok':'err'}">${rep.clean?'CLEAN ✓':'ISSUES'}</b></div>`
@@ -471,6 +474,9 @@ async function runAudit(){await save();const r=await fetch(`/api/audit/${ship}`,
   el.innerHTML=h;}
 document.getElementById("saveBtn").onclick=save;
 document.getElementById("auditBtn").onclick=runAudit;
+const turnCatSel=document.getElementById("turnCatSel");
+turnCatSel.onchange=()=>{ if(turnCatSel.value) stats.turnCategory=turnCatSel.value; else delete stats.turnCategory; };
+function syncStatsUI(){ turnCatSel.value=stats.turnCategory||""; }
 document.getElementById("modes").querySelectorAll("button").forEach(b=>b.onclick=()=>{mode=b.dataset.m;document.querySelectorAll("#modes button").forEach(x=>x.classList.toggle("on",x===b));sel=new Set();document.getElementById("ovl").style.cursor=mode==="select"?"default":"crosshair";renderAll();});
 document.getElementById("ovlOp").oninput=e=>{overlayOpacity=e.target.value/100;renderOverlay();};
 document.getElementById("uniCells").onchange=e=>{uniformCells=e.target.checked;renderOverlay();};

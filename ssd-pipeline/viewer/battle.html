@@ -298,8 +298,8 @@ import { MINE, mineTriggeredBy, hitAndRunSucceeds, SELF_DESTRUCT, selfDestructHi
 import { shuttleMaxHp, damageShuttle, shuttleDestroyed } from './shuttle-inventory.js';
 const PD_SHUTTLE_DMG = 2;   // point-defense damage per hit vs a shuttle (shuttles soak, drones one-shot)
 import { movesOnImpulse, neighbor, turnMode, turnModeFor } from './movement.js';
-// C3.31 turn-mode category by ship (Master Ship Chart). Confirmed: FED-CA & GOR-CA = D (C3.23), KLI-D7 & ROM-KR = B
-// (chart grouping); FED-CL/NCL & KZIN-CS inferred (verify vs MSC), default C.
+// FALLBACK only — the C3.3 turn-mode category is now captured at verification into verified.json (stats.turnCategory).
+// This map is used only for a ship whose verified data predates that field. Confirmed: FED-CA/GOR-CA=D, KLI-D7/ROM-KR=B.
 const SHIP_TURN_CATEGORY = { 'FED-CA': 'D', 'FED-CL': 'C', 'FED-NCL': 'C', 'GOR-CA': 'D', 'KLI-D7': 'B', 'ROM-KR': 'B', 'KZIN-CS': 'C' };
 const turnCategoryOf = code => SHIP_TURN_CATEGORY[code] || 'C';
 const turnModeOf = s => turnModeFor(s.turnCat || turnCategoryOf(s.code), s.speed);
@@ -549,7 +549,8 @@ async function hydrate(d) {
   const det = await (await fetch(`../data/${d.code}/detection.json`)).json();
   const ver = await (await fetch(`../data/${d.code}/verified.json`)).json();
   const { mounts, shields } = shipLoadout(ver, det);
-  return { ...d, mounts, shields, _ver: ver, _det: det, status: {}, firedAt: {}, model: null, turnCat: turnCategoryOf(d.code), hexesSinceTurn: turnModeFor(turnCategoryOf(d.code), d.speed), queuedTurn: 0 };
+  const cat = (ver.stats && ver.stats.turnCategory) || turnCategoryOf(d.code);   // C3.3 category from the verified data (SHIP_TURN_CATEGORY is only a fallback for un-migrated ships)
+  return { ...d, mounts, shields, _ver: ver, _det: det, status: {}, firedAt: {}, model: null, turnCat: cat, hexesSinceTurn: turnModeFor(cat, d.speed), queuedTurn: 0 };
 }
 async function startBattle(defs, clk, restore, ph) {
   battleDefs = defs.map(d => ({ ...d }));
