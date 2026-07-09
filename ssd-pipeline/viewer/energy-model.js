@@ -74,6 +74,7 @@ export function sinkMax(p, key) {
     case 'tractor': return p.systems.tractor || 0;            // one point per tractor emitter (G7)
     case 'transporter': return p.systems.transporter || 0;    // per transporter (G8)
     case 'labs': return p.systems.labs || 0;                  // per lab
+    case 'edr': return p.systems.labs || 0;                   // D14: one EDR attempt per powered lab box
     case 'damageControl': return p.systems.damageControl || 0;// damage-control rating (D9)
     case 'genReinf': return p.total + p.batteries;            // limited only by available power (D3.341)
     default: return p.total + p.batteries;
@@ -100,6 +101,7 @@ export function newEafColumn(power, prevSpeed = 0, carried = 0, progress = {}) {
     movement: prevSpeed * power.moveCost, impulseMove: 0, het: false,
     damageControl: 0, recharge: 0, reserveWarp: 0, tractor: 0, transporter: 0,
     ecm: 0, eccm: 0, labs: 0,
+    em: false, fcPassive: false, edr: 0,   // C10 erratic maneuvers, D19 passive fire control, D14 emergency damage repair
     wildWeasel: false, suicide: false, cloak: false,
   };
 }
@@ -126,6 +128,7 @@ export function validateEaf(power, column, carried = 0, batteryCharge = power.ba
     + column.movement + column.impulseMove + (column.het ? HET_COST : 0)
     + column.damageControl + column.recharge + (column.reserveWarp || 0) + column.tractor + column.transporter
     + column.ecm + column.eccm + column.labs
+    + (column.em ? 6 * power.moveCost : 0) + (column.edr ? 3 * column.edr : 0)   // C10.11 EM = six hexes of movement; D14.12 EDR = 3 per powered lab
     + (column.wildWeasel ? WW_COST : 0) + (column.suicide ? SUICIDE_COST : 0) + (column.cloak ? (power.cloakCost || CLOAK_COST) : 0);   // G13.21: per-ship cloak cost
   const produced = power.total + batteryCharge;            // only the current battery charge is available
   const free = produced - used;

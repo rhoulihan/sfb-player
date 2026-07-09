@@ -11,8 +11,8 @@ reinforcement functionality, **general reinforcement highlights all 6 shield fie
 - [x] Shield reinforcement highlight: shield control highlights on specific OR general reinforcement
 - [x] General reinforcement highlights ALL 6 shields (Fed ring SVG + Klingon controls) — browser-verified
 - [x] Browser-verify the D7 form renders every control (RESERVE/SPEED/4 disruptors/PHASERS/FIRE CTL/GEN REINF/6 shields/bottom bar)
-- [ ] Rick to adjust control placement; 1 empty right-column slot + 2 top-row slots free for EM / FC-mode / D14
-- [ ] Add new D8 controls to the EA panel: EM toggle, FC active/passive mode, D14 EDR (double-up allowed)
+- [x] Add new D8 controls to the EA panel: **ERRATIC** (EM), **FC PASSIVE**, **EDR (labs)** — model fields + costs (C10.11/D14.12) TDD'd; rendered on both themes; browser-verified (EM toggle adds 6 to used)
+- [ ] Rick to adjust control placement (Fed cluster is a rough first pass; Klingon uses top-row panels + free right slot)
 
 ## Phase 1 — Crit framework (foundation)
 - [ ] `criticals.js` (TDD): D8.2 2d6→effect table, `rollCritical`, per-ship active-crit occurrences, `hasCrit`

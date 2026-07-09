@@ -10,6 +10,14 @@ const load = c => shipPower(
   JSON.parse(fs.readFileSync(`ssd-pipeline/data/${c}/detection.json`)),
 );
 
+test('EM costs six hexes of movement energy; EDR costs 3 per powered lab (C10.11 / D14.12)', () => {
+  const p = load('FED-CA');   // moveCost 1
+  const base = newEafColumn(p, 0);
+  const used0 = validateEaf(p, base, 0, 0).used;
+  assert.equal(validateEaf(p, { ...base, em: true }, 0, 0).used, used0 + 6 * p.moveCost, 'EM adds six hexes of movement energy');
+  assert.equal(validateEaf(p, { ...base, edr: 2 }, 0, 0).used, used0 + 6, 'EDR adds 3 per lab (2 labs → 6)');
+});
+
 test('shipPower derives production, capacitor, and weapons from the SSD', () => {
   // Golden vectors from OUR verified SSD data (flat 1-power/box model; calibrated in the plan's
   // final task). Fed CA: 30 warp + 4 impulse + 2 apr = 36; 4 batteries.
