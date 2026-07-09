@@ -1,6 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { movesOnImpulse, neighbor, turnMode, turnModeFor, movesInTurn } from '../viewer/movement.js';
+import { movesOnImpulse, neighbor, turnMode, turnModeFor, movesInTurn, accelCap } from '../viewer/movement.js';
+
+test('accelCap: a turn may raise speed by the previous speed or 10, whichever is greater (C2.21)', () => {
+  // rulebook example: speed 3 → max 13 (ten more than three); speed 13 → max 26 (double thirteen)
+  assert.equal(accelCap(3), 13, 'from 3: +10 → 13');
+  assert.equal(accelCap(13), 26, 'from 13: +13 (previous > 10) → 26');
+  assert.equal(accelCap(0), 10, 'from rest: +10 → 10');
+  assert.equal(accelCap(10), 20, 'from 10: +10 → 20');
+  assert.equal(accelCap(20), 40, 'from 20: +20 → 40');
+});
 
 test('turnModeFor is category-aware: a category-D cruiser turns less often than category B (C3.31/C3.23)', () => {
   // Category D (Federation CA, Gorn CA): TM 3 at speed 9, TM 4 at speed 13 (the C3.23 worked example)

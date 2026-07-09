@@ -36,5 +36,10 @@ export function turnModeFor(category, speed) {
 // Legacy speed-only turn mode (defaults to category B — the Klingon D7 curve). Prefer turnModeFor(category, …).
 export function turnMode(speed) { return turnModeFor('B', speed); }
 
+// C2.21 MAXIMUM INCREASE: when allocating energy to movement a ship may raise its practical speed by no
+// more than the previous turn's speed, or ten, whichever is greater. Returns the highest speed reachable
+// next turn from `prevSpeed` (e.g. 3→13, 13→26). Reductions are unlimited (C2.22) so there is no floor.
+export function accelCap(prevSpeed) { return prevSpeed + Math.max(prevSpeed, 10); }
+
 // sanity helper: total hexes moved across a full 32-impulse turn (equals speed)
 export function movesInTurn(speed) { let n = 0; for (let i = 1; i <= 32; i++) if (movesOnImpulse(speed, i)) n++; return n; }

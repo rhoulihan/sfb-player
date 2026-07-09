@@ -297,7 +297,7 @@ import { makeScenario, applyLoSGate } from './terrain.js';
 import { MINE, mineTriggeredBy, hitAndRunSucceeds, SELF_DESTRUCT, selfDestructHits, selfDestructDamage, NUCLEAR_MINE, transporterTarget, TBOMB_WARHEAD } from './mines.js';
 import { shuttleMaxHp, damageShuttle, shuttleDestroyed } from './shuttle-inventory.js';
 const PD_SHUTTLE_DMG = 2;   // point-defense damage per hit vs a shuttle (shuttles soak, drones one-shot)
-import { movesOnImpulse, neighbor, turnMode, turnModeFor } from './movement.js';
+import { movesOnImpulse, neighbor, turnMode, turnModeFor, accelCap } from './movement.js';
 // FALLBACK only — the C3.3 turn-mode category is now captured at verification into verified.json (stats.turnCategory).
 // This map is used only for a ship whose verified data predates that field. Confirmed: FED-CA/GOR-CA=D, KLI-D7/ROM-KR=B.
 const SHIP_TURN_CATEGORY = { 'FED-CA': 'D', 'FED-CL': 'C', 'FED-NCL': 'C', 'GOR-CA': 'D', 'KLI-D7': 'B', 'ROM-KR': 'B', 'KZIN-CS': 'C' };
@@ -1398,7 +1398,12 @@ function moveBudget(s) {
   const forMove = warpImp - Math.max(0, nonMove - otherSources);  // warp+impulse left once others exhaust APR/batteries
   return Math.max(0, Math.min(sinkMax(p, 'movement'), forMove));
 }
-const maxBaseSpeed = s => Math.floor(moveBudget(s) / powerOf(s).moveCost);
+const maxBaseSpeed = s => {
+  const energyMax = Math.floor(moveBudget(s) / powerOf(s).moveCost);
+  // C2.21 acceleration limit: from turn 2 on, next turn's speed can't exceed the previous turn's + max(prev, 10).
+  // Turn 1 is the scenario entry speed (a given, not an allocation); mid-turn plotting (impulse phase) is energy-bound only.
+  return (clock.turn > 1 && getPhase() === 'energy') ? Math.min(energyMax, accelCap(s.speed)) : energyMax;
+};
 function setStartSpeed(s, hexes) {   // starting speed = the movement allocation; redirect free warp to match, reset the plot base
   const p = powerOf(s), col = eaColOf(s);
   col.movement = Math.max(0, Math.min(sinkMax(p, 'movement'), hexes * p.moveCost));
