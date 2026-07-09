@@ -197,6 +197,8 @@
   <div class="ctxitem" data-act="nukemine" style="padding:8px 14px;cursor:pointer;border-top:1px solid #eef2f6">☢ Nuclear mine</div>
   <div class="ctxitem" data-act="tbomb" style="padding:8px 14px;cursor:pointer;border-top:1px solid #eef2f6">📦 Transporter bomb</div>
   <div class="ctxitem" data-act="admin" style="padding:8px 14px;cursor:pointer;border-top:1px solid #eef2f6">🛰 Admin shuttle</div>
+  <div class="ctxitem" data-act="tractor" style="padding:8px 14px;cursor:pointer;border-top:1px solid #eef2f6">🧲 Tractor nearest</div>
+  <div class="ctxitem" data-act="release" style="padding:8px 14px;cursor:pointer">🧲 Release tractor</div>
   <div class="ctxitem" data-act="selfdestruct" style="padding:8px 14px;cursor:pointer;border-top:1px solid #eef2f6;color:#C74634">💥 Self-destruct</div>
   <div class="ctxitem" data-act="ea" style="padding:8px 14px;cursor:pointer;border-top:1px solid #eef2f6">⚡ View EA</div>
   <div class="ctxitem" data-act="intel" style="padding:8px 14px;cursor:pointer;border-top:1px solid #eef2f6">🛰 Show Intel</div>
@@ -305,6 +307,7 @@ import { launchSeeker, stepSeeker, seekerImpacts, seekerDamage, seekerExpired, p
 import { makeRack, reloadStep, loadoutSpaces, droneWarhead } from './drone-inventory.js';
 import { applyVolley, makeDice } from './dac-allocator.js';
 import { CRIT_THRESHOLD as D8_THRESHOLD, critForRoll, critRepairs, addCrit, hasCrit, activeCrits, CRIT_INFO } from './criticals.js';
+import { tractorCost, canTractor, tractorBroken, TRACTOR_MAX_RANGE } from './tractor.js';
 import { cloakEcm, applyCloakFireGate } from './cloak.js';
 import { makeScenario, applyLoSGate } from './terrain.js';
 import { MINE, mineTriggeredBy, hitAndRunSucceeds, SELF_DESTRUCT, selfDestructHits, selfDestructDamage, NUCLEAR_MINE, transporterTarget, TBOMB_WARHEAD } from './mines.js';
@@ -331,6 +334,7 @@ let rev = 0, myCode = '', shipRev = {};   // rev: poll change-detection; shipRev
 let seed = 0, rngCursor = 0;   // shared deterministic dice (RNG-1 / SEAL-1): every resolution draws from makeRng(seed, rngCursor) and persists the advanced cursor
 let lockOn = {}, lockOnTurn = -1;   // sensor lock-on (LOCK-1, D6): { firerId: Set<targetId> }, rolled once per turn
 let seekers = [], seekerSeq = 0;   // seeking weapons on the map (SEEK-1, C5): drone/plasma tokens
+let tractors = [];   // active G7 tractor links: { from, to, power } — `from` holds `to` with `power` points
 let terrain = { barrier: null, asteroids: [] };   // scenario terrain (TERR-1, C9)
 let settings = { criticals: true, d8crits: false, advancedShuttles: false, droneSpeed: 20, solo: false };   // per-battle game settings — the creator sets them, synced to joiners
 const DRONE_ENDURANCE_TURNS = 3;   // FD1.4: a standard (Type-I) drone lives three turns
@@ -456,6 +460,28 @@ function selfDestruct(ship) {   // D19 (SOP phase-3): the ship explodes, hitting
   log.push({ kind: 'death', ship: ship.id });
   saveSoon(ship.id); render(); renderLog({ log }, true);
 }
+// ---- G7 tractor beams ----
+const tractorBeamsOf = s => powerOf(s).systems.tractor || 0;                     // one beam per TRAC box (G7.11)
+const tractorLinksFrom = s => tractors.filter(t => t.from === s.id);
+const tractorPowerUsed = s => tractorLinksFrom(s).reduce((n, t) => n + t.power, 0);
+const heldBy = s => tractors.find(t => t.to === s.id);                           // the link holding this ship, if any
+function establishTractor(from, target) {   // Operate Tractors Step: attach a beam to an adjacent/≤3-hex unit
+  if (!from || !target || from.id === target.id) return;
+  if (hasCrit(from.criticals, 'tractor')) { alert('Tractor beams disabled by a critical hit (D8.2).'); return; }
+  if (tractorLinksFrom(from).length >= tractorBeamsOf(from)) { alert('No free tractor beam (one per TRAC box, G7.11).'); return; }
+  const range = hexDistance(from, target);
+  if (!canTractor(range)) { alert(`Target beyond tractor range (${TRACTOR_MAX_RANGE} hexes max, G7.6).`); return; }
+  if (tractors.some(t => t.from === from.id && t.to === target.id)) return;      // already linked
+  const cost = tractorCost(range);
+  if (tractorPowerUsed(from) + cost > (from.tractorPower || 0)) { alert(`Not enough tractor power — this link needs ${cost} (allocate it in the EA form, G7.15).`); return; }
+  tractors.push({ from: from.id, to: target.id, power: cost });
+  saveSoon(from.id); saveSoon(target.id); render();
+}
+function releaseTractor(from) { tractors = tractors.filter(t => t.from !== from.id); saveSoon(from.id); render(); }   // G7.33: release all this ship's beams
+function dropTractorsInvolving(id) { tractors = tractors.filter(t => t.from !== id && t.to !== id); }               // crit (D8.2 #9), destruction, or out-of-range invalidation
+function pruneTractors() {   // G7.125: a link is broken the moment the units are no longer valid/in range
+  tractors = tractors.filter(t => { const a = byId(t.from), b = byId(t.to); return a && b && !isDead(a) && !isDead(b) && !hasCrit(a.criticals, 'tractor') && canTractor(hexDistance(a, b)); });
+}
 function launchPlasma(firer, target) {   // 6B: fire a plasma torpedo — a fading seeker (FP)
   if (passiveFcOf(firer)) { alert('Cannot launch seeking weapons under passive fire control (D19.22).'); return; }
   const g = firer && target && canControlMore(firer) && plasmaReadyOf(firer)[0]; if (!g) return;   // fully-armed launcher, within the control limit (F3.21)
@@ -475,7 +501,7 @@ function accrueShieldDamage(target, shield, points, log) {
   target._critRolledTurn = clock.turn;
   const r = makeRng((seed ^ 0x0d8c817 ^ Math.imul(clock.turn, 0x9e3779b9) ^ hashId(target.id)) >>> 0);
   const roll = r.d6() + r.d6(), type = critForRoll(roll);   // 6–8 → no critical (type null), but the turn's roll is still spent
-  if (type) { target.criticals = addCrit(target.criticals || [], type); target.model = null; }   // disable the system (never destroy, D8.21)
+  if (type) { target.criticals = addCrit(target.criticals || [], type); target.model = null; if (type === 'tractor') tractors = tractors.filter(t => t.from !== target.id); }   // disable the system (never destroy, D8.21); a tractor crit releases the ship's OWN beams (D8.2 #9 / G7.122)
   if (log) log.push({ kind: 'crit', ship: target.id, roll, type, shield });
   saveSoon(target.id);
 }
@@ -596,10 +622,10 @@ async function startBattle(defs, clk, restore, ph) {
   ships = []; plan = newPlan(); shipRev = {}; workingId = null; ui.activeId = null; clock = clk || { turn: 1, impulse: 0 };
   clock.phase = ph === 'impulse' ? '6A2' : (ph || 'energy');   // preserve the exact saved SFB segment so a mid-turn resume restores the impulse, not just 'energy'
   eafDraft = {}; myLockedEnergy = false; ui.eaSelected = null; ui.eaHidden = false;   // turns open in energy allocation
-  ui.ghosts = {}; ui.selectedGhost = null; ui.ghostDrag = null; ui.navPreview = null; ui.plotShipId = null; modelFleet = myFleet; stashedPlan = null; lockOn = {}; lockOnTurn = -1; seekers = []; seekerSeq = 0; terrain = { barrier: null, asteroids: [] }; settings = { criticals: true, d8crits: false, advancedShuttles: false, droneSpeed: 20, solo: false };   // fresh battle → no carried-over what-if / plot / perspective / lock state
+  ui.ghosts = {}; ui.selectedGhost = null; ui.ghostDrag = null; ui.navPreview = null; ui.plotShipId = null; modelFleet = myFleet; stashedPlan = null; lockOn = {}; lockOnTurn = -1; seekers = []; seekerSeq = 0; tractors = []; terrain = { barrier: null, asteroids: [] }; settings = { criticals: true, d8crits: false, advancedShuttles: false, droneSpeed: 20, solo: false };   // fresh battle → no carried-over what-if / plot / perspective / lock state
   for (const d of defs) {
     const s = await hydrate(d), r = restore && restore[d.id];
-    if (r) { (r.destroyed || []).forEach(id => (s.status[id] = 'destroyed')); s.firedAt = r.firedAt || {}; if (r.hexesSinceTurn != null) s.hexesSinceTurn = r.hexesSinceTurn; s.queuedTurn = r.queuedTurn || 0; s.criticals = r.criticals || []; s._critRolledTurn = r.critRolledTurn ?? -1; }   // D8 crit state carries across resume
+    if (r) { (r.destroyed || []).forEach(id => (s.status[id] = 'destroyed')); s.firedAt = r.firedAt || {}; if (r.hexesSinceTurn != null) s.hexesSinceTurn = r.hexesSinceTurn; s.queuedTurn = r.queuedTurn || 0; s.criticals = r.criticals || []; s._critRolledTurn = r.critRolledTurn ?? -1; s.tractorPower = r.tractorPower || 0; }   // D8 crit + G7 tractor state carry across resume
     ships.push(s);
   }
   document.getElementById('log').innerHTML = '';
@@ -608,7 +634,7 @@ async function startBattle(defs, clk, restore, ph) {
 async function resumeSaved(saved) {
   const defs = saved.ships.map(s => ({ id: s.id, code: s.code, name: s.name, side: s.side, q: s.map.q, r: s.map.r, facing: s.map.facing, speed: s.map.speed }));
   const restore = {};
-  for (const s of saved.ships) restore[s.id] = { destroyed: s.status?.destroyed || [], firedAt: Object.fromEntries(Object.entries(s.weapons || {}).filter(([, w]) => w && w.firedAt).map(([k, w]) => [k, w.firedAt])), hexesSinceTurn: s.map.hexesSinceTurn, queuedTurn: s.map.queuedTurn, criticals: s.criticals || [], critRolledTurn: s.critRolledTurn ?? -1 };   // D8 crit state
+  for (const s of saved.ships) restore[s.id] = { destroyed: s.status?.destroyed || [], firedAt: Object.fromEntries(Object.entries(s.weapons || {}).filter(([, w]) => w && w.firedAt).map(([k, w]) => [k, w.firedAt])), hexesSinceTurn: s.map.hexesSinceTurn, queuedTurn: s.map.queuedTurn, criticals: s.criticals || [], critRolledTurn: s.critRolledTurn ?? -1, tractorPower: s.tractorPower || 0 };   // D8 crit + G7 tractor state
   await startBattle(defs, { turn: saved.turn, impulse: saved.impulse }, restore, saved.phase || 'energy');
   fleets = saved.fleets ? { friendly: { ...fleets.friendly, name: saved.fleets.friendly?.name }, enemy: { ...fleets.enemy, name: saved.fleets.enemy?.name } } : fleets;
   plan = saved.plans?.[myFleet] || newPlan();
@@ -617,7 +643,7 @@ async function resumeSaved(saved) {
   myLockedEnergy = !!committed[myFleet];
   shipRev = {}; for (const s of saved.ships) shipRev[s.id] = s.rev ?? 0;
   rev = saved.rev || 0;
-  seed = saved.seed ?? 0; rngCursor = saved.rngCursor ?? 0; terrain = saved.terrain || { barrier: null, asteroids: [] }; seekers = saved.seekers || []; settings = saved.settings || { criticals: true };
+  seed = saved.seed ?? 0; rngCursor = saved.rngCursor ?? 0; terrain = saved.terrain || { barrier: null, asteroids: [] }; seekers = saved.seekers || []; tractors = saved.tractors || []; settings = saved.settings || { criticals: true };
   render();
 }
 let savedBattle = null;
@@ -649,7 +675,7 @@ async function save(touched, opts = {}) {
   const step = !!opts.step;
   const list = step ? ships : [...new Set(touched)].filter(Boolean).map(byId).filter(Boolean);
   if (!step && !list.length) return;
-  const body = { code: myCode, kind: step ? 'step' : 'edit', turn: clock.turn, impulse: clock.impulse, plan, rngCursor, seekers, terrain,
+  const body = { code: myCode, kind: step ? 'step' : 'edit', turn: clock.turn, impulse: clock.impulse, plan, rngCursor, seekers, tractors, terrain,
     ships: list.map(s => ({ ...serializeShip(s), rev: shipRev[s.id] ?? 0 })) };
   if (opts.phase) body.phase = opts.phase;
   saving = true;
@@ -688,12 +714,13 @@ function applyRemote(data) {
     s.status = {}; (sd.status?.destroyed || []).forEach(id => (s.status[id] = 'destroyed'));
     s.firedAt = {}; for (const [mid, w] of Object.entries(sd.weapons || {})) if (w && w.firedAt) s.firedAt[mid] = w.firedAt;
     if (sd.criticals !== undefined) s.criticals = sd.criticals; if (sd.critRolledTurn !== undefined) s._critRolledTurn = sd.critRolledTurn;   // D8 crit state
+    if (sd.tractorPower !== undefined) s.tractorPower = sd.tractorPower;   // G7 tractor allocation
     if (sd.armed !== undefined) s.armed = sd.armed; if (sd.armProgress !== undefined) s.armProgress = sd.armProgress; if (sd.capacitor !== undefined) s.capacitor = sd.capacitor; if (sd.batteryCharge !== undefined) s.batteryCharge = sd.batteryCharge; if (sd.reserveWarp !== undefined) s.reserveWarp = sd.reserveWarp; if (sd.addAmmo !== undefined) s.addAmmo = sd.addAmmo; if (sd.addMag !== undefined) s.addMag = sd.addMag; if (sd.reinforce !== undefined) { s.reinforce = sd.reinforce; s.reinfLeft = null; }
     if (sd.course !== undefined) s.course = sd.course; if (sd.speedPlot !== undefined) s.speedPlot = sd.speedPlot; if (sd.autopilot !== undefined) s.autopilot = sd.autopilot;
     s.model = null;
   }
   rev = data.rev || rev;
-  if (data.seed) seed = data.seed; if (data.rngCursor != null) rngCursor = data.rngCursor; if (data.seekers) seekers = data.seekers; if (data.terrain) terrain = data.terrain; if (data.settings) settings = data.settings;
+  if (data.seed) seed = data.seed; if (data.rngCursor != null) rngCursor = data.rngCursor; if (data.seekers) seekers = data.seekers; if (data.tractors) tractors = data.tractors; if (data.terrain) terrain = data.terrain; if (data.settings) settings = data.settings;
   if (data.lastFire && data.lastFire.id && data.lastFire.id !== lastFireShown) { lastFireShown = data.lastFire.id; renderLog({ log: data.lastFire.log || [] }, true); }   // show the resolver's fire result
   render(); applying = false;
 }
@@ -723,7 +750,7 @@ function stepImpulse() {
   ships.forEach(s => s._shieldDmg = {});   // D8.1: shield-damage tally is per-impulse (direct fire + seekers combine within an impulse)
   for (const s of ships) {
     s.speed = hasCrit(s.criticals, 'warp') ? 0 : speedAt(s.speedPlot || { base: s.speed, changes: [] }, clock.impulse);   // plotted speed changes fire on their locked impulses (C12.36); warp crit halts the ship (D8.23)
-    if (isDead(s) || !movesOnImpulse(s.speed, clock.impulse)) continue;
+    if (isDead(s) || heldBy(s) || tractorLinksFrom(s).length || !movesOnImpulse(s.speed, clock.impulse)) continue;   // G7.21: a tractor link locks both ships in place (simplified towing)
     const auto = s.autopilot && s.course && s.course.steps[s._autoIdx || 0];
     if (auto) { const st = s.course.steps[s._autoIdx || 0], turned = st.facing !== s.facing;   // follow the plotted course
       s.facing = st.facing; s.q = st.q; s.r = st.r; s.hexesSinceTurn = turned ? 1 : s.hexesSinceTurn + 1;
@@ -733,6 +760,7 @@ function stepImpulse() {
     const n = neighbor(s.q, s.r, s.facing);
     if (n.q >= 0 && n.q < COLS && n.r >= 0 && n.r < ROWS) { s.q = n.q; s.r = n.r; s.hexesSinceTurn++; s.slipSince = (s.slipSince ?? 1) + 1; }   // a straight move increments slip spacing
   }
+  pruneTractors();   // G7.125: break any link whose units are no longer valid/in range after movement
   if (wrapped) {
     for (const s of ships) {   // damage control repairs destroyed boxes at the turn boundary (D9.7); gated by each ship's own allocation (fog-safe)
       const pts = Math.floor(eafDraft[s.id]?.damageControl || 0), dead = Object.keys(s.status || {});
@@ -823,6 +851,7 @@ function render() {
   }
   if (terrain.barrier) { const b = terrain.barrier, tl = hexCenter(b.minQ, b.minR), br = hexCenter(b.maxQ, b.maxR); svg += `<rect x="${tl.x - 22}" y="${tl.y - 22}" width="${br.x - tl.x + 44}" height="${br.y - tl.y + 44}" fill="none" stroke="#dc2626" stroke-width="3" stroke-dasharray="11 7" opacity="0.45" rx="16"/>`; }
   for (const a of terrain.asteroids) { const c = hexCenter(a.q, a.r); svg += `<circle cx="${c.x}" cy="${c.y}" r="12" fill="#57534e" stroke="#292524" stroke-width="1.5" opacity="0.9"/><circle cx="${c.x - 3}" cy="${c.y - 3}" r="3.5" fill="#78716c"/><circle cx="${c.x + 4}" cy="${c.y + 2}" r="2.5" fill="#44403c"/>`; }
+  for (const t of tractors) { const a = byId(t.from), b = byId(t.to); if (!a || !b) continue; const ca = hexCenter(a.q, a.r), cb = hexCenter(b.q, b.r); svg += `<line x1="${ca.x}" y1="${ca.y}" x2="${cb.x}" y2="${cb.y}" stroke="#a855f7" stroke-width="3" stroke-dasharray="5 4" opacity="0.8"/>`; }   // G7 tractor link
   for (const s of ships) {
     const c = hexCenter(s.q, s.r), fill = sideFill(s);
     const nx = c.x + 27 * Math.cos(rad(s.facing)), ny = c.y + 27 * Math.sin(rad(s.facing));
@@ -1365,6 +1394,7 @@ async function resolveEnergy(allEaf) {                        // fold each locke
     s.armed = ts.armed; s.armProgress = ts.armProgress; s.capacitor = ts.capacitor; s.reinforce = ts.reinforce; s.reinfLeft = null; s.reserveWarp = ts.reserveWarp || 0;   // held reserve warp, spendable reactively this turn (H7.4)
     s.ecmLevel = ts.ecmLevel; s.eccmLevel = ts.eccmLevel; s.queuedTurn = 0; s.fcPassive = !!col.fcPassive;   // D19: voluntary passive-fire-control choice for the turn
     s.em = !!col.em && !hasCrit(s.criticals, 'maneuver');   // C10: erratic maneuvers for the turn; a maneuver crit forbids EM (D8.2 #11)
+    s.tractorPower = Math.floor(col.tractor || 0);   // G7.15: whole points allocated to tractor beams this turn
     // movement: the plotted speed schedule (base + mid-turn changes) drives execution; no plot → constant speed
     s.speedPlot = s.speedPlot ? { base: s.speedPlot.base, changes: s.speedPlot.changes } : { base: ts.speed, changes: [] };
     s.speed = speedAt(s.speedPlot, 1); s.hexesSinceTurn = turnModeOf(s); s._autoIdx = 0;   // autopilot restarts each turn
@@ -1389,13 +1419,14 @@ const serializeShip = s => ({
   map: { q: s.q, r: s.r, facing: s.facing, speed: s.speed, hexesSinceTurn: s.hexesSinceTurn, queuedTurn: s.queuedTurn, turnMode: turnModeOf(s) },
   status: { destroyed: Object.keys(s.status), shields: shieldsNow(s) },
   criticals: s.criticals || [], critRolledTurn: s._critRolledTurn ?? -1,   // D8 active critical hits + one-roll-per-turn guard
+  tractorPower: s.tractorPower || 0,   // G7.15: tractor points allocated this turn
   armed: s.armed || {}, armProgress: s.armProgress || {}, capacitor: s.capacitor ?? 0, batteryCharge: s.batteryCharge, reserveWarp: s.reserveWarp || 0, addAmmo: s.addAmmo, addMag: s.addMag, reinforce: s.reinforce || null,   // folded energy-allocation + ammo state
   course: s.course || null, speedPlot: s.speedPlot || null, autopilot: !!s.autopilot,   // tactical course plot
   weapons: Object.fromEntries(s.mounts.map(m => [m.id, { cls: m.cls, arc: (m.arc.arcs || []), charged: isCharged(s, m.id, m.cls), firedAt: s.firedAt[m.id] || null }])),
 });
 // full snapshot for creating a new battle (both fire plans empty at creation)
 function serializeBattle() {
-  return { turn: clock.turn, impulse: clock.impulse, fleets, seed, rngCursor, seekers, terrain, settings,
+  return { turn: clock.turn, impulse: clock.impulse, fleets, seed, rngCursor, seekers, tractors, terrain, settings,
     plans: { friendly: myFleet === 'friendly' ? plan : newPlan(), enemy: myFleet === 'enemy' ? plan : newPlan() },
     ships: ships.map(serializeShip) };
 }
@@ -1432,7 +1463,7 @@ let ctxShip = null;
 createBattleMap({
   map, ui, getPhase, getShips: () => ships, byId, isMine, isFirer, COLS, ROWS, hasGhosts, groupOfShip,
   plotBase, saveSoon, render, syncMovementEnergy, onShipClick, renderFleet, pruneUnavailable,
-  openCtxMenu: (shipId, e) => { ctxShip = shipId; const mine = isMine(byId(shipId)); document.querySelector('#ctxMenu [data-act="ea"]').style.display = mine ? '' : 'none'; document.querySelector('#ctxMenu [data-act="intel"]').style.display = mine ? 'none' : ''; document.querySelector('#ctxMenu [data-act="setspeed"]').style.display = (mine && getPhase() === 'energy' && !myLockedEnergy) ? '' : 'none'; const ci = document.querySelector('#ctxMenu [data-act="cloak"]'); const cShip = byId(shipId); ci.style.display = (mine && powerOf(cShip).systems.cloak) ? '' : 'none'; ci.textContent = cShip.cloaked ? '🌫 Decloak' : '🌫 Cloak'; document.querySelector('#ctxMenu [data-act="weasel"]').style.display = (mine && getPhase() !== 'energy' && shuttleBaysOf(cShip) > 0) ? '' : 'none'; document.querySelector('#ctxMenu [data-act="mine"]').style.display = document.querySelector('#ctxMenu [data-act="raid"]').style.display = document.querySelector('#ctxMenu [data-act="nukemine"]').style.display = document.querySelector('#ctxMenu [data-act="tbomb"]').style.display = (mine && getPhase() !== 'energy') ? '' : 'none'; document.querySelector('#ctxMenu [data-act="admin"]').style.display = (mine && getPhase() !== 'energy' && shuttleBaysOf(cShip) > 0) ? '' : 'none'; document.querySelector('#ctxMenu [data-act="selfdestruct"]').style.display = mine ? '' : 'none'; const m = document.getElementById('ctxMenu'); m.style.display = 'block'; m.style.left = Math.min(e.clientX, innerWidth - 160) + 'px'; m.style.top = e.clientY + 'px'; },
+  openCtxMenu: (shipId, e) => { ctxShip = shipId; const mine = isMine(byId(shipId)); document.querySelector('#ctxMenu [data-act="ea"]').style.display = mine ? '' : 'none'; document.querySelector('#ctxMenu [data-act="intel"]').style.display = mine ? 'none' : ''; document.querySelector('#ctxMenu [data-act="setspeed"]').style.display = (mine && getPhase() === 'energy' && !myLockedEnergy) ? '' : 'none'; const ci = document.querySelector('#ctxMenu [data-act="cloak"]'); const cShip = byId(shipId); ci.style.display = (mine && powerOf(cShip).systems.cloak) ? '' : 'none'; ci.textContent = cShip.cloaked ? '🌫 Decloak' : '🌫 Cloak'; document.querySelector('#ctxMenu [data-act="weasel"]').style.display = (mine && getPhase() !== 'energy' && shuttleBaysOf(cShip) > 0) ? '' : 'none'; document.querySelector('#ctxMenu [data-act="mine"]').style.display = document.querySelector('#ctxMenu [data-act="raid"]').style.display = document.querySelector('#ctxMenu [data-act="nukemine"]').style.display = document.querySelector('#ctxMenu [data-act="tbomb"]').style.display = (mine && getPhase() !== 'energy') ? '' : 'none'; document.querySelector('#ctxMenu [data-act="admin"]').style.display = (mine && getPhase() !== 'energy' && shuttleBaysOf(cShip) > 0) ? '' : 'none'; document.querySelector('#ctxMenu [data-act="tractor"]').style.display = (mine && getPhase() !== 'energy' && tractorBeamsOf(cShip) > 0 && !hasCrit(cShip.criticals, 'tractor')) ? '' : 'none'; document.querySelector('#ctxMenu [data-act="release"]').style.display = (mine && tractorLinksFrom(cShip).length) ? '' : 'none'; document.querySelector('#ctxMenu [data-act="selfdestruct"]').style.display = mine ? '' : 'none'; const m = document.getElementById('ctxMenu'); m.style.display = 'block'; m.style.left = Math.min(e.clientX, innerWidth - 160) + 'px'; m.style.top = e.clientY + 'px'; },
   openSpeedMenu: (shipId, idx, e) => { navSpeed = { shipId, idx }; const m = document.getElementById('speedMenu'); m.style.display = 'block'; m.style.left = Math.min(e.clientX, innerWidth - 160) + 'px'; m.style.top = e.clientY + 'px'; },
 });
 document.addEventListener('click', () => { document.getElementById('ctxMenu').style.display = 'none'; });
@@ -1440,7 +1471,7 @@ document.getElementById('ctxMenu').addEventListener('click', e => { const it = e
       if (!s.cloaked) { const cost = powerOf(s).cloakCost || 0;   // G13.21: activating the cloak costs energy (here paid from reserve/battery, H7.2)
         if (cost > 0 && reservePoolS(s) < cost) { alert(`Activating the cloak needs ${cost} reserve/battery power (G13.21); ${reservePoolS(s)} available.`); return; }
         if (cost > 0) { const np = spendReserve(s.reserveWarp || 0, batteryOf(s), cost, (s.reserveWarp || 0) >= batteryOf(s) ? 'warp' : 'battery'); s.reserveWarp = np.reserveWarp; s.batteryCharge = np.battery; } }
-      s.cloaked = !s.cloaked; saveSoon(s.id); render(); } } else if (it.dataset.act === 'weasel') launchWeasel(byId(ctxShip)); else if (it.dataset.act === 'mine') layMine(byId(ctxShip), MINE); else if (it.dataset.act === 'nukemine') layMine(byId(ctxShip), NUCLEAR_MINE); else if (it.dataset.act === 'tbomb') transporterBomb(byId(ctxShip)); else if (it.dataset.act === 'admin') launchAdminShuttle(byId(ctxShip)); else if (it.dataset.act === 'raid') boardingRaid(byId(ctxShip)); else if (it.dataset.act === 'selfdestruct') { if (confirm(`Self-destruct ${ctxShip}?`)) selfDestruct(byId(ctxShip)); } });
+      s.cloaked = !s.cloaked; saveSoon(s.id); render(); } } else if (it.dataset.act === 'weasel') launchWeasel(byId(ctxShip)); else if (it.dataset.act === 'mine') layMine(byId(ctxShip), MINE); else if (it.dataset.act === 'nukemine') layMine(byId(ctxShip), NUCLEAR_MINE); else if (it.dataset.act === 'tbomb') transporterBomb(byId(ctxShip)); else if (it.dataset.act === 'admin') launchAdminShuttle(byId(ctxShip)); else if (it.dataset.act === 'raid') boardingRaid(byId(ctxShip)); else if (it.dataset.act === 'tractor') { const from = byId(ctxShip); const tgt = ships.filter(s => s.id !== ctxShip && !isDead(s)).map(s => ({ s, d: hexDistance(from, s) })).filter(x => canTractor(x.d)).sort((a, b) => a.d - b.d)[0]; if (tgt) establishTractor(from, tgt.s); else alert(`No unit within tractor range (${TRACTOR_MAX_RANGE} hexes).`); } else if (it.dataset.act === 'release') releaseTractor(byId(ctxShip)); else if (it.dataset.act === 'selfdestruct') { if (confirm(`Self-destruct ${ctxShip}?`)) selfDestruct(byId(ctxShip)); } });
 let navSpeed = null;   // nav-hex speed-change target { shipId, idx }
 document.addEventListener('click', () => { document.getElementById('speedMenu').style.display = 'none'; });
 document.getElementById('speedMenu').addEventListener('click', e => {

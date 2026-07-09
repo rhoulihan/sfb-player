@@ -312,7 +312,7 @@ def battle_view(data, my_fleet):
             "phase": data.get("phase", "energy"), "fleets": fleets, "myFleet": my_fleet, "plans": plans,
             "eaf": eaf, "ships": data.get("ships", []),
             "committed": data.get("committed", {}), "lastFire": data.get("lastFire"),
-            "seed": data.get("seed", 0), "rngCursor": data.get("rngCursor", 0), "seekers": data.get("seekers", []), "terrain": data.get("terrain"), "settings": data.get("settings")}
+            "seed": data.get("seed", 0), "rngCursor": data.get("rngCursor", 0), "seekers": data.get("seekers", []), "tractors": data.get("tractors", []), "terrain": data.get("terrain"), "settings": data.get("settings")}
 
 def merge_plan(current, posted, touched):
     """Per-ship merge: touched ships take their fire assignments from `posted`; other ships keep `current`."""
@@ -415,8 +415,9 @@ def apply_battle_post(payload):
                   "eaf": cur.get("eaf", {}), "lastFire": cur.get("lastFire"),
                   "seed": cur.get("seed", 0), "rngCursor": cur.get("rngCursor", 0),
                   "seekers": payload.get("seekers", cur.get("seekers", [])),
+                  "tractors": payload.get("tractors", cur.get("tractors", [])),
                   "terrain": payload.get("terrain", cur.get("terrain")),
-                  "settings": payload.get("settings", cur.get("settings"))}   # carry the shared dice + seeking weapons + terrain + settings through edit/step
+                  "settings": payload.get("settings", cur.get("settings"))}   # carry the shared dice + seeking weapons + tractors + terrain + settings through edit/step
         with open(_battle_path(), "w") as f: json.dump(result, f, indent=1)
         return 200, {"ok": True, "rev": result["rev"], "ships": newrevs}
 
