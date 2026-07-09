@@ -524,7 +524,10 @@ function stepSeekers(out) {   // 6A: move every seeker one impulse toward its ta
   seekers = seekers.filter(sk => !sk._done && !hitWeasels.has(sk.id));
 }
 const passiveFcOf = s => !!s && (hasCrit(s.criticals, 'fireControl') || !!s.fcPassive);   // D19: a fire-control crit or the voluntary toggle puts the ship on passive fire control
-const netEcmOf = (fr, t) => (fr && t) ? Math.max(0, (t.ecmLevel || 0) + cloakEcm(t) - (passiveFcOf(fr) ? 0 : (fr.eccmLevel || 0))) : 0;   // net ECM: target ECM + cloak, beyond firer ECCM (D6.3/G13); passive FC can't use ECCM (D19.12)
+const netEcmOf = (fr, t) => (fr && t) ? Math.max(0,
+  (t.ecmLevel || 0) + cloakEcm(t) + (t.em ? 4 : 0)                   // target ECM + cloak + its erratic maneuvers (C10.413), all offset by firer ECCM
+  - (passiveFcOf(fr) ? 0 : (fr.eccmLevel || 0))                     // passive FC can't use ECCM (D19.12)
+  + (fr.em ? 4 : 0)) : 0;                                           // the firer's OWN EM degrades its fire too (C10.414), not offset by ECCM
 function ensureLocks() {   // roll phase-4 locks lazily for this turn (deterministic from seed+turn so clients agree; net ECM can deny a lock)
   if (lockOnTurn === clock.turn) return;
   lockOn = {}; const lockRng = makeRng((seed ^ (clock.turn * 0x9e3779b9)) >>> 0);
@@ -1080,7 +1083,8 @@ function renderEnergy() {
   h += sysCtl(S.damageControl[0], S.damageControl[1], 'damageControl', col.damageControl, sinkMax(p, 'damageControl'));
   if (p.systems.ecm) h += ewCtl(S.ew[0], S.ew[1], col.ecm, col.eccm, 6);            // EW box needs its own ECM/ECCM label
   // D8-era controls: erratic maneuvers (C10), passive fire control (D19), emergency damage repair (D14)
-  if (L.em) h += toggleCtl(L.em[0], L.em[1], 'ERRATIC', 'em', col.em);              // EM: 6 hexes of movement energy, +2 shift both ways (C10.41)
+  if (hasCrit(s.criticals, 'maneuver')) col.em = false;   // D8.2 #11: a maneuver crit forbids erratic maneuvers
+  if (L.em && !hasCrit(s.criticals, 'maneuver')) h += toggleCtl(L.em[0], L.em[1], 'ERRATIC', 'em', col.em);   // EM: 6 hexes of movement energy, +4 ECM at & by the unit (C10.41/414)
   if (L.fcMode) h += toggleCtl(L.fcMode[0], L.fcMode[1], 'FC PASSIVE', 'fcPassive', col.fcPassive);   // active↔passive fire control (D6.63/D19)
   if (hasCrit(s.criticals, 'labs')) col.edr = 0;   // D8.2 #5: labs crit → emergency damage repair impossible (in-progress lost)
   if (L.edr && p.systems.labs && !hasCrit(s.criticals, 'labs')) h += stackCtl(L.edr[0], L.edr[1], 'EDR (labs)', 'edr', col.edr, sinkMax(p, 'edr'));   // D14: 3 power per lab
@@ -1360,6 +1364,7 @@ async function resolveEnergy(allEaf) {                        // fold each locke
     s.batteryCharge = Math.max(0, Math.min(pw.batteries, batteryOf(s) - bv.batteryUsed + (col.recharge || 0)));
     s.armed = ts.armed; s.armProgress = ts.armProgress; s.capacitor = ts.capacitor; s.reinforce = ts.reinforce; s.reinfLeft = null; s.reserveWarp = ts.reserveWarp || 0;   // held reserve warp, spendable reactively this turn (H7.4)
     s.ecmLevel = ts.ecmLevel; s.eccmLevel = ts.eccmLevel; s.queuedTurn = 0; s.fcPassive = !!col.fcPassive;   // D19: voluntary passive-fire-control choice for the turn
+    s.em = !!col.em && !hasCrit(s.criticals, 'maneuver');   // C10: erratic maneuvers for the turn; a maneuver crit forbids EM (D8.2 #11)
     // movement: the plotted speed schedule (base + mid-turn changes) drives execution; no plot → constant speed
     s.speedPlot = s.speedPlot ? { base: s.speedPlot.base, changes: s.speedPlot.changes } : { base: ts.speed, changes: [] };
     s.speed = speedAt(s.speedPlot, 1); s.hexesSinceTurn = turnModeOf(s); s._autoIdx = 0;   // autopilot restarts each turn
