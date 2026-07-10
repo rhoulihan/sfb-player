@@ -762,9 +762,16 @@ function stepImpulse() {
   }
   pruneTractors();   // G7.125: break any link whose units are no longer valid/in range after movement
   if (wrapped) {
-    for (const s of ships) {   // damage control repairs destroyed boxes at the turn boundary (D9.7); gated by each ship's own allocation (fog-safe)
-      const pts = Math.floor(eafDraft[s.id]?.damageControl || 0), dead = Object.keys(s.status || {});
-      if (pts <= 0 || !dead.length) continue;
+    for (const s of ships) {   // Repair Stage (Record Keeping): damage control repairs a shield (D9.21) or destroyed systems (D9.7), per this ship's allocation
+      const pts = Math.floor(eafDraft[s.id]?.damageControl || 0);
+      if (pts <= 0) continue;
+      const rShield = eafDraft[s.id]?.repairShield || 0;
+      if (rShield >= 1 && rShield <= 6) {   // D9.21: two units of damage-control energy erase one box of shield damage on the specified shield
+        const m = s.model || (s.model = buildShipModel(s._ver, s._det)), sh = m.shields[rShield];
+        if (sh && sh.down > 0) sh.down = Math.max(0, sh.down - Math.floor(pts / 2));
+        continue;
+      }
+      const dead = Object.keys(s.status || {}); if (!dead.length) continue;   // D9.7: repair destroyed system boxes
       const famOf = id => { for (const g of (s._ver.groups || [])) if ((g.boxIds || []).includes(id)) return g.family; return null; };
       const { repaired } = repairBoxes(dead, pts, { repairable: id => !['excess-damage', 'damage-control'].includes(famOf(id)) });
       repaired.forEach(id => delete s.status[id]);
@@ -1125,6 +1132,7 @@ function renderEnergy() {
   if (p.systems.tractor) h += sysCtl(S.tractor[0], S.tractor[1], 'tractor', col.tractor, sinkMax(p, 'tractor'));
   if (p.systems.transporter) h += sysCtl(S.transporter[0], S.transporter[1], 'transporter', col.transporter, sinkMax(p, 'transporter'));
   h += sysCtl(S.damageControl[0], S.damageControl[1], 'damageControl', col.damageControl, sinkMax(p, 'damageControl'));
+  h += ctl(S.damageControl[0], S.damageControl[1] - 7, `<button class="${col.repairShield ? 'on' : ''}" data-ea="dctarget" title="Damage-control target: SYS repairs destroyed systems (D9.7); SH n repairs shield n at 2 energy/box (D9.21)">🛠 ${col.repairShield ? 'SH ' + col.repairShield : 'SYS'}</button>`);   // D9.21 repair designator
   if (p.systems.ecm) h += ewCtl(S.ew[0], S.ew[1], col.ecm, col.eccm, 6);            // EW box needs its own ECM/ECCM label
   // D8-era controls: erratic maneuvers (C10), passive fire control (D19), emergency damage repair (D14)
   if (hasCrit(s.criticals, 'maneuver')) col.em = false;   // D8.2 #11: a maneuver crit forbids erratic maneuvers
@@ -1367,6 +1375,7 @@ epanel.addEventListener('click', e => {
     render(); return; }
   const seg = e.target.closest('[data-ea="seg"]'); if (seg) { col[seg.dataset.key] = +seg.dataset.val; render(); return; }
   const tg = e.target.closest('[data-ea="toggle"]'); if (tg) { col[tg.dataset.key] = tg.dataset.num ? (col[tg.dataset.key] ? 0 : 1) : !col[tg.dataset.key]; render(); return; }
+  const dct = e.target.closest('[data-ea="dctarget"]'); if (dct) { col.repairShield = ((col.repairShield || 0) + 1) % 7; render(); return; }   // D9.21: cycle the damage-control repair target (SYS / SH 1-6)
   const stp = e.target.closest('[data-ea="step"]'); if (stp) { const k = stp.dataset.key, max = k === 'phaserCap' ? p.capacitorCap - carriedOf(s) : k === 'recharge' ? p.batteries - batteryOf(s) : sinkMax(p, k); col[k] = Math.max(0, Math.min(max, (col[k] || 0) + (+stp.dataset.d))); render(); return; }
   const sp = e.target.closest('[data-ea="specstep"]'); if (sp) { const n = +sp.dataset.shield, max = specReinfMax(p, n); col.specReinf[n] = Math.max(0, Math.min(max, (col.specReinf[n] || 0) + (+sp.dataset.d))); render(); return; }
 });

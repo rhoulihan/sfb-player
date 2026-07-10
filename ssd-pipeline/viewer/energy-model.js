@@ -102,6 +102,7 @@ export function newEafColumn(power, prevSpeed = 0, carried = 0, progress = {}) {
     damageControl: 0, recharge: 0, reserveWarp: 0, tractor: 0, transporter: 0,
     ecm: 0, eccm: 0, labs: 0,
     em: false, fcPassive: false, edr: 0,   // C10 erratic maneuvers, D19 passive fire control, D14 emergency damage repair
+    repairShield: 0,   // D9.21: 0 = damage-control repairs systems (D9.7); 1-6 = repair that shield (2 energy/box)
     wildWeasel: false, suicide: false, cloak: false,
   };
 }
