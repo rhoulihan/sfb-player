@@ -9,7 +9,7 @@ Source: `docs/adversarial-review.md` (96 confirmed findings). Strict TDD, one cl
 
 ## Turn-mode category in commit path (C3)
 
-- [ ] 🔴 **C3.31 / C3.32 / C3.44** `ssd-pipeline/viewer/course-plan.js:46` — tryStep evaluates turn-mode legality with the ship category hardcoded to B, letting category C/D/E ships commit illegal early turns.
+- [x] 🔴 **C3.31 / C3.32 / C3.44** `ssd-pipeline/viewer/course-plan.js:46` — tryStep evaluates turn-mode legality with the ship category hardcoded to B, letting category C/D/E ships commit illegal early turns.
 
 ## Seeker-launch lock-on gate (D6.121)
 

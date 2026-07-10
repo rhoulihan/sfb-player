@@ -209,7 +209,7 @@ export function createBattleMap(ctx) {
     if (d.start) { courseOf(s).steps = pathFrom(s, plotBase(s), d.start, hex); saveSoon(s.id); suppressClick = true; render(); return; }   // nav / candidate drag → path
     if (isMine(s) && !hasGhosts()) {   // friendly ship glyph onto a green (legal-next) or purple (sideslip) hex → extend one step (nav is blocked while a ghost is open)
       const cur = plotCursor(s, plotBase(s));
-      const step = tryStep(cur.pos, cur.facing, cur.speed, cur.hst, cur.slip, hex);
+      const step = tryStep(cur.pos, cur.facing, cur.speed, cur.hst, cur.slip, hex, cur.category);   // C3.3: turn-mode legality by ship category
       if (step) { courseOf(s).steps.push({ q: step.pos.q, r: step.pos.r, facing: step.facing }); saveSoon(s.id); suppressClick = true; render(); return; }
       const slip = cur.speed > 0 ? trySideslip(cur.pos, cur.facing, cur.hst, cur.slip, hex) : null;
       if (slip) { courseOf(s).steps.push({ q: slip.pos.q, r: slip.pos.r, facing: slip.facing, slip: true }); saveSoon(s.id); suppressClick = true; render(); return; }
@@ -227,7 +227,7 @@ export function createBattleMap(ctx) {
     if (hasGhosts()) return;   // nav plotting is blocked while a ghost what-if is open (fire-group + ghosting are not)
     if (ui.plotShipId && byId(ui.plotShipId)) {   // click a legal candidate hex → extend the course one step (drag re-routes; right-click a nav hex = speed change)
       const s = byId(ui.plotShipId), c = courseOf(s), cur = plotCursor(s, plotBase(s));
-      const step = tryStep(cur.pos, cur.facing, cur.speed, cur.hst, cur.slip, hex);
+      const step = tryStep(cur.pos, cur.facing, cur.speed, cur.hst, cur.slip, hex, cur.category);   // C3.3: turn-mode legality by ship category
       if (step) { c.steps.push({ q: step.pos.q, r: step.pos.r, facing: step.facing }); saveSoon(ui.plotShipId); render(); }
     }
   });

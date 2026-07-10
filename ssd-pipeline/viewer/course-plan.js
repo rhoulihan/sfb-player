@@ -42,8 +42,8 @@ export function legalNextHexes(pos, facing, speed, hexesSinceTurn, category = 'B
 }
 // snap: return the new cursor state if `hex` is a legal next hex, else null. A forward/turn move also
 // advances the slip counter (a straight-line hex toward the sideslip requirement, C4.1).
-export function tryStep(pos, facing, speed, hexesSinceTurn, slipSince, hex) {
-  const c = legalNextHexes(pos, facing, speed, hexesSinceTurn).find(x => x.legal && x.hex.q === hex.q && x.hex.r === hex.r);
+export function tryStep(pos, facing, speed, hexesSinceTurn, slipSince, hex, category = 'B') {   // C3.3: turn-mode legality is category-dependent — the caller MUST pass the ship's category
+  const c = legalNextHexes(pos, facing, speed, hexesSinceTurn, category).find(x => x.legal && x.hex.q === hex.q && x.hex.r === hex.r);
   if (!c) return null;
   const turned = c.facing !== facing;
   return { pos: c.hex, facing: c.facing, hexesSinceTurn: turned ? 1 : hexesSinceTurn + 1, slipSince: slipSince + 1 };

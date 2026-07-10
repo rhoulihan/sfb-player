@@ -1,6 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { speedAt, speedSchedule, hexesInPlot, impulseTimeline, legalNextHexes, tryStep, setSpeedChange, legalSideslips, trySideslip } from '../viewer/course-plan.js';
+import { neighbor } from '../viewer/movement.js';
+
+test('C3.3: tryStep respects ship category — a category-D cruiser cannot turn as early as category B (speed 9, TM 3 vs 2)', () => {
+  const pos = { q: 5, r: 5 }, facing = 0, speed = 9, hexesSinceTurn = 2, slipSince = 5;
+  const turnHex = neighbor(pos.q, pos.r, 1);   // a +1-facing turn
+  assert.ok(tryStep(pos, facing, speed, hexesSinceTurn, slipSince, turnHex, 'B'), 'category B (TM 2) may turn with 2 hexes since turn');
+  assert.equal(tryStep(pos, facing, speed, hexesSinceTurn, slipSince, turnHex, 'D'), null, 'category D (TM 3) may NOT turn yet');
+});
 
 test('speedAt applies the 1-impulse announce delay (C12.36)', () => {
   const plot = { base: 8, changes: [{ announceImpulse: 9, speed: 18 }] };
