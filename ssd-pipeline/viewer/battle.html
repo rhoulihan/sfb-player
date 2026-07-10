@@ -310,6 +310,7 @@ import { applyVolley, makeDice } from './dac-allocator.js';
 import { CRIT_THRESHOLD as D8_THRESHOLD, critForRoll, critRepairs, addCrit, hasCrit, activeCrits, CRIT_INFO } from './criticals.js';
 import { tractorCost, canTractor, tractorBroken, TRACTOR_MAX_RANGE } from './tractor.js';
 import { cloakEcm, applyCloakFireGate, CLOAK_ECM } from './cloak.js';   // G13: cloak fire penalty + fire gate
+import { ewShift } from './ew.js';   // D6.34 net-ECM → shift (used for D17.26 tactical-intel level shift)
 import { makeScenario, applyLoSGate } from './terrain.js';
 import { MINE, mineTriggeredBy, hitAndRunSucceeds, SELF_DESTRUCT, selfDestructHits, selfDestructDamage, selfDestructZone, DEFAULT_BES, NUCLEAR_MINE, transporterTarget, TBOMB_WARHEAD } from './mines.js';   // D5: per-ship BES self-destruction
 import { shuttleMaxHp, damageShuttle, shuttleDestroyed } from './shuttle-inventory.js';
@@ -1839,10 +1840,13 @@ function tacLevel(enemy) {   // best information level across all your ships (D1
   let bestIdx = 0, via = null;                                      // everyone always has at least level A on a mapped unit
   for (const o of obs) {
     const range = hexDistance(o, enemy), { col, shift } = observerColumn(o);
-    for (let li = LVL_RANK.indexOf('L'); li > bestIdx; li--) {      // deepest range-based level is L; stop once we can't beat the best
+    let idx = 0;
+    for (let li = LVL_RANK.indexOf('L'); li > 0; li--) {            // deepest range-based level is L
       const rng = (D17_3[LVL_RANK[li]] || [])[col];
-      if (rng >= 0 && range <= rng) { bestIdx = li; via = { ship: o.id, col: D17_COLS[col], shift, range }; break; }
+      if (rng >= 0 && range <= rng) { idx = li; break; }
     }
+    idx = Math.max(0, idx - ewShift(netEcmOf(o, enemy)));           // D17.26: every net ECM shift in the target's favor drops the info level one (the observer's ECCM already offsets it in netEcmOf; cloak reduces it too, D17.221)
+    if (idx > bestIdx) { bestIdx = idx; via = { ship: o.id, col: D17_COLS[col], shift, range }; }
   }
   return { lvl: LVL_RANK[bestIdx], range: nearest, via };
 }
