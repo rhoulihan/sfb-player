@@ -996,7 +996,7 @@ function shieldArc(cx, cy, facing, n, color) {
 // eligibility for a ship's mounts vs a specific target
 function eligForTarget(ship, target) {
   const out = {};
-  if (ship && target) for (const mt of ship.mounts) out[mt.id] = mountEligibility(ship, mt, target);
+  if (ship && target) for (const mt of ship.mounts) out[mt.id] = mountEligibility(ship, mt, target, !!(ship.armed && ship.armed[mt.id] && ship.armed[mt.id].overload));   // E4.43: an overloaded photon may fire point-blank
   return out;
 }
 

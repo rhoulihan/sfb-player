@@ -14,6 +14,17 @@ test('mountEligibility flags in-arc + in-range with a struck shield', () => {
   assert.ok(e.struckShield >= 1 && e.struckShield <= 6);
 });
 
+test('E4.43: a photon at true range 1 is ineligible normally, but an OVERLOADED photon may fire point-blank', () => {
+  const firer = ship('F1', 0, 0, 0), target = ship('E1', 1, 0, 0);   // adjacent → true range 1 (< photon min range 2)
+  const photon = { id: 'F1.PHOTON.0', cls: 'PHOTON', arc: { arcs: ['FH'] } };
+  const normal = mountEligibility(firer, photon, target);
+  assert.equal(normal.inRange, false, 'a normal photon cannot fire at true range 1 (E4.14 minimum range)');
+  assert.equal(normal.available, false);
+  const overloaded = mountEligibility(firer, photon, target, true);
+  assert.equal(overloaded.inRange, true, 'E4.43: an overloaded photon is the exception — it may fire at range 0-1');
+  assert.equal(overloaded.available, true);
+});
+
 test('out-of-arc mounts are never available', () => {
   const firer = ship('F1', 0, 0, 0), target = ship('E1', 3, 0, 0);   // target is forward
   const e = mountEligibility(firer, mount('F1.PH-1.0', 'RA'), target); // rear arc only

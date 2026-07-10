@@ -6,11 +6,14 @@ import { WEAPONS, bandIndex } from './weapon-charts.js';
 export const newPlan = () => ({ groups: [], committed: false });
 export const newGroup = (id, color) => ({ id, color, targetShipId: null, members: [] });
 
-export function mountEligibility(firer, mount, target) {
+export function mountEligibility(firer, mount, target, overload = false) {
   const { inArc, covering } = isInArc(firer, mount, target);
   const trueRange = hexDistance(firer, target);
   const def = WEAPONS[mount.cls];
-  const inRange = !!def && trueRange <= def.maxRange && !(def.minRange && trueRange < def.minRange)
+  // E4.43: an OVERLOADED photon is the exception to the photon minimum-range rule (E4.14) — it may fire at true range
+  // 0-1. Lift the min-range gate only when the weapon's overload profile actually reaches inside min range (feedbackRange).
+  const overloadLiftsMin = overload && !!def?.overload && def.overload.feedbackRange != null;
+  const inRange = !!def && trueRange <= def.maxRange && !(def.minRange && trueRange < def.minRange && !overloadLiftsMin)
                   && bandIndex(def, trueRange) >= 0;
   const available = inArc && inRange;
   return { mountId: mount.id, inArc, coveringArc: covering, trueRange, inRange, available,
