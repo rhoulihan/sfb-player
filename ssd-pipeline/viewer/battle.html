@@ -309,7 +309,7 @@ import { makeRack, reloadStep, loadoutSpaces, droneWarhead } from './drone-inven
 import { applyVolley, makeDice } from './dac-allocator.js';
 import { CRIT_THRESHOLD as D8_THRESHOLD, critForRoll, critRepairs, addCrit, hasCrit, activeCrits, CRIT_INFO } from './criticals.js';
 import { tractorCost, canTractor, tractorBroken, TRACTOR_MAX_RANGE } from './tractor.js';
-import { cloakEcm, applyCloakFireGate } from './cloak.js';
+import { cloakEcm, applyCloakFireGate, CLOAK_ECM } from './cloak.js';   // G13: cloak fire penalty + fire gate
 import { makeScenario, applyLoSGate } from './terrain.js';
 import { MINE, mineTriggeredBy, hitAndRunSucceeds, SELF_DESTRUCT, selfDestructHits, selfDestructDamage, NUCLEAR_MINE, transporterTarget, TBOMB_WARHEAD } from './mines.js';
 import { shuttleMaxHp, damageShuttle, shuttleDestroyed } from './shuttle-inventory.js';
@@ -359,6 +359,7 @@ const controlLimitOf = s => controlLimit(sensorRating(s), seekingArmedOf(s));   
 const canControlMore = s => controlledCount(seekers, s.id) < controlLimitOf(s);               // room to guide another seeker
 const hasLock = (firer, target) => { ensureLocks(); return hasLockOn(lockOn, firer.id, target.id); };   // D6.1 lock-on to the target this turn
 function launchGate(firer, target) {   // D6.121: a unit that failed its lock-on may not launch seeking weapons (also D19.22 passive FC)
+  if (firer && firer.cloaked) { alert('A cloaked ship cannot launch seeking weapons (G13.51/G13.133).'); return false; }
   if (passiveFcOf(firer)) { alert('Cannot launch seeking weapons under passive fire control (D19.22).'); return false; }
   if (!hasLock(firer, target)) { alert('No sensor lock-on to that target — cannot launch a seeking weapon (D6.121).'); return false; }
   return true;
@@ -435,6 +436,7 @@ function layMine(ship, spec = MINE) {   // C10: drop a static mine at the ship's
 }
 function transporterBomb(ship) {   // D15: beam a bomb onto an adjacent enemy — a mine at its hex that detonates on it next impulse
   if (!ship) return;
+  if (ship.cloaked) { alert('A cloaked ship cannot use transporters (G13.51).'); return; }
   if (hasCrit(ship.criticals, 'transporter')) { alert('Transporters disabled by a critical hit (D8.2).'); return; }
   const tgt = transporterTarget(ship, ships.filter(s => !isDead(s)));
   if (!tgt) { renderLog({ log: [{ kind: 'shot', firer: ship.id, cls: 'T-BOMB', target: '\u2014', points: 0, hit: false }] }, true); return; }
@@ -443,6 +445,7 @@ function transporterBomb(ship) {   // D15: beam a bomb onto an adjacent enemy �
 }
 function boardingRaid(ship) {   // D15: a transporter hit-and-run raid on an adjacent enemy — on 4+ it knocks out a random enemy system
   if (!ship) return;
+  if (ship.cloaked) { alert('A cloaked ship cannot use transporters (G13.51).'); return; }
   if (hasCrit(ship.criticals, 'transporter')) { alert('Transporters disabled by a critical hit (D8.2).'); return; }
   const enemy = ships.find(s => s.side !== ship.side && !isDead(s) && hexDistance(ship, s) <= 1);
   const rng = makeRng((seed + rngCursor) >>> 0); rngCursor = rng.cursor();
@@ -479,6 +482,7 @@ const tractorPowerUsed = s => tractorLinksFrom(s).reduce((n, t) => n + t.power, 
 const heldBy = s => tractors.find(t => t.to === s.id);                           // the link holding this ship, if any
 function establishTractor(from, target) {   // Operate Tractors Step: attach a beam to an adjacent/≤3-hex unit
   if (!from || !target || from.id === target.id) return;
+  if (from.cloaked) { alert('A cloaked ship cannot operate tractor beams (G13.51).'); return; }
   if (hasCrit(from.criticals, 'tractor')) { alert('Tractor beams disabled by a critical hit (D8.2).'); return; }
   if (tractorLinksFrom(from).length >= tractorBeamsOf(from)) { alert('No free tractor beam (one per TRAC box, G7.11).'); return; }
   const range = hexDistance(from, target);
@@ -577,13 +581,17 @@ function stepSeekers(out) {   // 6A: move every seeker one impulse toward its ta
 }
 const passiveFcOf = s => !!s && (hasCrit(s.criticals, 'fireControl') || !!s.fcPassive);   // D19: a fire-control crit or the voluntary toggle puts the ship on passive fire control
 const fcReactivating = s => !!s && s.fcReactTurn === clock.turn && clock.impulse <= 4;   // D19.26: active FC restored from passive can't fire/guide for 1/8 turn (4 impulses)
-const netEcmOf = (fr, t) => (fr && t) ? Math.max(0,
-  (t.ecmLevel || 0) + cloakEcm(t) + (t.em ? 4 : 0)                   // target ECM + cloak + its erratic maneuvers (C10.413), all offset by firer ECCM
-  - (passiveFcOf(fr) ? 0 : (fr.eccmLevel || 0))                     // passive FC can't use ECCM (D19.12)
-  + (fr.em ? 4 : 0)) : 0;                                           // the firer's OWN EM degrades its fire too (C10.414), not offset by ECCM
+const netEcmOf = (fr, t) => {
+  if (!fr || !t) return 0;
+  if (t.cloaked) return CLOAK_ECM;                                  // G13.303: firing at a cloaked ship uses the cloak shift ALONE — ECM/ECCM are ignored, so ECCM cannot erode it
+  return Math.max(0, (t.ecmLevel || 0) + (t.em ? 4 : 0)            // target ECM + its erratic maneuvers (C10.413), offset by firer ECCM
+    - (passiveFcOf(fr) ? 0 : (fr.eccmLevel || 0))                   // passive FC can't use ECCM (D19.12)
+    + (fr.em ? 4 : 0));                                             // the firer's OWN EM degrades its fire too (C10.414), not offset by ECCM
+};
 // D6.112: ECM/ECCM only degrade weapon EFFECT (the fire-time die shift, netEcmOf) — they cannot break a lock.
-// Only cloak (G13.301) breaks it, and ECCM cannot erode that (G13.303). Terrain would add here too (P0.0).
-const lockDenyOf = (fr, t) => (fr && t) ? cloakEcm(t) : 0;
+// G13.301: a cloaked ship cannot be locked at all by a non-scout (no scouts in the cruiser roster) → absolute deny.
+// Terrain (P0.0) would add here too. ECCM is deliberately NOT subtracted (G13.303).
+const lockDenyOf = (fr, t) => (fr && t && t.cloaked) ? 9 : 0;
 function ensureLocks() {   // roll phase-4 locks lazily for this turn (deterministic from seed+turn so clients agree; only cloak can deny a lock, D6.112)
   if (lockOnTurn === clock.turn) return;
   lockOn = {}; const lockRng = makeRng((seed ^ (clock.turn * 0x9e3779b9)) >>> 0);
@@ -1659,7 +1667,7 @@ let ctxShip = null;
 createBattleMap({
   map, ui, getPhase, getShips: () => ships, byId, isMine, isFirer, COLS, ROWS, hasGhosts, groupOfShip,
   plotBase, saveSoon, render, syncMovementEnergy, onShipClick, renderFleet, pruneUnavailable,
-  openCtxMenu: (shipId, e) => { ctxShip = shipId; const mine = isMine(byId(shipId)); document.querySelector('#ctxMenu [data-act="ea"]').style.display = mine ? '' : 'none'; document.querySelector('#ctxMenu [data-act="intel"]').style.display = mine ? 'none' : ''; document.querySelector('#ctxMenu [data-act="setspeed"]').style.display = (mine && getPhase() === 'energy' && !myLockedEnergy) ? '' : 'none'; const ci = document.querySelector('#ctxMenu [data-act="cloak"]'); const cShip = byId(shipId); ci.style.display = (mine && powerOf(cShip).systems.cloak) ? '' : 'none'; ci.textContent = cShip.cloaked ? '🌫 Decloak' : '🌫 Cloak'; document.querySelector('#ctxMenu [data-act="weasel"]').style.display = (mine && getPhase() !== 'energy' && shuttleBaysOf(cShip) > 0) ? '' : 'none'; document.querySelector('#ctxMenu [data-act="mine"]').style.display = document.querySelector('#ctxMenu [data-act="raid"]').style.display = document.querySelector('#ctxMenu [data-act="nukemine"]').style.display = document.querySelector('#ctxMenu [data-act="tbomb"]').style.display = (mine && getPhase() !== 'energy') ? '' : 'none'; document.querySelector('#ctxMenu [data-act="admin"]').style.display = (mine && getPhase() !== 'energy' && shuttleBaysOf(cShip) > 0) ? '' : 'none'; document.querySelector('#ctxMenu [data-act="tractor"]').style.display = (mine && getPhase() !== 'energy' && tractorBeamsOf(cShip) > 0 && !hasCrit(cShip.criticals, 'tractor')) ? '' : 'none'; document.querySelector('#ctxMenu [data-act="release"]').style.display = (mine && tractorLinksFrom(cShip).length) ? '' : 'none'; document.querySelector('#ctxMenu [data-act="breaktractor"]').style.display = (mine && getPhase() !== 'energy' && heldBy(cShip)) ? '' : 'none'; const sd = document.querySelector('#ctxMenu [data-act="selfdestruct"]'); sd.style.display = (mine && getPhase() === 'energy' && !myLockedEnergy) ? '' : 'none'; sd.textContent = cShip.selfDestructPlot ? '💥 Cancel self-destruct' : '💥 Self-destruct (D5.1)'; const m = document.getElementById('ctxMenu'); m.style.display = 'block'; m.style.left = Math.min(e.clientX, innerWidth - 160) + 'px'; m.style.top = e.clientY + 'px'; },
+  openCtxMenu: (shipId, e) => { ctxShip = shipId; const mine = isMine(byId(shipId)); document.querySelector('#ctxMenu [data-act="ea"]').style.display = mine ? '' : 'none'; document.querySelector('#ctxMenu [data-act="intel"]').style.display = mine ? 'none' : ''; document.querySelector('#ctxMenu [data-act="setspeed"]').style.display = (mine && getPhase() === 'energy' && !myLockedEnergy) ? '' : 'none'; const ci = document.querySelector('#ctxMenu [data-act="cloak"]'); const cShip = byId(shipId); ci.style.display = (mine && powerOf(cShip).systems.cloak) ? '' : 'none'; ci.textContent = cShip.cloaked ? '🌫 Decloak' : '🌫 Cloak'; document.querySelector('#ctxMenu [data-act="weasel"]').style.display = (mine && getPhase() !== 'energy' && shuttleBaysOf(cShip) > 0 && !cShip.cloaked) ? '' : 'none'; document.querySelector('#ctxMenu [data-act="mine"]').style.display = document.querySelector('#ctxMenu [data-act="raid"]').style.display = document.querySelector('#ctxMenu [data-act="nukemine"]').style.display = document.querySelector('#ctxMenu [data-act="tbomb"]').style.display = (mine && getPhase() !== 'energy' && !cShip.cloaked) ? '' : 'none'; document.querySelector('#ctxMenu [data-act="admin"]').style.display = (mine && getPhase() !== 'energy' && shuttleBaysOf(cShip) > 0 && !cShip.cloaked) ? '' : 'none'; document.querySelector('#ctxMenu [data-act="tractor"]').style.display = (mine && getPhase() !== 'energy' && tractorBeamsOf(cShip) > 0 && !hasCrit(cShip.criticals, 'tractor') && !cShip.cloaked) ? '' : 'none'; document.querySelector('#ctxMenu [data-act="release"]').style.display = (mine && tractorLinksFrom(cShip).length) ? '' : 'none'; document.querySelector('#ctxMenu [data-act="breaktractor"]').style.display = (mine && getPhase() !== 'energy' && heldBy(cShip)) ? '' : 'none'; const sd = document.querySelector('#ctxMenu [data-act="selfdestruct"]'); sd.style.display = (mine && getPhase() === 'energy' && !myLockedEnergy) ? '' : 'none'; sd.textContent = cShip.selfDestructPlot ? '💥 Cancel self-destruct' : '💥 Self-destruct (D5.1)'; const m = document.getElementById('ctxMenu'); m.style.display = 'block'; m.style.left = Math.min(e.clientX, innerWidth - 160) + 'px'; m.style.top = e.clientY + 'px'; },
   openSpeedMenu: (shipId, idx, e) => { navSpeed = { shipId, idx }; const m = document.getElementById('speedMenu'); m.style.display = 'block'; m.style.left = Math.min(e.clientX, innerWidth - 160) + 'px'; m.style.top = e.clientY + 'px'; },
 });
 document.addEventListener('click', () => { document.getElementById('ctxMenu').style.display = 'none'; });

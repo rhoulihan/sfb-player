@@ -1,8 +1,8 @@
-// Cloaking device (C8 / G13). While cloaked, a ship is very hard to lock and to hit — it adds a large
-// ECM-equivalent that flows through the shared netEcm hook (so lock-on and effective range both suffer) —
-// but it cannot fire its own direct-fire weapons. That trade (near-untargetable vs. can't shoot) is the
-// whole tactical point of the cloak, and it's what makes the plasma-armed Romulan playable.
-export const CLOAK_ECM = 5;   // added to net ECM against a cloaked ship: lock succeeds only on a low roll (roll + 5 <= 6)
+// Cloaking device (C8 / G13). While cloaked a ship cannot be locked on (G13.301) and cannot fire, launch, tractor,
+// or transport (G13.51/G13.133). Fire AT a cloaked ship uses the cloak shift alone — ECM/ECCM are ignored (G13.303).
+// The host reads CLOAK_ECM as the cloak's fire-penalty strength (netEcmOf), and denies the lock outright when
+// cloaked. That trade (untargetable vs. can't shoot) is the tactical point of the cloak and makes the Romulan playable.
+export const CLOAK_ECM = 5;   // cloak fire-penalty strength → die shift ewShift(5)=2 (G13.37 approximation); ECCM cannot erode it
 
 export function cloakEcm(ship) {
   return ship && ship.cloaked ? CLOAK_ECM : 0;

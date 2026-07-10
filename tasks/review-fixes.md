@@ -31,12 +31,12 @@ Source: `docs/adversarial-review.md` (96 confirmed findings). Strict TDD, one cl
 
 ## Cloak cluster (G13)
 
-- [ ] 🔴 **G13.303 / G13.301** `ssd-pipeline/viewer/battle.html:573` — The firer's ECCM is subtracted from the cloak's ECM-equivalent, so ~5 ECCM completely defeats a cloak — but ECCM is explicitly ignored against cloaked ships.
+- [x] 🔴 **G13.303 / G13.301** `ssd-pipeline/viewer/battle.html:573` — The firer's ECCM is subtracted from the cloak's ECM-equivalent, so ~5 ECCM completely defeats a cloak — but ECCM is explicitly ignored against cloaked ships.
 - [ ] 🔴 **G13.15 / G13.132 / G13.13** `ssd-pipeline/viewer/cloak.js:11` — Decloaking lets a ship fire in the same impulse; the required fire-control reactivation delay is not applied.
-- [ ] 🔴 **G13.51 / G13.133 / D19.21** `ssd-pipeline/viewer/cloak.js:16` — A cloaked ship is only blocked from direct fire, but can still launch seeking weapons, tractor, transporter-bomb, and boarding-raid.
+- [x] 🔴 **G13.51 / G13.133 / D19.21** `ssd-pipeline/viewer/cloak.js:16` — A cloaked ship is only blocked from direct fire, but can still launch seeking weapons, tractor, transporter-bomb, and boarding-raid.
 - [ ] 🟠 **G13.23 / G13.232** `ssd-pipeline/viewer/battle.html:1655` — Cloak energy cost is deducted on every uncloak->cloak toggle, so decloaking and re-cloaking in the same turn charges the cost twice.
 - [ ] 🟠 **G13.21 / G13.116 / G13.117 / G13.23** `ssd-pipeline/viewer/battle.html:1655` — Cloak energy is charged only once when the player manually toggles it on; there is no mandatory per-turn upkeep at Energy Allocation.
-- [ ] 🟠 **G13.301 / G13.331** `ssd-pipeline/viewer/lock-on.js:7` — A fully cloaked ship can still be locked on a die roll of 1 (roll+5<=6); the rules make lock-on of a cloaked ship impossible for a non-scout ship.
+- [x] 🟠 **G13.301 / G13.331** `ssd-pipeline/viewer/lock-on.js:7` — A fully cloaked ship can still be locked on a die roll of 1 (roll+5<=6); the rules make lock-on of a cloaked ship impossible for a non-scout ship.
 - [ ] 🟡 **G13.14 / G13.302 / G13.31** `ssd-pipeline/viewer/cloak.js:5` — Cloak is a binary flag granting the full +5 benefit instantly; the 5-impulse fade-out/fade-in phase-in is not modeled.
 
 ## Damage-control repair (D9)
