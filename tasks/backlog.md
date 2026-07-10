@@ -10,8 +10,9 @@ Lower-priority polish deferred from completed features. None block normal cruise
 ## Shield overlays
 - [ ] **Craft the Klingon (and future-race) shield overlays to match the art's hex shapes/positions precisely.** A basic `kliShieldSvg` is wired (green→red hex by strength + yellow reinforcement glow, like the Fed CA), but the hexagons are approximate — tune the shape/size/orientation to sit exactly on the SSD shield boxes. Ideally derive the shape from the layout, not hardcoded px.
 
-## Pending feature (paused mid-request)
-- [ ] **Proactive reserve-power allocation during impulse play** (H7 / audit "proactive impulse allocation + queued-at-segment"). The EA panel is read-only during impulse (`if (ui.viewEA) return`). On-hit reactive reinforcement + cloak/plasma reserve use already work; what's missing is: open the EA panel during impulse → allocate reserve/battery to reserve-eligible controls (ECCM H7.33, reinforcement, capacitor E2.33), queued and applied at the appropriate segment (or immediately if current), always confirmed. `reserve-power.js` already lists the eligible systems + costs; reuse the `promptReserveReinforce` modal pattern. Paused to build the EAF layout editor.
+## Reserve energy — done + refinement
+- [x] **Proactive reserve-power allocation during impulse play** — an "⚡ Reserve" button on the impulse-phase EA view opens a modal to spend reserve warp / battery on ECCM (H7.33), the phaser capacitor (E2.33), and general/specific reinforcement (D3.341/342), with a warp/battery source toggle; always confirmed, applied on confirm. Verified: 2 ECCM → battery 3/3→1/3.
+- [ ] **Queue reserve allocations to their applicable segment** — Rick's original spec had adjustments *queued* and applied at the next applicable impulse segment (immediately only if it's the current segment), with the on-hit modal showing pending queued allocations. Today it applies immediately on confirm; segment-timed queuing + the pending-allocation display are the remaining nuance.
 
 ## EAF layout editor — done (`9df9566` + `c3a19b8`)
 Data-driven per-race layouts (`data/eaf-layouts/*.json`) + drag-drop editor & control-placement validation in verify.html. Remaining polish: add-race art upload, marker labels legend, snap-to-grid.
