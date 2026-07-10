@@ -311,7 +311,7 @@ import { CRIT_THRESHOLD as D8_THRESHOLD, critForRoll, critRepairs, addCrit, hasC
 import { tractorCost, canTractor, tractorBroken, TRACTOR_MAX_RANGE } from './tractor.js';
 import { cloakEcm, applyCloakFireGate, CLOAK_ECM } from './cloak.js';   // G13: cloak fire penalty + fire gate
 import { ewShift } from './ew.js';   // D6.34 net-ECM → shift (used for D17.26 tactical-intel level shift)
-import { makeScenario, applyLoSGate } from './terrain.js';
+import { makeScenario, asteroidEcm } from './terrain.js';   // P3.33: asteroids give the target ECM (they don't block fire)
 import { MINE, mineTriggeredBy, mineShouldArm, hitAndRunSucceeds, SELF_DESTRUCT, selfDestructHits, selfDestructDamage, selfDestructZone, DEFAULT_BES, NUCLEAR_MINE, transporterTarget, TRANSPORTER_RANGE, TBOMB_WARHEAD } from './mines.js';   // D5: per-ship BES self-destruction; G8.14 transporter range; M2.31 mine arming
 import { shuttleMaxHp, damageShuttle, shuttleDestroyed } from './shuttle-inventory.js';
 const PD_SHUTTLE_DMG = 2;   // point-defense damage per hit vs a shuttle (shuttles soak, drones one-shot)
@@ -638,6 +638,7 @@ const netEcmOf = (fr, t) => {
   if (!fr || !t) return 0;
   if (cloakEffective(t)) return CLOAK_ECM;                          // G13.303: firing at a cloaked ship uses the cloak shift ALONE — ECM/ECCM are ignored, so ECCM cannot erode it
   return Math.max(0, (t.ecmLevel || 0) + (t.em && !heldBy(t) ? 4 : 0)   // target ECM + its erratic maneuvers (C10.413); G7.92/G7.922: EM gives no benefit while the target is held in a tractor beam
+    + asteroidEcm(fr, t, terrain)                                  // P3.33: each asteroid hex between firer and target (endpoints included) gives the target 1 natural ECM (counterable by ECCM)
     - (passiveFcOf(fr) ? 0 : (fr.eccmLevel || 0))                   // passive FC can't use ECCM (D19.12)
     + (fr.em ? 4 : 0));                                             // the firer's OWN EM degrades its fire too (C10.414), not offset by ECCM
 };
@@ -1923,7 +1924,7 @@ fetch('weapons.html', { method: 'HEAD' }).then(r => { if (!r.ok) throw 0; }).cat
 // ---------- direct fire (6D of each impulse) — cached target models so damage accumulates across impulses ----------
 // resolve one fleet's plan into shared models/log/affected (cached models keep pre-fire shields for simultaneity)
 async function resolvePlanInto(p, models, log, affected) {
-  ensureLocks(); p = applyLockGate(p, lockOn, tid => cloakEffective(byId(tid))); p = applyCloakFireGate(p, byId); p = applyLoSGate(p, byId, terrain);   // D6.1 lock (D6.123: no-lock fires at double range, but a cloaked target stays hard-blocked); G13 cloak holds fire; P3 asteroids block LoS
+  ensureLocks(); p = applyLockGate(p, lockOn, tid => cloakEffective(byId(tid))); p = applyCloakFireGate(p, byId);   // D6.1 lock (D6.123: no-lock fires at double range, but a cloaked target stays hard-blocked); G13 cloak holds fire. P3.33 asteroids do NOT block fire — they add ECM via netEcmOf
   p = { groups: (p.groups || []).map(g => ({ ...g, members: (g.members || []).filter(m => !hasActiveWeasel(byId(m.shipId))) })).filter(g => g.members.length) };   // J3.132: a ship protected by an active wild weasel may not fire
   p = { groups: (p.groups || []).map(g => ({ ...g, members: (g.members || []).filter(m => { const held = heldBy(byId(m.shipId)); return !held || g.targetShipId === held.from; }) })).filter(g => g.members.length) };   // G7.91: a ship held in a tractor beam may fire only at the unit holding it
   const mk = t => t.model || (t.model = buildShipModel(t._ver, t._det));

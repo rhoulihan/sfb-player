@@ -27,27 +27,21 @@ export function asteroidAt(hex, terrain) {
   return ((terrain && terrain.asteroids) || []).some(h => h.q === hex.q && h.r === hex.r);
 }
 
-// an asteroid strictly between the endpoints blocks line of sight (endpoints themselves never block)
-export function blocksLoS(a, b, terrain) {
+// P3.33 ELECTRONIC WARFARE: asteroids do NOT block line of sight (P3.31/P3.3) — they DEGRADE fire. Each asteroid hex
+// on the line from the firing unit to the target, INCLUDING both endpoint hexes, gives the target one point of ECM
+// (1 hex if both are in the same hex). This is natural ECM (D6.3143), counterable by ECCM.
+export function asteroidEcm(a, b, terrain) {
   const ast = (terrain && terrain.asteroids) || [];
-  if (!ast.length) return false;
+  if (!ast.length) return 0;
   const set = new Set(ast.map(h => `${h.q},${h.r}`));
-  return hexLine(a, b).slice(1, -1).some(h => set.has(`${h.q},${h.r}`));
+  const counted = new Set();   // count each asteroid hex once — the degenerate same-hex line visits it twice (P3.33: 1 hex if both are in the same hex)
+  for (const h of hexLine(a, b)) { const k = `${h.q},${h.r}`; if (set.has(k)) counted.add(k); }
+  return counted.size;
 }
 
 export function inBarrier(hex, terrain) {
   const b = terrain && terrain.barrier;
   return !!b && (hex.q < b.minQ || hex.q > b.maxQ || hex.r < b.minR || hex.r > b.maxR);
-}
-
-// gate a fire plan: a mount can't hit a target if an asteroid blocks the line of sight (P3)
-export function applyLoSGate(plan, byId, terrain) {
-  return {
-    groups: (plan.groups || []).map(g => {
-      const t = byId(g.targetShipId);
-      return { ...g, members: (g.members || []).filter(m => { const f = byId(m.shipId); return f && t && !blocksLoS(f, t, terrain); }) };
-    }).filter(g => g.members.length),
-  };
 }
 
 // deterministic (no RNG — protects replay): open = empty; tournament = a barrier inset from the edge plus a
