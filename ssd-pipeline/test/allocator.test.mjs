@@ -151,6 +151,19 @@ test('every 3rd phaser hit takes the best type (D4.3221)', () => {
   assert.ok(['p1a', 'p1b'].includes(hit[2]), '3rd is best type');
 });
 
+test('D4.3222: every 3rd TORP hit takes the most powerful type, counted cumulatively across volleys', () => {
+  const m = buildD7Model();
+  const best = { type: 'Plasma-R' }, worst = { type: 'Plasma-F' };
+  m.pools.TORP = { boxIds: ['pf_a', 'pf_b', 'pf_c', 'pr_a'], destroyed: new Set() };   // 3 weak + 1 strong; weak listed first so a naive front-of-pool pick would never reach the strong box
+  m.groupOf = { pf_a: worst, pf_b: worst, pf_c: worst, pr_a: best };
+  for (const k in m.pools) if (k !== 'TORP') m.pools[k] = { boxIds: [], destroyed: new Set() };   // clear everything else so rolls 5/11 fall through to TORP
+  const torpTypes = fx => fx.filter(e => e.token === 'TORP').map(e => m.groupOf[e.boxId].type);
+  const v1 = torpTypes(applyVolley(m, { shield: 1, points: 2 }, seqRoll([5, 11])));   // cumulative torpedo hits #1, #2 (TORP is bold → only two per volley)
+  assert.deepEqual(v1, ['Plasma-F', 'Plasma-F'], 'the first two torpedo hits fall on the weaker type (best preserved)');
+  const v2 = torpTypes(applyVolley(m, { shield: 1, points: 1 }, seqRoll([5])));         // cumulative torpedo hit #3
+  assert.deepEqual(v2, ['Plasma-R'], 'the 3rd cumulative torpedo hit must fall on the most powerful type, even with weaker boxes still available (D4.3222)');
+});
+
 test('ANY_WEAPON lands on a live weapon box (D4.324)', () => {
   const m = buildD7Model();
   for (const k in m.pools) if (k !== 'DRONE') m.pools[k].destroyed = new Set(m.pools[k].boxIds);

@@ -107,7 +107,7 @@ Source: `docs/adversarial-review.md` (96 confirmed findings). Strict TDD, one cl
 
 ## Remaining — damage
 
-- [ ] 🟠 **D4.3222 / D4.322** `ssd-pipeline/viewer/dac-allocator.js:64` — pickWeaponByType ignores the every-third-most-powerful-type requirement and the hitCount it is passed; comment falsely claims it is implemented.
+- [x] 🟠 **D4.3222 / D4.322** `ssd-pipeline/viewer/dac-allocator.js:64` — pickWeaponByType ignores the every-third-most-powerful-type requirement and the hitCount it is passed; comment falsely claims it is implemented.
 
 ## Remaining — criticals
 

@@ -12,6 +12,10 @@ const firstLive = pool => {
 };
 const liveCount = pool => (pool ? pool.boxIds.length - pool.destroyed.size : 0);
 const phaserRank = type => { const t = (type || '').toLowerCase(); return t.includes('3') ? 3 : t.includes('2') ? 2 : 1; };
+// D4.3222 heavy-weapon power order, most→least powerful (heuristic pending Annex #7E priority). Lower index = more
+// powerful, so sorting ascending puts the best type first (mirrors phaserRank, where Phaser-1 outranks Phaser-3).
+const TORP_POWER = ['plasma-r', 'photon', 'plasma-s', 'plasma-g', 'plasma-f', 'disr'];
+const torpRank = type => { const t = (type || '').toLowerCase().replace(/\s/g, ''); const i = TORP_POWER.findIndex(k => t.includes(k)); return i < 0 ? TORP_POWER.length : i; };
 
 // DAC-1 critical hits: volatile systems (warp engines, heavy weapons) can suffer a secondary explosion when
 // destroyed by internal damage, taking out an extra box of the same system. Functional sandbox rule, not a
@@ -34,7 +38,7 @@ function pickTarget(model, tok, ctx) {
   const live = key => { const id = firstLive(P[key]); return id ? { boxId: id, pool: P[key], token: tok } : null; };
 
   if (tok === 'PHASER') return pickPhaser(model, ctx);
-  if (tok === 'TORP') return pickWeaponByType(P.TORP, ctx.torpHits, tok, model);
+  if (tok === 'TORP') return pickWeaponByType(P.TORP, model._torpHits || 0, tok, model);   // D4.3222: cumulative torpedo-hit count lives on the model (persists across volleys)
   if (tok === 'FLAG') return live('FLAG') || live('SEC');                 // flag hits score on security if no flag bridge
   if (tok === 'ANY_WARP') return live('L_WARP') || live('R_WARP') || live('C_WARP');
   if (tok === 'ANY_WEAPON') return live('PHASER') || live('TORP') || live('DRONE');
@@ -61,8 +65,11 @@ function pickWeaponByType(pool, hitCount, tok, model) {
   if (!pool) return null;
   const cands = pool.boxIds.filter(id => !pool.destroyed.has(id));
   if (!cands.length) return null;
-  // D4.3222: every 3rd hit on the best type; otherwise take any (front of pool, already position-ordered).
-  return { boxId: cands[0], pool, token: tok };
+  cands.sort((a, b) => torpRank((model.groupOf[a] || {}).type) - torpRank((model.groupOf[b] || {}).type));
+  // D4.3222: every 3rd torpedo hit (cumulative over the scenario) must fall on the most powerful type; otherwise
+  // preserve the best by taking the weakest available.
+  const box = (hitCount % 3 === 2) ? cands[0] : cands[cands.length - 1];
+  return { boxId: box, pool, token: tok };
 }
 
 function scoreExcess(model) {                                             // D4.36 / D4.40
@@ -103,7 +110,7 @@ export function applyVolley(model, params, rollFn) {
   }
 
   // 3. Internal DAC phase (D4.22)
-  const boldUsed = new Set(); const ctx = { shield, phaserHits: 0, torpHits: 0 };
+  const boldUsed = new Set(); const ctx = { shield, phaserHits: 0 };   // phaser grouping is per-volley (D4.3221); torpedo grouping is cumulative on the model (D4.3222)
   for (let p = 0; p < internal; p++) {
     const r = roll();
     const cols = DAC[r] || [];
@@ -116,8 +123,8 @@ export function applyVolley(model, params, rollFn) {
       if (!t) continue;                                                  // no live target -> next column
       t.pool.destroyed.add(t.boxId);
       if (col.bold) boldUsed.add(r + ':' + ci);
-      if (col.sys === 'PHASER') ctx.phaserHits++;
-      if (col.sys === 'TORP') ctx.torpHits++;
+      if (col.sys === 'PHASER') ctx.phaserHits++;   // D4.3221 phasers: per-volley grouping
+      if (col.sys === 'TORP') model._torpHits = (model._torpHits || 0) + 1;   // D4.3222 torpedoes: cumulative over the entire scenario, so tracked on the model
       effects.push({ type: 'destroy', token: col.sys, family: FAM[col.sys], boxId: t.boxId });
       if (criticals && CRIT_VOLATILE.has(col.sys) && criticalHit(col.sys, roll())) {   // DAC-1: volatile secondary explosion
         const extra = firstLive(t.pool);
