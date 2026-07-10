@@ -353,14 +353,14 @@ function initDrones(s) {   // Phase 2: real rack inventory — capacity in space
 }
 const dronesOf = s => (s.drones || (s.drones = initDrones(s)));
 const dronesLeftOf = s => dronesOf(s).racks.reduce((n, r) => n + r.loaded.length, 0);
-const dronesLaunchableOf = s => dronesOf(s).racks.filter(r => r.loaded.length && r.firedTurn !== clock.turn).length;   // FD3.1: one drone per rack per turn
+const dronesLaunchableOf = s => dronesOf(s).racks.filter((r, i) => r.loaded.length && r.firedTurn !== clock.turn && !rackInJammedBay(s, i)).length;   // FD3.1: one drone per rack per turn; a rack in a jammed shuttle bay can't fire (D8.24)
 const seekingArmedOf = s => dronesOf(s).racks.length > 0 || plasmaGroupsOf(s).length > 0;   // armed with drones or plasma (F3.211)
 const controlLimitOf = s => controlLimit(sensorRating(s), seekingArmedOf(s));                 // F3.21 control channels (sensor rating, or half)
 const canControlMore = s => controlledCount(seekers, s.id) < controlLimitOf(s);               // room to guide another seeker
 function launchDrone(firer, target) {   // 6B: an armed rack puts a drone on the map, homing at the target
   if (passiveFcOf(firer)) { alert('Cannot launch seeking weapons under passive fire control (D19.22).'); return; }
   if (!firer || !target || !canControlMore(firer)) return;   // F3.21: cannot guide more seekers than the control limit
-  const rack = dronesOf(firer).racks.find(r => r.loaded.length && r.firedTurn !== clock.turn);   // a rack that is loaded AND has not fired this turn
+  const rack = dronesOf(firer).racks.find((r, i) => r.loaded.length && r.firedTurn !== clock.turn && !rackInJammedBay(firer, i));   // a loaded rack that hasn't fired this turn and isn't in a jammed bay (D8.24)
   if (!rack) return;
   const dtype = rack.loaded.shift();   // consume the loaded drone; its type sets the warhead delivered (FD2.1)
   rack.firedTurn = clock.turn;         // this rack has now fired for the turn (FD3.1)
@@ -389,7 +389,10 @@ const ADD_PER_RACK = 6, ADD_RELOAD_RATE = 4, ADD_RELOAD_SETS = 2;
 const addRacksOf = s => (s._ver.groups || []).filter(g => g.family === 'anti-drone').reduce((n, g) => n + (g.boxIds || []).filter(id => !s.status[id]).length, 0);
 const addCapOf = s => ADD_PER_RACK * addRacksOf(s);
 const addAmmoOf = s => (s.addAmmo == null ? (s.addAmmo = addCapOf(s)) : s.addAmmo);
-const shuttleBaysOf = s => Math.max(0, (s._ver.groups || []).filter(g => g.family === 'shuttle-bay').reduce((n, g) => n + (g.boxIds || []).filter(id => !s.status[id]).length, 0) - (s.criticals || []).filter(c => c.type === 'shuttleBay').length);   // D8.2 #10: each shuttle-bay crit jams one bay (D8.24)
+const baseShuttleBays = s => (s._ver.groups || []).filter(g => g.family === 'shuttle-bay').reduce((n, g) => n + (g.boxIds || []).filter(id => !s.status[id]).length, 0);   // intact shuttle-bay boxes (each is one bay)
+const jammedBaySet = s => new Set((s.criticals || []).filter(c => c.type === 'shuttleBay' && c.bay != null).map(c => c.bay));   // bay indices jammed by D8.2 #10 crits
+const rackInJammedBay = (s, i) => { const nb = baseShuttleBays(s); return nb > 0 && jammedBaySet(s).has(i % nb); };   // drone racks are split across the bays by index — a rack in a jammed bay can't fire (D8.24)
+const shuttleBaysOf = s => Math.max(0, baseShuttleBays(s) - (s.criticals || []).filter(c => c.type === 'shuttleBay').length);   // D8.2 #10: each shuttle-bay crit jams one bay (D8.24)
 const shuttlesLeftOf = s => Math.min(shuttleBaysOf(s), s.shuttlesLeft == null ? (s.shuttlesLeft = shuttleBaysOf(s)) : s.shuttlesLeft);   // a mid-turn bay crit immediately caps the launches still available
 function launchShuttle(firer, target) {   // suicide shuttle (C6): a slow homing seeker at the target
   if (!firer || !target || shuttlesLeftOf(firer) <= 0 || !canControlMore(firer)) return;   // F3.21 control limit
@@ -512,7 +515,12 @@ function accrueShieldDamage(target, shield, points, log) {
   target._critRolledTurn = clock.turn;
   const r = makeRng((seed ^ 0x0d8c817 ^ Math.imul(clock.turn, 0x9e3779b9) ^ hashId(target.id)) >>> 0);
   const roll = r.d6() + r.d6(), type = critForRoll(roll);   // 6–8 → no critical (type null), but the turn's roll is still spent
-  if (type) { target.criticals = addCrit(target.criticals || [], type); target.model = null; if (type === 'tractor') tractors = tractors.filter(t => t.from !== target.id); }   // disable the system (never destroy, D8.21); a tractor crit releases the ship's OWN beams (D8.2 #9 / G7.122)
+  if (type) {   // disable the system (never destroy, D8.21)
+    let meta = {};
+    if (type === 'shuttleBay') { const nb = baseShuttleBays(target), jammed = jammedBaySet(target), free = [...Array(nb).keys()].filter(b => !jammed.has(b)); if (free.length) meta = { bay: free[roll % free.length] }; }   // D8.24: pick the jammed bay by die roll
+    target.criticals = addCrit(target.criticals || [], type, meta); target.model = null;
+    if (type === 'tractor') tractors = tractors.filter(t => t.from !== target.id);   // a tractor crit releases the ship's OWN beams (D8.2 #9 / G7.122)
+  }
   if (log) log.push({ kind: 'crit', ship: target.id, roll, type, shield });
   saveSoon(target.id);
 }
