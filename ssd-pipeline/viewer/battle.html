@@ -1086,7 +1086,9 @@ function eaColOf(s) {
   if (!eafDraft[s.id]) eafDraft[s.id] = s.eaf ? { ...newEafColumn(powerOf(s), s.speed, c, progress), ...s.eaf } : newEafColumn(powerOf(s), s.speed, c, progress);
   return eafDraft[s.id];
 }
-const validateShip = s => validateEaf(powerOf(s), eaColOf(s), carriedOf(s), batteryOf(s));
+const validateShip = s => { let p = powerOf(s);
+  if (hasCrit(s.criticals, 'warp')) p = { ...p, warp: Math.floor(p.warp / 2), total: p.total - Math.ceil(p.warp / 2) };   // D8.23: a warp crit leaves only half the warp output usable (the other half is lost)
+  return validateEaf(p, eaColOf(s), carriedOf(s), batteryOf(s)); };
 // zone maps (% of the art) — both consoles share the region layout, styled per theme
 const CONSOLE = {
   fed: { art: 'FedBatt_EAF', cls: 'con-fed',
