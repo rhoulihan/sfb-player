@@ -1891,7 +1891,7 @@ async function resolvePlanInto(p, models, log, affected) {
   const capLeft = {}; for (const s of ships) capLeft[s.id] = Math.floor(s.capacitor || 0);   // phaser budget for this resolution
   const clean = { groups: (p.groups || []).map(g => ({ ...g, members: g.members.map(m => {
     const s = byId(m.shipId), el = eligForTarget(s, byId(g.targetShipId));
-    return { shipId: m.shipId, mountIds: fcReactivating(s) ? [] : m.mountIds.filter(id => {   // D19.26: a ship whose FC is reactivating can't fire this impulse
+    return { shipId: m.shipId, mountIds: ((passiveFcOf(s) || fcReactivating(s)) && s.em) ? [] : m.mountIds.filter(id => {   // D19.26: a reactivating FC fires on PASSIVE FC (via the predicate below), not banned; D19.25: passive FC won't function while using EM → no fire
       const mt = s.mounts.find(x => x.id === id); if (!(el[id] && el[id].available)) return false;
       if (isPhaser(mt.cls)) { if (capLeft[s.id] < PHASER_FIRE_COST) return false; capLeft[s.id] -= PHASER_FIRE_COST; return true; }
       return isCharged(s, id, mt.cls) && armedOk(s, id, mt.cls);   // heavy weapons: armed + not yet fired this turn
@@ -1910,7 +1910,7 @@ async function resolvePlanInto(p, models, log, affected) {
   };
   ships.forEach(applyReserveQueue);   // H7.33/E2.33: queued reserve ECCM / reinforcement / capacitor take effect for this impulse's fire (their applicable segment)
   const rng = makeRng(seed, rngCursor);   // deterministic shared dice — both clients agree, replayable
-  const res = await resolveAttackPlan(clean, ships, shipMountsMap(), models, rng.next, modeFn, reinforceOf, netEcmOf, settings.criticals, passiveFcOf);   // DAC-1 secondary explosions per settings; passive FC per fire-control crit / toggle (D19)
+  const res = await resolveAttackPlan(clean, ships, shipMountsMap(), models, rng.next, modeFn, reinforceOf, netEcmOf, settings.criticals, s => passiveFcOf(s) || fcReactivating(s));   // DAC-1 secondary explosions per settings; passive FC per fire-control crit / toggle (D19) — a reactivating FC also fires on passive (D19.26)
   rngCursor = rng.cursor();
   res.log.filter(l => l.kind === 'shot').forEach(l => { const s = byId(l.firer); if (s) { s.firedAt[l.mount] = { turn: clock.turn, impulse: clock.impulse }; if (s.armProgress) s.armProgress[l.mount] = 0; if (isPhaser(l.cls)) s.capacitor = Math.max(0, (s.capacitor || 0) - PHASER_FIRE_COST); } affected.add(l.firer); affected.add(l.target); });   // firing discharges a heavy weapon → re-arm from scratch
   res.volleys.forEach(v => { const s = byId(v.targetShipId); v.effects.forEach(ef => { if (ef.boxId) s.status[ef.boxId] = 'destroyed'; }); accrueShieldDamage(s, v.shield, v.points, log); affected.add(v.targetShipId); });   // D8.1: direct-fire damage counts toward the per-impulse shield total
