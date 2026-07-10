@@ -569,6 +569,7 @@ function stepSeekers(out) {   // 6A: move every seeker one impulse toward its ta
   seekers = seekers.filter(sk => !sk._done && !hitWeasels.has(sk.id));
 }
 const passiveFcOf = s => !!s && (hasCrit(s.criticals, 'fireControl') || !!s.fcPassive);   // D19: a fire-control crit or the voluntary toggle puts the ship on passive fire control
+const fcReactivating = s => !!s && s.fcReactTurn === clock.turn && clock.impulse <= 4;   // D19.26: active FC restored from passive can't fire/guide for 1/8 turn (4 impulses)
 const netEcmOf = (fr, t) => (fr && t) ? Math.max(0,
   (t.ecmLevel || 0) + cloakEcm(t) + (t.em ? 4 : 0)                   // target ECM + cloak + its erratic maneuvers (C10.413), all offset by firer ECCM
   - (passiveFcOf(fr) ? 0 : (fr.eccmLevel || 0))                     // passive FC can't use ECCM (D19.12)
@@ -1515,7 +1516,9 @@ async function resolveEnergy(allEaf) {                        // fold each locke
     const pw = powerOf(s), bv = validateEaf(pw, col, s.capacitor || 0, batteryOf(s));   // battery charge: refill by recharge, deplete by draw
     s.batteryCharge = Math.max(0, Math.min(pw.batteries, batteryOf(s) - bv.batteryUsed + (col.recharge || 0)));
     s.armed = ts.armed; s.armProgress = ts.armProgress; s.capacitor = ts.capacitor; s.reinforce = ts.reinforce; s.reinfLeft = null; s.reserveWarp = ts.reserveWarp || 0;   // held reserve warp, spendable reactively this turn (H7.4)
-    s.ecmLevel = ts.ecmLevel; s.eccmLevel = ts.eccmLevel; s.queuedTurn = 0; s.fcPassive = !!col.fcPassive;   // D19: voluntary passive-fire-control choice for the turn
+    s.ecmLevel = ts.ecmLevel; s.eccmLevel = ts.eccmLevel; s.queuedTurn = 0;
+    const wasPassiveFC = passiveFcOf(s); s.fcPassive = !!col.fcPassive;   // D19: voluntary passive-fire-control choice for the turn
+    if (wasPassiveFC && !passiveFcOf(s)) s.fcReactTurn = clock.turn;   // D19.26: restored active FC can't fire/guide for the first 4 impulses of this turn
     s.em = !!col.em && !hasCrit(s.criticals, 'maneuver');   // C10: erratic maneuvers for the turn; a maneuver crit forbids EM (D8.2 #11)
     s.tractorPower = Math.floor(col.tractor || 0);   // G7.15: whole points allocated to tractor beams this turn
     s.edr = hasCrit(s.criticals, 'labs') ? 0 : Math.floor(col.edr || 0);   // D14: powered labs for emergency damage repair (labs crit → none)
@@ -1759,7 +1762,7 @@ async function resolvePlanInto(p, models, log, affected) {
   const capLeft = {}; for (const s of ships) capLeft[s.id] = Math.floor(s.capacitor || 0);   // phaser budget for this resolution
   const clean = { groups: (p.groups || []).map(g => ({ ...g, members: g.members.map(m => {
     const s = byId(m.shipId), el = eligForTarget(s, byId(g.targetShipId));
-    return { shipId: m.shipId, mountIds: m.mountIds.filter(id => {
+    return { shipId: m.shipId, mountIds: fcReactivating(s) ? [] : m.mountIds.filter(id => {   // D19.26: a ship whose FC is reactivating can't fire this impulse
       const mt = s.mounts.find(x => x.id === id); if (!(el[id] && el[id].available)) return false;
       if (isPhaser(mt.cls)) { if (capLeft[s.id] < PHASER_FIRE_COST) return false; capLeft[s.id] -= PHASER_FIRE_COST; return true; }
       return isCharged(s, id, mt.cls) && armedOk(s, id, mt.cls);   // heavy weapons: armed + not yet fired this turn
