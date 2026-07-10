@@ -454,6 +454,19 @@ class H(http.server.SimpleHTTPRequestHandler):
                     q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
                     my = _fleet_for_code(data, q.get("code", [""])[0])
                     return self._json(200, battle_view(data, my))
+                if api == "eaf-layouts":   # list the saved EAF layouts (shared across ships of a race)
+                    d = os.path.join(ROOT, "data", "eaf-layouts"); os.makedirs(d, exist_ok=True)
+                    out = []
+                    for n in sorted(os.listdir(d)):
+                        if n.endswith(".json"):
+                            try: out.append(json.load(open(os.path.join(d, n))))
+                            except Exception: pass
+                    return self._json(200, {"layouts": out})
+                if api == "eaf-layout":   # one layout by id (path segment is lower-cased for layout ids)
+                    lid = seg[-1].lower()
+                    p = os.path.join(ROOT, "data", "eaf-layouts", lid + ".json")
+                    if not os.path.isfile(p): return self._json(200, {"error": "no such layout"})
+                    return self._json(200, json.load(open(p)))
             except Exception as e:
                 return self._json(500, {"error": str(e)})
         return super().do_GET()
@@ -468,6 +481,11 @@ class H(http.server.SimpleHTTPRequestHandler):
                 if not os.path.isdir(d): return self._json(404, {"error": "no such ship"})
                 open(os.path.join(d, "verified.json"), "wb").write(body)
                 return self._json(200, {"ok": True, "savedBytes": len(body)})
+            if self.path.startswith("/api/eaf-layout/"):   # save a shared EAF layout (drag-authored in verify.html)
+                lid = self.path.rsplit("/", 1)[-1].lower()
+                d = os.path.join(ROOT, "data", "eaf-layouts"); os.makedirs(d, exist_ok=True)
+                open(os.path.join(d, lid + ".json"), "wb").write(body)
+                return self._json(200, {"ok": True, "id": lid})
             if self.path.startswith("/api/audit/"): return self._json(200, audit(ship, payload))
             if self.path.startswith("/api/rescan/"): return self._json(200, rescan(ship, payload.get("region", {})))
             if self.path == "/api/weapon-charts":
