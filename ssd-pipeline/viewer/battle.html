@@ -760,15 +760,8 @@ function startPolling() {
 }
 
 const isDead = s => shipHealth(s) <= 0;
-function stepImpulse() {
-  if (getPhase() !== 'impulse') return;
-  const aliveBefore = new Set(ships.filter(s => !isDead(s)).map(s => s.id));   // 6E: announce ships lost this impulse
-  clock.impulse++;
-  myCommitted = false; committed = {};                            // new impulse → fresh firing commits
-  let wrapped = false;
-  if (clock.impulse > 32) { clock.impulse = 1; clock.turn++; wrapped = true; }   // new turn → back to energy allocation
-  ships.forEach(s => s._shieldDmg = {});   // D8.1: shield-damage tally is per-impulse (direct fire + seekers combine within an impulse)
-  ships.forEach(applyReserveQueue);        // H7.1: queued reserve allocations take effect at the impulse boundary (their applicable segment)
+// ---- Sequence-of-Play segment resolvers (B2.3) — the host runs these as the cursor reaches each segment ----
+function resolveMovement() {   // 6A Movement Segment: plotted speed changes fire, each ship moves one hex, tractored ships are dragged by their tower
   const _towPos = Object.fromEntries(ships.map(s => [s.id, [s.q, s.r]]));   // pre-move positions → drag tractored ships along with their tower (G7.32/36)
   for (const s of ships) {
     s.speed = hasCrit(s.criticals, 'warp') ? 0 : speedAt(s.speedPlot || { base: s.speed, changes: [] }, clock.impulse);   // plotted speed changes fire on their locked impulses (C12.36); warp crit halts the ship (D8.23)
@@ -794,26 +787,29 @@ function stepImpulse() {
     if ((dq || dr) && !hasCrit(held.criticals, 'warp')) { const nq = held.q + dq, nr = held.r + dr; if (nq >= 0 && nq < COLS && nr >= 0 && nr < ROWS) { held.q = nq; held.r = nr; } }
   }
   pruneTractors();   // G7.125: break any link whose units are no longer valid/in range after movement
-  if (wrapped) {
-    for (const s of ships) {   // Repair Stage (Record Keeping): damage control repairs a designated shield (D9.21) first, then destroyed systems (D9.7) with any leftover
-      let pts = Math.floor(eafDraft[s.id]?.damageControl || 0);
-      if (pts <= 0) continue;
-      const rShield = eafDraft[s.id]?.repairShield || 0;
-      if (rShield >= 1 && rShield <= 6) {   // D9.21: two units of damage-control energy erase one box of shield damage; leftover spills to system repair
-        const m = s.model || (s.model = buildShipModel(s._ver, s._det)), sh = m.shields[rShield];
-        if (sh && sh.down > 0) { const boxes = Math.min(sh.down, Math.floor(pts / 2)); sh.down -= boxes; pts -= boxes * 2; }
-      }
-      const dead = Object.keys(s.status || {}); if (pts <= 0 || !dead.length) continue;   // D9.7: repair destroyed system boxes with the remaining energy
-      const famOf = id => { for (const g of (s._ver.groups || [])) if ((g.boxIds || []).includes(id)) return g.family; return null; };
-      const { repaired } = repairBoxes(dead, pts, { repairable: id => !['excess-damage', 'damage-control'].includes(famOf(id)) });
-      repaired.forEach(id => delete s.status[id]);
-      if (repaired.length) s.model = null;   // rebuild the working model so it reflects the repair (matches applyRemote)
+}
+function resolveSeekingImpact() { const skLog = []; stepSeekers(skLog); return skLog; }   // end of 6A (F2.2): seeking weapons advance + impact this impulse, before any 6D fire
+function resolvePostCombat(aliveBefore, skLog) {   // 6E Post-Combat Segment: announce ships lost this impulse
+  for (const s of ships) if (aliveBefore.has(s.id) && isDead(s)) skLog.push({ kind: 'death', ship: s.id });
+}
+function resolveRepairStage() {   // Record Keeping (D9.21/D9.7): damage control repairs a designated shield first, then destroyed systems with any leftover
+  for (const s of ships) {
+    let pts = Math.floor(eafDraft[s.id]?.damageControl || 0);
+    if (pts <= 0) continue;
+    const rShield = eafDraft[s.id]?.repairShield || 0;
+    if (rShield >= 1 && rShield <= 6) {   // D9.21: two units of damage-control energy erase one box of shield damage; leftover spills to system repair
+      const m = s.model || (s.model = buildShipModel(s._ver, s._det)), sh = m.shields[rShield];
+      if (sh && sh.down > 0) { const boxes = Math.min(sh.down, Math.floor(pts / 2)); sh.down -= boxes; pts -= boxes * 2; }
     }
-    clock.phase = 'energy'; eafDraft = {}; myLockedEnergy = false; ui.eaHidden = false;
+    const dead = Object.keys(s.status || {}); if (pts <= 0 || !dead.length) continue;   // D9.7: repair destroyed system boxes with the remaining energy
+    const famOf = id => { for (const g of (s._ver.groups || [])) if ((g.boxIds || []).includes(id)) return g.family; return null; };
+    const { repaired } = repairBoxes(dead, pts, { repairable: id => !['excess-damage', 'damage-control'].includes(famOf(id)) });
+    repaired.forEach(id => delete s.status[id]);
+    if (repaired.length) s.model = null;   // rebuild the working model so it reflects the repair (matches applyRemote)
   }
-  const skLog = []; stepSeekers(skLog);   // 6A: seeking weapons advance + impact this impulse
-  for (const s of ships) if (aliveBefore.has(s.id) && isDead(s)) skLog.push({ kind: 'death', ship: s.id });   // 6E post-combat: announce the fallen
-  if (wrapped) for (const s of ships) {
+}
+function resolveFinalActivity(skLog) {   // Final Activity Phase (7): reload, non-holdable discharge, reserve→battery, D8 crit repair, D14 emergency damage repair
+  for (const s of ships) {
     if (s.drones) s.drones.racks = s.drones.racks.map(r => (loadoutSpaces(r.loaded) < r.capacity && r.reloadsLeft > 0 && r.firedTurn !== clock.turn - 1) ? reloadStep(r) : r); s.shuttlesLeft = shuttleBaysOf(s);   // FD2.421: reload 2 spaces/turn from the magazine, only if the rack did not fire the turn just ended; plasma re-arms through the EAF (FP1.21)
     for (const w of powerOf(s).weapons) if (!canHold(w.cls) && s.armProgress && isArmed(w.cls, s.armProgress[w.id] || 0)) s.armProgress[w.id] = 0;   // non-holdable weapon armed but not fired → discharge (E3.24 disruptor, FP1.311 plasma-R)
     if (s.reserveWarp) { s.batteryCharge = Math.min(powerOf(s).batteries, batteryOf(s) + s.reserveWarp); s.reserveWarp = 0; }   // H7.36: unused reserve warp drains into the batteries at end of turn
@@ -839,6 +835,21 @@ function stepImpulse() {
       }
     }
   }
+}
+function stepImpulse() {
+  if (getPhase() !== 'impulse') return;
+  const aliveBefore = new Set(ships.filter(s => !isDead(s)).map(s => s.id));   // 6E: announce ships lost this impulse
+  clock.impulse++;
+  myCommitted = false; committed = {};                            // new impulse → fresh firing commits
+  let wrapped = false;
+  if (clock.impulse > 32) { clock.impulse = 1; clock.turn++; wrapped = true; }   // new turn → back to energy allocation
+  ships.forEach(s => s._shieldDmg = {});   // D8.1: shield-damage tally is per-impulse (direct fire + seekers combine within an impulse)
+  ships.forEach(applyReserveQueue);        // H7.1: queued reserve allocations take effect at the impulse boundary (their applicable segment)
+  resolveMovement();                       // 6A Movement Segment
+  if (wrapped) { resolveRepairStage(); clock.phase = 'energy'; eafDraft = {}; myLockedEnergy = false; ui.eaHidden = false; }   // Record Keeping → next turn's Energy Allocation
+  const skLog = resolveSeekingImpact();    // end of 6A: seeking weapons advance + impact
+  resolvePostCombat(aliveBefore, skLog);   // 6E Post-Combat: announce the fallen
+  if (wrapped) resolveFinalActivity(skLog);   // Final Activity Phase
   pruneUnavailable(); render(); if (skLog.length) renderLog({ log: skLog }, true); save(null, wrapped ? { step: true, phase: 'energy' } : { step: true });   // movement syncs to all commanders
 }
 // a queued turn executes when the ship next moves; applies to the given ship (defaults to the last-clicked one)
