@@ -314,7 +314,7 @@ import { makeScenario, applyLoSGate } from './terrain.js';
 import { MINE, mineTriggeredBy, hitAndRunSucceeds, SELF_DESTRUCT, selfDestructHits, selfDestructDamage, NUCLEAR_MINE, transporterTarget, TBOMB_WARHEAD } from './mines.js';
 import { shuttleMaxHp, damageShuttle, shuttleDestroyed } from './shuttle-inventory.js';
 const PD_SHUTTLE_DMG = 2;   // point-defense damage per hit vs a shuttle (shuttles soak, drones one-shot)
-import { movesOnImpulse, neighbor, turnMode, turnModeFor, accelCap } from './movement.js';
+import { movesOnImpulse, neighbor, turnMode, turnModeFor, accelCap, pseudoSpeed } from './movement.js';
 // FALLBACK only — the C3.3 turn-mode category is now captured at verification into verified.json (stats.turnCategory).
 // This map is used only for a ship whose verified data predates that field. Confirmed: FED-CA/GOR-CA=D, KLI-D7/ROM-KR=B.
 const SHIP_TURN_CATEGORY = { 'FED-CA': 'D', 'FED-CL': 'C', 'FED-NCL': 'C', 'GOR-CA': 'D', 'KLI-D7': 'B', 'ROM-KR': 'B', 'KZIN-CS': 'C' };
@@ -772,6 +772,12 @@ function stepImpulse() {
   const _towPos = Object.fromEntries(ships.map(s => [s.id, [s.q, s.r]]));   // pre-move positions → drag tractored ships along with their tower (G7.32/36)
   for (const s of ships) {
     s.speed = hasCrit(s.criticals, 'warp') ? 0 : speedAt(s.speedPlot || { base: s.speed, changes: [] }, clock.impulse);   // plotted speed changes fire on their locked impulses (C12.36); warp crit halts the ship (D8.23)
+    const towed = tractorLinksFrom(s).map(t => byId(t.to)).filter(h => h && !isDead(h));   // G7.36B: towing another ship slows the tower to the pair's pseudo-speed (combined move cost)
+    if (towed.length && s.speed) {
+      const tc = powerOf(s).moveCost;
+      const held = towed.map(h => { const hc = powerOf(h).moveCost; const hs = hasCrit(h.criticals, 'warp') ? 0 : speedAt(h.speedPlot || { base: h.speed, changes: [] }, clock.impulse); return { energy: hs * hc, cost: hc }; });
+      s.speed = pseudoSpeed(s.speed * tc, tc, held);
+    }
     if (isDead(s) || heldBy(s) || !movesOnImpulse(s.speed, clock.impulse)) continue;   // a held ship is dragged by its tower (below), not self-propelled (G7.21)
     const auto = s.autopilot && s.course && s.course.steps[s._autoIdx || 0];
     if (auto) { const st = s.course.steps[s._autoIdx || 0], turned = st.facing !== s.facing;   // follow the plotted course

@@ -1,6 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { movesOnImpulse, neighbor, turnMode, turnModeFor, movesInTurn, accelCap } from '../viewer/movement.js';
+import { movesOnImpulse, neighbor, turnMode, turnModeFor, movesInTurn, accelCap, pseudoSpeed } from '../viewer/movement.js';
+
+test('pseudoSpeed: towing another ship divides movement energy by the combined move cost (G7.36B)', () => {
+  // not towing → normal solo speed (energy / own cost), uncapped
+  assert.equal(pseudoSpeed(24, 1, []), 24, 'no tow → floor(24/1)');
+  // tow a powerless (disabled) cost-1 ship: 16 pts / combined cost 2 → half speed
+  assert.equal(pseudoSpeed(16, 1, [{ energy: 0, cost: 1 }]), 8, 'towing a dead ship halves speed');
+  // both ships push: pooled energy over combined cost
+  assert.equal(pseudoSpeed(16, 1, [{ energy: 8, cost: 1 }]), 12, 'both push → floor((16+8)/2)');
+  // fractional movement points are dropped
+  assert.equal(pseudoSpeed(17, 1, [{ energy: 0, cost: 1 }]), 8, 'floor(17/2)=8');
+  // no ship generates more than 30 movement pts from warp → two cost-1 ships cap at 15
+  assert.equal(pseudoSpeed(40, 1, [{ energy: 0, cost: 1 }]), 15, 'capped at floor(30/2)');
+});
 
 test('accelCap: a turn may raise speed by the previous speed or 10, whichever is greater (C2.21)', () => {
   // rulebook example: speed 3 → max 13 (ten more than three); speed 13 → max 26 (double thirteen)

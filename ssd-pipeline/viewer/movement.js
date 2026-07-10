@@ -43,3 +43,17 @@ export function accelCap(prevSpeed) { return prevSpeed + Math.max(prevSpeed, 10)
 
 // sanity helper: total hexes moved across a full 32-impulse turn (equals speed)
 export function movesInTurn(speed) { let n = 0; for (let i = 1; i <= 32; i++) if (movesOnImpulse(speed, i)) n++; return n; }
+
+// G7.36B TOWING PSEUDO-SPEED: a ship linked by tractor to one or more others must move the whole group,
+// so its practical (pseudo) speed is its movement energy divided by the COMBINED movement cost of every
+// linked ship, dropping fractional points. Both ships' movement power drives the pair (a disabled tow
+// contributes 0). Capped because no ship generates more than 30 movement points from warp energy, so two
+// cost-one ships peak at 15. `held` is [{energy, cost}] for each towed ship; empty → normal solo speed.
+// (Simplification: we pool warp+impulse movement energy rather than model the smaller ship's ignored
+//  impulse power separately, which our single per-ship movement-energy figure doesn't distinguish.)
+export function pseudoSpeed(towerEnergy, towerCost, held = []) {
+  if (!held.length) return Math.floor(towerEnergy / towerCost);
+  const combinedCost = held.reduce((c, h) => c + h.cost, towerCost);
+  const totalEnergy = held.reduce((e, h) => e + (h.energy || 0), towerEnergy);
+  return Math.min(Math.floor(30 / combinedCost), Math.floor(totalEnergy / combinedCost));
+}
