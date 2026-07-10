@@ -2,6 +2,7 @@
 // Functional game-mechanics data transcribed from owned material (phaser Type I/II/III
 // grids from the SSDs; disruptor E3.4 + photon E4.12 from the rulebook). Editable via
 // viewer/weapons.html against the scanned source tables.
+import { shiftedDie, shiftRangeOfEffect } from './ew.js';   // D6.35/E1.82: net ECM applies as a die-roll shift
 
 export const WEAPONS = {
   "PH-1": {
@@ -139,31 +140,38 @@ function overloadDmg(def, trueRange) {
   return 2 * (def.fixedDamage[bi] || 0);
 }
 
-export function damageFor(def, trueRange, die, mode = false) {   // mode: false | true/'overload' | 'prox'
+// `range` = chart-lookup (effective) range for the hit-band column — passive FC doubles this (D19.11); `trueRange`
+// = physical hexes, used for range LIMITS (E3.53/E4.42 overload cap, minimum range, weapon max); `dieShift` = the
+// net ECM die-roll shift (D6.35/E1.82), applied to the die, never to a range. Single-range callers get the old
+// behavior (trueRange defaults to range, no shift).
+export function damageFor(def, range, die, mode = false, trueRange = range, dieShift = 0) {
   const ov = (mode === true || mode === 'overload') && def.overload;   // overload: bigger warhead, shorter range
   const prox = mode === 'prox' && def.proximity;                        // proximity: weaker, auto-misses at close range (E4.32)
   if (prox) {
     const pd = def.proximity;
-    if (trueRange < (pd.minRange || 0) || trueRange > pd.maxRange) return 0;   // E4.32: automatic miss inside min range
-    const bi = bandIndex(def, trueRange); if (bi < 0) return 0;
+    if (trueRange < (pd.minRange || 0) || trueRange > pd.maxRange) return 0;   // E4.32: automatic miss inside min range (true range)
+    const bi = bandIndex(def, range); if (bi < 0) return 0;
     const hb = def.hitBand1d[bi]; if (!hb) return 0;
-    return (die >= hb[0] && die <= hb[1] + (pd.dieBonus || 0)) ? pd.fixedDamage : 0;   // −2 to the die = +2 to the hit threshold
+    const sd = shiftedDie(die, dieShift);
+    return (sd >= hb[0] && sd <= hb[1] + (pd.dieBonus || 0)) ? pd.fixedDamage : 0;   // −2 to the die = +2 to the hit threshold
   }
   if (ov) {
     const od = def.overload;
-    if (trueRange > od.maxRange) return 0;
-    if (trueRange <= (od.feedbackRange ?? -1)) return (die >= 1 && die <= 6) ? overloadDmg(def, trueRange) : 0;   // R0-1 overload hits 1-6 (E4.43)
+    if (trueRange > od.maxRange) return 0;   // E3.53/E4.42: overload's 8-hex cap is on TRUE range, not effective range
+    if (trueRange <= (od.feedbackRange ?? -1)) return (shiftedDie(die, dieShift) <= 6) ? overloadDmg(def, range) : 0;   // R0-1 overload hits 1-6 (E4.43)
     if (def.minRange && trueRange < def.minRange) return 0;   // otherwise the normal minimum range still applies
-    const bi = bandIndex(def, trueRange); if (bi < 0) return 0;
+    const bi = bandIndex(def, range); if (bi < 0) return 0;
     const hb = def.hitBand1d[bi]; if (!hb) return 0;
-    return (die >= hb[0] && die <= hb[1]) ? overloadDmg(def, trueRange) : 0;
+    const sd = shiftedDie(die, dieShift);
+    return (sd >= hb[0] && sd <= hb[1]) ? overloadDmg(def, range) : 0;
   }
   if (def.minRange && trueRange < def.minRange) return 0;
   if (trueRange > def.maxRange) return 0;
-  const bi = bandIndex(def, trueRange); if (bi < 0) return 0;
-  if (def.resolution === 'range-of-effect') return def.effectGrid[die - 1]?.[bi] ?? 0;  // phasers have no arming mode
+  const bi = bandIndex(def, range); if (bi < 0) return 0;
+  if (def.resolution === 'range-of-effect') { const r = shiftRangeOfEffect(die, bi, dieShift); return def.effectGrid[r.die - 1]?.[r.col] ?? 0; }   // E1.822 phaser: raise die to 6, then one column higher per remaining shift
   const hb = def.hitBand1d[bi]; if (!hb) return 0;
-  return (die >= hb[0] && die <= hb[1]) ? def.fixedDamage[bi] : 0;
+  const sd = shiftedDie(die, dieShift);
+  return (sd >= hb[0] && sd <= hb[1]) ? def.fixedDamage[bi] : 0;
 }
 
 // Feedback damage (E4.431 photon, E3.54 disruptor): a point-blank overloaded bolt that HITS scores damage on

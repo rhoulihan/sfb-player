@@ -17,11 +17,11 @@ Source: `docs/adversarial-review.md` (96 confirmed findings). Strict TDD, one cl
 
 ## Overload true-range cutoff (E3.53/E4.42)
 
-- [ ] 🔴 **E3.53 / E4.42** `ssd-pipeline/viewer/weapon-charts.js:154` — Overload maximum-range cutoff (8 hexes) is tested against effective range, but the rules apply it to true range only.
+- [x] 🔴 **E3.53 / E4.42** `ssd-pipeline/viewer/weapon-charts.js:154` — Overload maximum-range cutoff (8 hexes) is tested against effective range, but the rules apply it to true range only.
 
 ## EW magnitude model (D6)
 
-- [ ] 🔴 **D6.34 / D6.35** `ssd-pipeline/viewer/direct-fire.js:17` — Net ECM points are added linearly to effective range instead of being converted to the D6.34 square-root shift; EW is grossly over-scaled.
+- [x] 🔴 **D6.34 / D6.35** `ssd-pipeline/viewer/direct-fire.js:17` — Net ECM points are added linearly to effective range instead of being converted to the D6.34 square-root shift; EW is grossly over-scaled.
 - [ ] 🔴 **D6.310 / D6.312** `ssd-pipeline/viewer/energy-model.js:72` — No combined ECM+ECCM cap — the two are each capped at 6 independently, so a ship can allocate 12 total EW instead of its sensor rating.
 - [ ] 🔴 **D6.112** `ssd-pipeline/viewer/lock-on.js:3` — ECM is used to BREAK lock-on, but the rules say EW only degrades weapon effect quality and cannot break a lock.
 - [ ] 🟠 **FP1.611/D6.36** `ssd-pipeline/viewer/battle.html:1429` — Seeking weapons cannot be selected as fire targets, so the player can never direct PH-1/PH-2 at a drone or weaken an approaching plasma torpedo.

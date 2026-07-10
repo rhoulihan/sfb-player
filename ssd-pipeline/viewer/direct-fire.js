@@ -3,6 +3,7 @@
 import { exposedShield, hexDistance } from './battle-geom.js';
 import { WEAPONS, damageFor, feedbackFor } from './weapon-charts.js';
 import { applyVolley, makeDice } from './dac-allocator.js';
+import { ewShift } from './ew.js';   // D6.34/D6.35: net ECM applies as a die-roll shift, not a range add
 
 // dieFn() returns a d6 (1..6). netEcm (target ECM beyond firer ECCM, D6.3) is added to the range the weapon
 // chart is read at, so jamming lowers damage or pushes a shot out of range. Returns { hit, points,
@@ -14,10 +15,11 @@ export function resolveMount(firer, mount, target, dieFn, mode = false, netEcm =
   const die = dieFn();
   if (passive && trueRange > 5)                                    // D19.23: passive FC can't fire direct-fire weapons beyond 5 hexes true range
     return { hit: false, points: 0, struckShield, die, trueRange, effRange: trueRange, feedback: 0, passive: true };
-  const effRange = (passive ? 2 * trueRange : trueRange) + Math.max(0, netEcm | 0);   // D19.11: passive FC has no lock-on → effective range is double true range (ECM still adds)
-  const points = def ? damageFor(def, effRange, die, mode) : 0;    // mode: false | 'overload' | 'prox'
+  const effRange = passive ? 2 * trueRange : trueRange;   // D19.11: passive FC has no lock-on → the hit chart is read at double true range
+  const shift = ewShift(Math.max(0, netEcm | 0));         // D6.34/D6.35: net ECM produces a die-roll shift (E1.82), applied to the die — NOT added to the range
+  const points = def ? damageFor(def, effRange, die, mode, trueRange, shift) : 0;   // mode: false | 'overload' | 'prox'
   const feedback = def ? feedbackFor(def, trueRange, die, mode, points > 0) : 0;   // point-blank overload feeds back to the firer (E4.431/E3.54)
-  return { hit: points > 0, points, struckShield, die, trueRange, effRange, feedback };
+  return { hit: points > 0, points, struckShield, die, trueRange, effRange, ewShift: shift, feedback };
 }
 
 // models[shipId] is that ship's buildShipModel() result. Rolls every committed mount, buckets hits by
