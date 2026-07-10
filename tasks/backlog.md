@@ -16,6 +16,10 @@ Lower-priority polish. None block normal cruiser play.
 - [x] **Towing speed restriction** (G7.36B) — `pseudoSpeed()` slows the tower to movement-energy ÷ combined move cost (tow a dead ship → half speed; verified 16→8 hexes/turn).
 - [x] **Klingon shield overlays** — hexes now read the saved layout (`controls['shield-N']`, was silently reading the wrong key), sized to the SSD boxes and rotated tangent to the ring (derived from the ring centroid). Screenshot-verified against the real Klingon EAF art.
 
+## MSC prefill (ad-hoc, 2026-07-10 — backlogged per Rick)
+- [ ] **Prefill roster ship stats from the Master Ship Chart** — extract BES/move-cost/size-class/turn-mode/DC (and cloak cost) for the 7 roster ships (FED-CA/CL/NCL, GOR-CA, KLI-D7, KZIN-CS, ROM-KR) from the MSC (Annex R2.0 in `SFB/SFBModuleG3.pdf`, now available) into their `verified.json` stats. NOTE: PDF text extraction of the MSC is column-jumbled — read the MSC pages as images for accuracy. BES column: locate it in the MSC (D5.2 references it).
+- [ ] **Auto-prefill MSC-derived stats when a new SSD is loaded** in verify.html — build an MSC data table (ship code → stats, functional data from Module G3) that the editor reads to auto-populate the stat fields (turnCategory/sizeClass/moveCost/dcRating/cloakCost/bes) whenever a ship is opened, so verification starts pre-filled.
+
 ## Adversarial rules review (2026-07-10)
 - [ ] **96 confirmed rules-compliance findings** — see `docs/adversarial-review.md` (443-agent adversarial review, 3-vote verified). 13 high / 67 med / 16 low. Prioritized fix order in the report's executive summary; worst clusters: cloak (G13), EW magnitude (D6.34/D6.310/D6.112), D9.7 repair, D5 self-destruct, E2.23 phaser once/turn, C3 turn-mode category in the commit path.
 

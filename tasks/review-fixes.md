@@ -69,9 +69,9 @@ Source: `docs/adversarial-review.md` (96 confirmed findings). Strict TDD, one cl
 ## Remaining — energy
 
 - [ ] 🟠 **D14.12** `ssd-pipeline/viewer/battle.html:832` — EDR auto-repairs arbitrary destroyed boxes rather than the systems the player must specify when allocating lab energy.
-- [ ] 🟠 **D3.343** `ssd-pipeline/viewer/battle.html:1112` — The reactive reserve-reinforcement modal lets a defender put SPECIFIC reinforcement onto a down (0-strength) shield.
+- [x] 🟠 **D3.343** `ssd-pipeline/viewer/battle.html:1112` — The reactive reserve-reinforcement modal lets a defender put SPECIFIC reinforcement onto a down (0-strength) shield.
 - [ ] 🟠 **H7.41 / H7.42** `ssd-pipeline/viewer/energy-model.js:74` — Reserve warp power is capped in quantity but not gated to warp-engine source, letting warp output be double-committed to movement and reserve simultaneously.
-- [ ] 🟠 **D3.343** `ssd-pipeline/viewer/energy-model.js:84` — A down (0-strength) shield can still receive specific reinforcement, which D3.343 forbids.
+- [x] 🟠 **D3.343** `ssd-pipeline/viewer/energy-model.js:84` — A down (0-strength) shield can still receive specific reinforcement, which D3.343 forbids.
 - [ ] 🟠 **C2.11 / C2.112** `ssd-pipeline/viewer/energy-model.js:128` — validateEaf never gates movement energy to the warp+impulse sources, so movement can be funded from APR/batteries and can exceed the 30-from-warp cap.
 - [ ] 🟡 **D3.342** `ssd-pipeline/viewer/energy-model.js:84` — Specific reinforcement is capped at the shield's printed box value, but D3.342 places no such cap.
 - [ ] 🟡 **C2.411 / C2.112** `ssd-pipeline/viewer/energy-model.js:163` — foldEaf caps folded speed at 30 though maximum practical speed is 31 (30 warp + 1 impulse).

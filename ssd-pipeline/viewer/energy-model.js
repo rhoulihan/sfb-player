@@ -86,7 +86,9 @@ export function sinkMax(p, key) {
     default: return p.total + p.batteries;
   }
 }
-export const specReinfMax = (p, shieldN) => p.shields[shieldN - 1] || 0;   // reinforce a shield up to its box value (D3.342)
+// D3.342: reinforce a shield up to its printed box value. D3.343: a shield that is down (current strength 0) cannot
+// be specific-reinforced — only general reinforcement blocks fire from that facing. Pass the current strength to enforce it.
+export const specReinfMax = (p, shieldN, currentStrength) => (currentStrength != null && currentStrength <= 0) ? 0 : (p.shields[shieldN - 1] || 0);
 
 export function lifeSupportCost(power) { return LIFE_SUPPORT[power.sizeClass] ?? 0; }
 

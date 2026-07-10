@@ -1317,7 +1317,7 @@ function renderEnergy() {
   if (hasCrit(s.criticals, 'labs')) col.edr = 0;          // D8.2 #5: labs crit → EDR impossible (in-progress lost)
   if (L.controls) {   // named-control layout (drag-authored in verify.html): each control has its own saved position
     const C = L.controls, at = id => C[id];
-    for (const n of [1, 2, 3, 4, 5, 6]) { const q = at('shield-' + n); if (q) h += shieldCtl(n, q[0], q[1], sn[n - 1], col.specReinf[n] || 0, specReinfMax(p, n), genPts); }
+    for (const n of [1, 2, 3, 4, 5, 6]) { const q = at('shield-' + n); if (q) h += shieldCtl(n, q[0], q[1], sn[n - 1], col.specReinf[n] || 0, specReinfMax(p, n, sn[n - 1]), genPts); }
     if (at('shields-toggle')) h += toggleCtl(at('shields-toggle')[0], at('shields-toggle')[1], 'SHIELDS', 'shieldsActive', col.shieldsActive);
     if (at('phaser-cap')) h += capCtl(at('phaser-cap')[0], at('phaser-cap')[1], carriedOf(s), col.phaserCap, p.capacitorCap);
     for (const w of p.weapons) { const q = at('weapon-' + (w.label || '')); if (q) h += weaponCtl(q[0], q[1], w, col.weapons[w.id]); }   // weapons keyed by SSD label (A/B/C…)
@@ -1335,7 +1335,7 @@ function renderEnergy() {
     if (at('fc-passive')) h += toggleCtl(at('fc-passive')[0], at('fc-passive')[1], 'FC PASSIVE', 'fcPassive', col.fcPassive);
     if (at('edr') && p.systems.labs && !hasCrit(s.criticals, 'labs')) h += stackCtl(at('edr')[0], at('edr')[1], 'EDR (labs)', 'edr', col.edr, sinkMax(p, 'edr'));
   } else {   // legacy layout: shields map + ordered bay slots + fixed system strip
-    for (const n of [1, 2, 3, 4, 5, 6]) { const [x, y] = L.shields[n]; h += shieldCtl(n, x, y, sn[n - 1], col.specReinf[n] || 0, specReinfMax(p, n), genPts); }
+    for (const n of [1, 2, 3, 4, 5, 6]) { const [x, y] = L.shields[n]; h += shieldCtl(n, x, y, sn[n - 1], col.specReinf[n] || 0, specReinfMax(p, n, sn[n - 1]), genPts); }
     h += toggleCtl(L.activate[0], L.activate[1], 'SHIELDS', 'shieldsActive', col.shieldsActive);
     const bays = L.bays; let bi = 0;
     if (bi < bays.length) { h += capCtl(bays[bi][0], bays[bi][1], carriedOf(s), col.phaserCap, p.capacitorCap); bi++; }
@@ -1594,7 +1594,7 @@ epanel.addEventListener('click', e => {
   const tg = e.target.closest('[data-ea="toggle"]'); if (tg) { col[tg.dataset.key] = tg.dataset.num ? (col[tg.dataset.key] ? 0 : 1) : !col[tg.dataset.key]; render(); return; }
   const dct = e.target.closest('[data-ea="dctarget"]'); if (dct) { col.repairShield = ((col.repairShield || 0) + 1) % 7; render(); return; }   // D9.21: cycle the damage-control repair target (SYS / SH 1-6)
   const stp = e.target.closest('[data-ea="step"]'); if (stp) { const k = stp.dataset.key, max = k === 'phaserCap' ? p.capacitorCap - carriedOf(s) : k === 'recharge' ? p.batteries - batteryOf(s) : (k === 'ecm' || k === 'eccm') ? ewFieldMax(sensorRating(s), col[k === 'ecm' ? 'eccm' : 'ecm'] || 0) : sinkMax(p, k); col[k] = Math.max(0, Math.min(max, (col[k] || 0) + (+stp.dataset.d))); render(); return; }   // D6.310: ECM+ECCM combined ≤ sensor rating
-  const sp = e.target.closest('[data-ea="specstep"]'); if (sp) { const n = +sp.dataset.shield, max = specReinfMax(p, n); col.specReinf[n] = Math.max(0, Math.min(max, (col.specReinf[n] || 0) + (+sp.dataset.d))); render(); return; }
+  const sp = e.target.closest('[data-ea="specstep"]'); if (sp) { const n = +sp.dataset.shield, max = specReinfMax(p, n, shieldsNow(s)[n - 1]); col.specReinf[n] = Math.max(0, Math.min(max, (col.specReinf[n] || 0) + (+sp.dataset.d))); render(); return; }   // D3.343: a down shield can't be specific-reinforced (max 0)
 });
 function onEaInput(e) {   // range sliders: live-update value + header meter without rebuilding (would kill the drag)
   if (myLockedEnergy || ui.viewEA) return; const t = e.target, s = ui.eaSelected ? byId(ui.eaSelected) : null; if (!s || t.dataset.ea !== 'num') return;
