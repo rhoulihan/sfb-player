@@ -42,13 +42,11 @@ reinforcement functionality, **general reinforcement highlights all 6 shield fie
 - [x] `tractor.js` (TDD) + full G7 integration (establish/hold/release/map/persist, crit-release) — `d6cd329`/`b4f232a`
 - [x] EM erratic maneuvers (C10): cost 6 move-hexes (`18c9e2a`) + ±4 ECM at & by the EM unit (`b0021e8`)
 - [x] D14 emergency damage repair: mark DC box + 3 power/lab; end-of-turn roll ≤ DC rating repairs boxes (verified: 3 restored) — `956220c`
-- [ ] Bay identity in verify.html + verified.json (specific bay by die roll, drone racks inside a bay — refinement)
-- [ ] Refinements: negative-tractor break auction UI (currently auto/pruned); proper towing movement; passive-FC voluntary-toggle deeper effects
+- [x] Bay identity derived from the SSD; a bay crit jams a specific bay + its drone racks (D8.24) — `1e3b6bd`
+- [x] Proper towing movement (G7.32/36) — `8efe5e7`; towing speed restriction (G7.36B pseudo-speed) — `665826e`
+- [x] Passive-FC reactivation delay (D19.26, 4 impulses) — `103e159`
+- [ ] Negative-tractor break **auction UI** (currently auto/pruned — functional; the interactive bid UI is a nicety)
 
-## Deferred TODO (Rick-flagged)
+## Deferred TODO (Rick-flagged — skip per Rick 2026-07-09)
 - [ ] **Full D22 energy-balance engine** — incremental/instantaneous/continuous power-loss reallocation (D22.1–D22.6).
-      Until then the warp crit uses D8.23's own allowance (cancel movement energy).
-
-## Deferred TODO (Rick-flagged)
-- [ ] **Full D22 energy-balance engine** — incremental/instantaneous/continuous power-loss reallocation (D22.1–D22.6).
-      Until then the warp crit uses D8.23's own allowance (cancel movement energy).
+      Optional rule; the warp crit uses D8.23's own allowance (cancel movement energy). See tasks/backlog.md for full scope.
