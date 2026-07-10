@@ -2,6 +2,18 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { speedAt, speedSchedule, hexesInPlot, impulseTimeline, legalNextHexes, tryStep, setSpeedChange, legalSideslips, trySideslip } from '../viewer/course-plan.js';
 import { neighbor } from '../viewer/movement.js';
+import { speedChangeLegal } from '../viewer/course-plan.js';
+
+test('C12.3: mid-turn speed-change limits — impulse window, spacing, decel-by-half', () => {
+  const cur = 16;
+  assert.equal(speedChangeLegal({ changes: [] }, 3, 20, cur).ok, false, 'C12.313: not before impulse 4');
+  assert.equal(speedChangeLegal({ changes: [] }, 29, 20, cur).ok, false, 'C12.313: not after impulse 28');
+  assert.equal(speedChangeLegal({ changes: [] }, 10, 20, cur).ok, true, 'a legal change at impulse 10');
+  assert.equal(speedChangeLegal({ changes: [{ announceImpulse: 8, speed: 20 }] }, 12, 24, cur).ok, false, 'C12.312: within 8 impulses of another change');
+  assert.equal(speedChangeLegal({ changes: [{ announceImpulse: 4 }, { announceImpulse: 12 }, { announceImpulse: 20 }, { announceImpulse: 28 }] }, 24, 24, cur).ok, false, 'C12.311: more than four changes');
+  assert.equal(speedChangeLegal({ changes: [] }, 10, 7, cur).ok, false, 'C12.32: 16→7 decelerates by more than half');
+  assert.equal(speedChangeLegal({ changes: [] }, 10, 8, cur).ok, true, 'C12.32: 16→8 (exactly half) is legal');
+});
 
 test('C3.3: tryStep respects ship category — a category-D cruiser cannot turn as early as category B (speed 9, TM 3 vs 2)', () => {
   const pos = { q: 5, r: 5 }, facing = 0, speed = 9, hexesSinceTurn = 2, slipSince = 5;

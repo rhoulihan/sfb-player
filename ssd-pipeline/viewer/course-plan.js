@@ -65,6 +65,18 @@ export function trySideslip(pos, facing, hexesSinceTurn, slipSince, hex) {
 }
 
 // place a mid-turn speed change at the impulse the ship reaches hex `atHexIndex` (announce impulse)
+// C12.3 mid-turn speed-change limits. `announceImpulse` = when the change is announced, `newSpeed` = the plotted
+// speed, `currentSpeed` = the ship's speed when it announces. Returns { ok, reason }. A change replacing the one
+// already at this impulse is not counted as an extra.
+export function speedChangeLegal(plot, announceImpulse, newSpeed, currentSpeed) {
+  if (announceImpulse < 4 || announceImpulse > 28) return { ok: false, reason: 'C12.313: no mid-turn speed change before impulse 4 or after impulse 28' };
+  const others = (plot.changes || []).filter(c => c.announceImpulse !== announceImpulse);
+  if (others.length >= 4) return { ok: false, reason: 'C12.311: at most four speed changes per turn' };
+  if (others.some(c => Math.abs(c.announceImpulse - announceImpulse) < 8)) return { ok: false, reason: 'C12.312: speed changes must be at least eight impulses apart' };
+  if (newSpeed < Math.floor(currentSpeed / 2)) return { ok: false, reason: 'C12.32: a ship may decelerate by at most half its current speed in one change' };
+  return { ok: true };
+}
+
 export function setSpeedChange(plot, timeline, atHexIndex, newSpeed) {
   const entry = timeline.find(t => t.hexIndex === atHexIndex);
   if (!entry) return plot;

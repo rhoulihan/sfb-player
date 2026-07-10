@@ -325,7 +325,7 @@ import { shipPower, newEafColumn, validateEaf, foldEaf, sinkMax, specReinfMax, p
 import { armLabel, isArmed, canHold, canRoll, armTurns, rollCost, reserveCompletionCost, firedThisTurn, refireReady, impulsesSince } from './weapon-arming.js';   // multi-turn arming: label, fire-gate, holdability, rolling delay (E4.21/E3.24/FP1.311/FP1.221); E2.23 frequency; E1.52 refire cadence
 import { ctl, stepPair, stackCtl, barCtl, sysCtl, batteryCtl, ewCtl, toggleCtl, shieldCtl, weaponCtl, capCtl, segCtl } from './eaf-controls.js';   // shared EA control renderers (also used by the verify.html EAF layout editor)
 import { reservePool as reservePoolOf, spendReserve, reserveCost } from './reserve-power.js';   // reactive power (H5/H7)
-import { legalNextHexes, tryStep, impulseTimeline, hexesInPlot, setSpeedChange, speedAt, legalSideslips, trySideslip } from './course-plan.js';
+import { legalNextHexes, tryStep, impulseTimeline, hexesInPlot, setSpeedChange, speedChangeLegal, speedAt, legalSideslips, trySideslip } from './course-plan.js';   // speedChangeLegal: C12.3 mid-turn speed-change limits
 import { family, segmentName, advance, hasLockOn } from './battle-phase.js';   // SFB Sequence-of-Play segment cursor + driver; D6.1 lock predicate
 import { hexPath, rad, plotOverlaySvg, createBattleMap } from './battle-map.js';
 import { SCENARIO } from './scenario.js';
@@ -1738,7 +1738,7 @@ document.getElementById('speedMenu').addEventListener('click', e => {
   const menu = document.getElementById('speedMenu'), x = parseInt(menu.style.left) || e.clientX, y = parseInt(menu.style.top) || e.clientY;
   menu.style.display = 'none';
   openSpeedModal({ title: `\u23f1 Speed after impulse ${imp}`, current: cur, max, moveCost: p.moveCost, x, y,
-    apply: v => { s.speedPlot = setSpeedChange(sp, tl, idx + 1, v); syncMovementEnergy(s); saveSoon(s.id); render(); } });
+    apply: v => { const chk = speedChangeLegal(sp, imp || 1, v, cur); if (!chk.ok) { alert(chk.reason); return; } s.speedPlot = setSpeedChange(sp, tl, idx + 1, v); syncMovementEnergy(s); saveSoon(s.id); render(); } });   // C12.3 limits
 });
 
 // ── warp-aware speed modal ──────────────────────────────────────────────────
