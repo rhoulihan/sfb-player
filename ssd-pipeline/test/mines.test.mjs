@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { MINE, mineTriggeredBy, hitAndRunSucceeds } from '../viewer/mines.js';
+import { MINE, mineTriggeredBy, hitAndRunSucceeds, hitAndRunResult } from '../viewer/mines.js';
 
 test('MINE has a warhead and a trigger radius', () => {
   assert.ok(MINE.warhead > 0 && MINE.radius >= 1);
@@ -27,10 +27,11 @@ test('an adjacent enemy (radius 1) triggers the mine', () => {
   assert.ok(mineTriggeredBy(mine, [{ id: 'E1', side: 'enemy', q: 6, r: 5 }]));
 });
 
-test('hit-and-run raid succeeds on 4+', () => {
-  assert.equal(hitAndRunSucceeds(6), true);
-  assert.equal(hitAndRunSucceeds(4), true);
-  assert.equal(hitAndRunSucceeds(3), false);
+test('D7.81 hit-and-run raid chart: 1 system destroyed / 2 both / 3-5 party lost / 6 no effect', () => {
+  assert.deepEqual(hitAndRunResult(1), { systemDestroyed: true, partyLost: false }, '1: system destroyed, party returns');
+  assert.deepEqual(hitAndRunResult(2), { systemDestroyed: true, partyLost: true }, '2: both destroyed');
+  for (const r of [3, 4, 5]) assert.deepEqual(hitAndRunResult(r), { systemDestroyed: false, partyLost: true }, `${r}: party lost, system survives`);
+  assert.deepEqual(hitAndRunResult(6), { systemDestroyed: false, partyLost: false }, '6: party returns, system intact');
 });
 
 import { SELF_DESTRUCT, selfDestructHits, selfDestructDamage, selfDestructZone } from '../viewer/mines.js';

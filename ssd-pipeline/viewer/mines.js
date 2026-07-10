@@ -26,9 +26,18 @@ export function mineTriggeredBy(mine, ships) {
   return hits.sort((a, b) => dist(mine, a) - dist(mine, b))[0] || null;
 }
 
-// a hit-and-run / boarding raid succeeds on 4+ (1d6) — the host then knocks out a random enemy system
+// D7.81 hit-and-run raid chart (1d6): 1 = the designated system is destroyed, the boarding party returns; 2 = both
+// the system and the party are destroyed; 3-5 = the party is destroyed, the system survives; 6 = the party returns
+// with nothing accomplished. The system is knocked out only on 1 or 2.
+export function hitAndRunResult(roll) {
+  if (roll === 1) return { systemDestroyed: true, partyLost: false };
+  if (roll === 2) return { systemDestroyed: true, partyLost: true };
+  if (roll >= 3 && roll <= 5) return { systemDestroyed: false, partyLost: true };
+  return { systemDestroyed: false, partyLost: false };
+}
+// Back-compat: "did the raid knock out the target system?" — true only on the 1-2 rolls (D7.81).
 export function hitAndRunSucceeds(roll) {
-  return roll >= 4;
+  return hitAndRunResult(roll).systemDestroyed;
 }
 
 // Self-destruct (D19) — the ship explodes, hitting every other ship in the blast radius; damage falls off

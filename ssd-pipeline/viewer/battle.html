@@ -460,8 +460,12 @@ function boardingRaid(ship) {   // D15: a transporter hit-and-run raid on an adj
   if (!ship) return;
   if (ship.cloaked) { alert('A cloaked ship cannot use transporters (G13.51).'); return; }
   if (hasCrit(ship.criticals, 'transporter')) { alert('Transporters disabled by a critical hit (D8.2).'); return; }
+  const transCount = (ship._ver.groups || []).filter(g => g.family === 'transporter').reduce((n, g) => n + (g.boxIds || []).filter(id => !ship.status[id]).length, 0) || 1;   // D7.821: each transporter supports one raid (in and out) per turn
+  if (ship._raidTurn !== clock.turn) { ship._raidTurn = clock.turn; ship._raidsUsed = 0; }
+  if (ship._raidsUsed >= transCount) { alert(`Each transporter supports one hit-and-run raid per turn (D7.821); all ${transCount} used this turn.`); return; }
   const enemy = ships.find(s => s.side !== ship.side && !isDead(s) && hexDistance(ship, s) <= TRANSPORTER_RANGE);   // G8.14: transporters reach five hexes
   if (enemy && shieldsNow(enemy)[exposedShield(ship, enemy) - 1] > 0) { alert('The target’s facing shield is up — transporters cannot function through a shield (G8.21).'); return; }
+  if (enemy) ship._raidsUsed = (ship._raidsUsed || 0) + 1;   // a raid is expended once a valid target is engaged
   const rng = makeRng((seed + rngCursor) >>> 0); rngCursor = rng.cursor();
   const log = [];
   if (!enemy) log.push({ kind: 'shot', firer: ship.id, cls: 'RAID', target: '\u2014', points: 0, hit: false });
