@@ -764,16 +764,15 @@ function stepImpulse() {
   }
   pruneTractors();   // G7.125: break any link whose units are no longer valid/in range after movement
   if (wrapped) {
-    for (const s of ships) {   // Repair Stage (Record Keeping): damage control repairs a shield (D9.21) or destroyed systems (D9.7), per this ship's allocation
-      const pts = Math.floor(eafDraft[s.id]?.damageControl || 0);
+    for (const s of ships) {   // Repair Stage (Record Keeping): damage control repairs a designated shield (D9.21) first, then destroyed systems (D9.7) with any leftover
+      let pts = Math.floor(eafDraft[s.id]?.damageControl || 0);
       if (pts <= 0) continue;
       const rShield = eafDraft[s.id]?.repairShield || 0;
-      if (rShield >= 1 && rShield <= 6) {   // D9.21: two units of damage-control energy erase one box of shield damage on the specified shield
+      if (rShield >= 1 && rShield <= 6) {   // D9.21: two units of damage-control energy erase one box of shield damage; leftover spills to system repair
         const m = s.model || (s.model = buildShipModel(s._ver, s._det)), sh = m.shields[rShield];
-        if (sh && sh.down > 0) sh.down = Math.max(0, sh.down - Math.floor(pts / 2));
-        continue;
+        if (sh && sh.down > 0) { const boxes = Math.min(sh.down, Math.floor(pts / 2)); sh.down -= boxes; pts -= boxes * 2; }
       }
-      const dead = Object.keys(s.status || {}); if (!dead.length) continue;   // D9.7: repair destroyed system boxes
+      const dead = Object.keys(s.status || {}); if (pts <= 0 || !dead.length) continue;   // D9.7: repair destroyed system boxes with the remaining energy
       const famOf = id => { for (const g of (s._ver.groups || [])) if ((g.boxIds || []).includes(id)) return g.family; return null; };
       const { repaired } = repairBoxes(dead, pts, { repairable: id => !['excess-damage', 'damage-control'].includes(famOf(id)) });
       repaired.forEach(id => delete s.status[id]);
@@ -798,7 +797,7 @@ function stepImpulse() {
       const dcBoxes = (s._ver.groups || []).filter(g => g.family === 'damage-control').flatMap(g => g.boxIds || []);
       const dead = Object.keys(s.status).filter(id => !dcBoxes.includes(id) && famOf(id) !== 'excess-damage');   // repairable system boxes
       const markable = dcBoxes.find(id => !s.status[id]);                                        // D14.11: sacrifice one DC box to power EDR
-      const rating = Math.min(4, dcBoxes.filter(id => !s.status[id]).length);                    // DC rating (proxy; exact per-ship rating from verified.json = refinement)
+      const rating = powerOf(s).dcRating || Math.min(4, dcBoxes.filter(id => !s.status[id]).length);   // D14.13: DC-track rating from verified.json, else a min(4, intact-DC-boxes) proxy
       if (dead.length && markable && rating > 0) {
         s.status[markable] = 'destroyed';
         const er = makeRng((seed ^ 0x0ED12A4 ^ Math.imul(clock.turn, 0x27d4eb2f) ^ hashId(s.id)) >>> 0);
