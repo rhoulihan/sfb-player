@@ -33,10 +33,16 @@ export function hitAndRunSucceeds(roll) {
 
 // Self-destruct (D19) — the ship explodes, hitting every other ship in the blast radius; damage falls off
 // with distance. The host applies the hits through the DAC and removes the exploding ship.
-export const SELF_DESTRUCT = { radius: 2, warhead: 30 };
-export function selfDestructHits(ship, ships, radius = SELF_DESTRUCT.radius) {
-  return (ships || []).filter(s => s.id !== ship.id && dist(ship, s) <= radius);
+// Self-destruction (D5). A ship's Basic Explosion Strength (BES, D5.2/D5.41) comes from the Master Ship Chart —
+// it is a per-ship value captured in verified.json, never a fixed constant. DEFAULT_BES is only a fallback when a
+// ship's chart value has not been entered yet.
+export const DEFAULT_BES = 30;
+export const SELF_DESTRUCT = { warhead: DEFAULT_BES };   // legacy alias for the fallback strength
+// D5.41: BES ≥ 10 → the exploding hex plus the six around it (radius 1); BES ≤ 9 → the exploding hex only.
+export function selfDestructZone(bes = DEFAULT_BES) { return bes >= 10 ? 1 : 0; }
+export function selfDestructHits(ship, ships, radius) {
+  const r = radius == null ? selfDestructZone(DEFAULT_BES) : radius;
+  return (ships || []).filter(s => s.id !== ship.id && dist(ship, s) <= r);
 }
-export function selfDestructDamage(distance, warhead = SELF_DESTRUCT.warhead) {
-  return Math.max(0, Math.round(warhead / Math.max(1, distance)));
-}
+// D5.41: every unit in the blast zone takes the FULL BES on its facing shield — there is no distance falloff.
+export function selfDestructDamage(bes = DEFAULT_BES) { return Math.max(0, Math.round(bes)); }

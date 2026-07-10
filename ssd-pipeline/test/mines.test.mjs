@@ -33,19 +33,23 @@ test('hit-and-run raid succeeds on 4+', () => {
   assert.equal(hitAndRunSucceeds(3), false);
 });
 
-import { SELF_DESTRUCT, selfDestructHits, selfDestructDamage } from '../viewer/mines.js';
-test('self-destruct hits every ship in the blast radius except the exploding ship', () => {
+import { SELF_DESTRUCT, selfDestructHits, selfDestructDamage, selfDestructZone } from '../viewer/mines.js';
+test('D5.41: blast zone by BES — radius 1 if BES≥10, same hex only if BES≤9', () => {
+  assert.equal(selfDestructZone(30), 1, 'BES 30 → the hex plus the six around it (radius 1)');
+  assert.equal(selfDestructZone(10), 1, 'BES 10 → radius 1');
+  assert.equal(selfDestructZone(9), 0, 'BES 9 → the exploding hex only');
   const ship = { id: 'F1', q: 5, r: 5 };
-  const ships = [ship, { id: 'E1', q: 5, r: 5 }, { id: 'F2', q: 6, r: 5 }, { id: 'E2', q: 15, r: 5 }];
-  const hits = selfDestructHits(ship, ships, 2).map(s => s.id);
-  assert.ok(hits.includes('E1') && hits.includes('F2'), 'nearby ships (friend + foe) are caught');
-  assert.ok(!hits.includes('F1'), 'not the exploding ship itself');
-  assert.ok(!hits.includes('E2'), 'not a distant ship');
+  const ships = [ship, { id: 'E1', q: 5, r: 5 }, { id: 'F2', q: 6, r: 5 }, { id: 'E2', q: 7, r: 5 }];
+  const r1 = selfDestructHits(ship, ships, selfDestructZone(30)).map(s => s.id);
+  assert.ok(r1.includes('E1') && r1.includes('F2'), 'radius 1 catches the hex + adjacent (friend + foe)');
+  assert.ok(!r1.includes('F1') && !r1.includes('E2'), 'not itself, not 2 hexes away');
+  const r0 = selfDestructHits(ship, ships, selfDestructZone(9)).map(s => s.id);
+  assert.deepEqual(r0, ['E1'], 'BES≤9 hits only same-hex units');
 });
-test('self-destruct damage falls off with distance', () => {
-  assert.ok(SELF_DESTRUCT.warhead > 0 && SELF_DESTRUCT.radius >= 1);
-  assert.ok(selfDestructDamage(1, 30) > selfDestructDamage(2, 30), 'closer = more damage');
-  assert.ok(selfDestructDamage(1, 30) > 0);
+test('D5.41: every unit in the zone takes the FULL BES on its facing shield (no distance falloff)', () => {
+  assert.equal(selfDestructDamage(30), 30, 'full BES at range 0');
+  assert.equal(selfDestructDamage(30, 1), 30, 'full BES at range 1 too — no falloff');
+  assert.ok(selfDestructDamage(20) === 20 && selfDestructDamage(0) === 0);
 });
 
 import { NUCLEAR_MINE, transporterTarget, TRANSPORTER_RANGE, TBOMB_WARHEAD } from '../viewer/mines.js';

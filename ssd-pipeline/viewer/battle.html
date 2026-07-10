@@ -311,7 +311,7 @@ import { CRIT_THRESHOLD as D8_THRESHOLD, critForRoll, critRepairs, addCrit, hasC
 import { tractorCost, canTractor, tractorBroken, TRACTOR_MAX_RANGE } from './tractor.js';
 import { cloakEcm, applyCloakFireGate, CLOAK_ECM } from './cloak.js';   // G13: cloak fire penalty + fire gate
 import { makeScenario, applyLoSGate } from './terrain.js';
-import { MINE, mineTriggeredBy, hitAndRunSucceeds, SELF_DESTRUCT, selfDestructHits, selfDestructDamage, NUCLEAR_MINE, transporterTarget, TBOMB_WARHEAD } from './mines.js';
+import { MINE, mineTriggeredBy, hitAndRunSucceeds, SELF_DESTRUCT, selfDestructHits, selfDestructDamage, selfDestructZone, DEFAULT_BES, NUCLEAR_MINE, transporterTarget, TBOMB_WARHEAD } from './mines.js';   // D5: per-ship BES self-destruction
 import { shuttleMaxHp, damageShuttle, shuttleDestroyed } from './shuttle-inventory.js';
 const PD_SHUTTLE_DMG = 2;   // point-defense damage per hit vs a shuttle (shuttles soak, drones one-shot)
 import { movesOnImpulse, neighbor, turnMode, turnModeFor, accelCap, pseudoSpeed } from './movement.js';
@@ -464,8 +464,9 @@ function selfDestruct(ship) {   // D19 (SOP phase-3): the ship explodes, hitting
   if (!ship || isDead(ship)) return;
   const rng = makeRng((seed + rngCursor) >>> 0); rngCursor = rng.cursor();
   const dice = makeDice(rng.next), log = [];
-  for (const victim of selfDestructHits(ship, ships.filter(s => !isDead(s)))) {
-    const dmg = selfDestructDamage(hexDistance(ship, victim)), shield = exposedShield(ship, victim);
+  const bes = powerOf(ship).bes || DEFAULT_BES, dmg = selfDestructDamage(bes);   // D5.2/D5.41: per-ship Basic Explosion Strength (verified.json), full strength to every unit in the zone
+  for (const victim of selfDestructHits(ship, ships.filter(s => !isDead(s)), selfDestructZone(bes))) {
+    const shield = exposedShield(ship, victim);
     const model = victim.model || (victim.model = buildShipModel(victim._ver, victim._det));
     const effects = dmg > 0 ? applyVolley(model, { shield, points: dmg, criticals: settings.criticals }, dice) : [];
     effects.forEach(ef => { if (ef.boxId) victim.status[ef.boxId] = 'destroyed'; });
@@ -868,8 +869,20 @@ function resolveFinalActivity(skLog) {   // Final Activity Phase (7): reload, no
 // Movement is automatic in this game (speed plot + queued turns), so the movement gate is auto-satisfied and the
 // only per-impulse pause is the 6D fire gate — the player fires at the post-movement positions, exactly as before.
 let seqAlive = new Set(), seqLog = [];   // in-flight impulse: who was alive before this impulse's movement, and the impulse's event log
+// D5.51: a ship may not self-destruct purely to damage nearby enemies. It is permitted only if no other friendly
+// ship remains in play, or the ship is already crippled (a proxy for "all but two crew units lost/evacuated" —
+// crew units aren't modeled). This blocks self-destruct being used as a free area weapon.
+function selfDestructAllowed(s) {
+  if (!ships.some(x => x.id !== s.id && x.side === s.side && !isDead(x))) return true;   // no other friendly ships (D5.51 exception)
+  const boxes = (s._ver.groups || []).flatMap(g => g.boxIds || []);
+  return boxes.length > 0 && boxes.filter(id => s.status[id]).length / boxes.length >= 0.5;   // heavily damaged → crew largely lost (proxy)
+}
 function resolvePlottedSelfDestruct() {   // Phase 3 (D5.1): ships that declared "self-destruct" on their EAF detonate now, on their turn-start positions (before this turn's movement)
-  for (const s of ships.slice()) if (s.selfDestructPlot && !isDead(s)) { s.selfDestructPlot = false; selfDestruct(s); }
+  for (const s of ships.slice()) if (s.selfDestructPlot && !isDead(s)) {
+    s.selfDestructPlot = false;
+    if (selfDestructAllowed(s)) selfDestruct(s);
+    else { seqLog.push({ kind: 'sdBlocked', ship: s.id }); alert(`${s.id}: self-destruct not permitted (D5.51) — other friendly ships remain and the ship is not crippled.`); }
+  }
 }
 function runSegment(seg) {
   switch (seg) {

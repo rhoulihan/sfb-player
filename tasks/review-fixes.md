@@ -25,9 +25,9 @@ Source: `docs/adversarial-review.md` (96 confirmed findings). Strict TDD, one cl
 - [x] 🔴 **D6.310 / D6.312** `ssd-pipeline/viewer/energy-model.js:72` — No combined ECM+ECCM cap — the two are each capped at 6 independently, so a ship can allocate 12 total EW instead of its sensor rating.
 - [x] 🔴 **D6.112** `ssd-pipeline/viewer/lock-on.js:3` — ECM is used to BREAK lock-on, but the rules say EW only degrades weapon effect quality and cannot break a lock.
 - [ ] 🟠 **FP1.611/D6.36** `ssd-pipeline/viewer/battle.html:1429` — Seeking weapons cannot be selected as fire targets, so the player can never direct PH-1/PH-2 at a drone or weaken an approaching plasma torpedo.
-- [ ] 🟠 **D6.35/E1.821/E1.822/D6.34** `ssd-pipeline/viewer/direct-fire.js:17` — Electronic warfare is added to the chart-reading range instead of being applied as a die-roll shift, and uses raw net-ECM strength rather than the D6.34 sqrt shift.
-- [ ] 🟠 **D6.310** `ssd-pipeline/viewer/eaf-controls.js:24` — ECM and ECCM are each capped at a hardcoded 6 independently, so combined EW can reach 12 and is not tied to the ship's actual sensor rating.
-- [ ] 🟠 **D6.310** `ssd-pipeline/viewer/energy-model.js:72` — ECM and ECCM are each capped at 6 independently with no combined cap, letting a ship allocate 12 EW points when the rule caps ECM+ECCM combined at the sensor rating.
+- [x] 🟠 **D6.35/E1.821/E1.822/D6.34** `ssd-pipeline/viewer/direct-fire.js:17` _(dup of EW cluster)_ — Electronic warfare is added to the chart-reading range instead of being applied as a die-roll shift, and uses raw net-ECM strength rather than the D6.34 sqrt shift.
+- [x] 🟠 **D6.310** `ssd-pipeline/viewer/eaf-controls.js:24` _(dup of EW cluster)_ — ECM and ECCM are each capped at a hardcoded 6 independently, so combined EW can reach 12 and is not tied to the ship's actual sensor rating.
+- [x] 🟠 **D6.310** `ssd-pipeline/viewer/energy-model.js:72` _(dup of EW cluster)_ — ECM and ECCM are each capped at 6 independently with no combined cap, letting a ship allocate 12 EW points when the rule caps ECM+ECCM combined at the sensor rating.
 
 ## Cloak cluster (G13)
 
@@ -39,7 +39,7 @@ Source: `docs/adversarial-review.md` (96 confirmed findings). Strict TDD, one cl
 - [x] 🟠 **G13.301 / G13.331** `ssd-pipeline/viewer/lock-on.js:7` — A fully cloaked ship can still be locked on a die roll of 1 (roll+5<=6); the rules make lock-on of a cloaked ship impossible for a non-scout ship.
 - [x] 🟡 **G13.14 / G13.302 / G13.31** `ssd-pipeline/viewer/cloak.js:5` — Cloak is a binary flag granting the full +5 benefit instantly; the 5-impulse fade-out/fade-in phase-in is not modeled.
 
-## Damage-control repair (D9)
+## Damage-control repair (D9) — ⏸ DEFERRED: needs the Annex #9 Cost-of-Repair chart (ask Rick)
 
 - [ ] 🔴 **D9.7 / D9.74 / D9.711** `ssd-pipeline/viewer/battle.html:804` — Continuous system-box repair uses leftover D9.2 shield energy, repairs multiple boxes/turn at flat cost 1, ignoring D9.7's separate free points, one-box-per-turn limit, and the Cost-of-Repair chart.
 - [ ] 🔴 **D9.711 / D9.72 / D9.741 / D9.76** `ssd-pipeline/viewer/battle.html:806` — Continuous Damage Repair (D9.7) repairs one system box per leftover damage-control energy point, ignoring the per-system Cost-of-Repair chart, the free-points model, the one-box-at-a-time limit, and the scenario cap.
@@ -50,11 +50,11 @@ Source: `docs/adversarial-review.md` (96 confirmed findings). Strict TDD, one cl
 ## Self-destruct (D5)
 
 - [ ] 🟠 **D5.12** `ssd-pipeline/viewer/battle.html:792` — A ship destroyed in combat never explodes; only the plotted self-destruct path ever calls selfDestruct().
-- [ ] 🟠 **D5.5 / D5.51** `ssd-pipeline/viewer/battle.html:843` — resolvePlottedSelfDestruct detonates any ship flagged self-destruct with no crew-unit / last-friendly-ship precondition.
-- [ ] 🟠 **D5.2 / D5.12 / D5.41** `ssd-pipeline/viewer/mines.js:36` — Self-destruct explosion strength is a hardcoded 30 for every ship instead of the per-ship Basic Explosion Strength from the Master Ship Chart.
+- [x] 🟠 **D5.5 / D5.51** `ssd-pipeline/viewer/battle.html:843` — resolvePlottedSelfDestruct detonates any ship flagged self-destruct with no crew-unit / last-friendly-ship precondition.
+- [x] 🟠 **D5.2 / D5.12 / D5.41** `ssd-pipeline/viewer/mines.js:36` — Self-destruct explosion strength is a hardcoded 30 for every ship instead of the per-ship Basic Explosion Strength from the Master Ship Chart.
 - [ ] 🟠 **D5.41** `ssd-pipeline/viewer/mines.js:36` — Self-destruct blast radius is hardcoded to 2 hexes; the rule caps the zone at radius 1 (or radius 0 for a small explosion).
 - [ ] 🟠 **D5.2** `ssd-pipeline/viewer/mines.js:36` — Self-destruction force is a hardcoded 30 for all ships instead of the per-ship value from the Master Ship Chart.
-- [ ] 🟠 **D5.41** `ssd-pipeline/viewer/mines.js:37` — Self-destruct blast uses radius 2 with a 1/distance damage falloff; D5.41 is radius 1 (BES>=10) or same-hex-only (BES<=9), with the FULL BES applied to every unit in the zone.
+- [x] 🟠 **D5.41** `ssd-pipeline/viewer/mines.js:37` — Self-destruct blast uses radius 2 with a 1/distance damage falloff; D5.41 is radius 1 (BES>=10) or same-hex-only (BES<=9), with the FULL BES applied to every unit in the zone.
 - [ ] 🟡 **D5.0 / D7.8 / M3.0** `ssd-pipeline/viewer/mines.js:34` — Several rule-number citations in the comments point to the wrong rules for this edition.
 
 ## Wild weasel / shuttles (J3/C6)

@@ -55,6 +55,7 @@ export function shipPower(code, verified, detection) {
     sizeClass: prof.sizeClass, moveCost: prof.moveCost,
     cloakCost: prof.cloakCost || 0,   // G13.21: per-ship cloak energy cost from the SSD (verified stats)
     dcRating: prof.dcRating || 0,     // D14/D9.21: damage-control track rating (highest number on the DC track), from verified stats
+    bes: prof.bes || 0,               // D5.2: Basic Explosion Strength (self-destruction / excess-damage blast), from the ship chart via verified stats
     shields: (shields || []).slice(),
     weapons,
     systems: {
