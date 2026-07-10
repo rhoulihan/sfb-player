@@ -321,7 +321,7 @@ const SHIP_TURN_CATEGORY = { 'FED-CA': 'D', 'FED-CL': 'C', 'FED-NCL': 'C', 'GOR-
 const turnCategoryOf = code => SHIP_TURN_CATEGORY[code] || 'C';
 const turnModeOf = s => turnModeFor(s.turnCat || turnCategoryOf(s.code), s.speed) + (hasCrit(s.criticals, 'maneuver') ? 1 : 0);   // D8.2 maneuver crit: turn mode +1 at all speeds
 import { shipPower, newEafColumn, validateEaf, foldEaf, sinkMax, specReinfMax, plasmaClsOf, ewFieldMax } from './energy-model.js';   // ewFieldMax: D6.310 combined ECM+ECCM cap
-import { armLabel, isArmed, canHold, canRoll, armTurns, rollCost, reserveCompletionCost, firedThisTurn, refireReady } from './weapon-arming.js';   // multi-turn arming: label, fire-gate, holdability, rolling delay (E4.21/E3.24/FP1.311/FP1.221); E2.23 frequency; E1.52 refire cadence
+import { armLabel, isArmed, canHold, canRoll, armTurns, rollCost, reserveCompletionCost, firedThisTurn, refireReady, impulsesSince } from './weapon-arming.js';   // multi-turn arming: label, fire-gate, holdability, rolling delay (E4.21/E3.24/FP1.311/FP1.221); E2.23 frequency; E1.52 refire cadence
 import { ctl, stepPair, stackCtl, barCtl, sysCtl, batteryCtl, ewCtl, toggleCtl, shieldCtl, weaponCtl, capCtl, segCtl } from './eaf-controls.js';   // shared EA control renderers (also used by the verify.html EAF layout editor)
 import { reservePool as reservePoolOf, spendReserve, reserveCost } from './reserve-power.js';   // reactive power (H5/H7)
 import { legalNextHexes, tryStep, impulseTimeline, hexesInPlot, setSpeedChange, speedAt, legalSideslips, trySideslip } from './course-plan.js';
@@ -360,6 +360,7 @@ const canControlMore = s => controlledCount(seekers, s.id) < controlLimitOf(s); 
 const hasLock = (firer, target) => { ensureLocks(); return hasLockOn(lockOn, firer.id, target.id); };   // D6.1 lock-on to the target this turn
 function launchGate(firer, target) {   // D6.121: a unit that failed its lock-on may not launch seeking weapons (also D19.22 passive FC)
   if (firer && firer.cloaked) { alert('A cloaked ship cannot launch seeking weapons (G13.51/G13.133).'); return false; }
+  if (fcReactivating(firer)) { alert('Fire control is still reactivating — cannot launch/guide a seeking weapon yet (D19.26/G13.15).'); return false; }
   if (passiveFcOf(firer)) { alert('Cannot launch seeking weapons under passive fire control (D19.22).'); return false; }
   if (!hasLock(firer, target)) { alert('No sensor lock-on to that target — cannot launch a seeking weapon (D6.121).'); return false; }
   return true;
@@ -580,7 +581,7 @@ function stepSeekers(out) {   // 6A: move every seeker one impulse toward its ta
   seekers = seekers.filter(sk => !sk._done && !hitWeasels.has(sk.id));
 }
 const passiveFcOf = s => !!s && (hasCrit(s.criticals, 'fireControl') || !!s.fcPassive);   // D19: a fire-control crit or the voluntary toggle puts the ship on passive fire control
-const fcReactivating = s => !!s && s.fcReactTurn === clock.turn && clock.impulse <= 4;   // D19.26: active FC restored from passive can't fire/guide for 1/8 turn (4 impulses)
+const fcReactivating = s => !!(s && s.fcReactAt) && impulsesSince(s.fcReactAt, clock.turn, clock.impulse) < 4;   // D19.26/G13.15: active FC restored (from passive OR decloak) can't fire/guide for 4 impulses, counting from when it restarted (spans the turn boundary)
 const netEcmOf = (fr, t) => {
   if (!fr || !t) return 0;
   if (t.cloaked) return CLOAK_ECM;                                  // G13.303: firing at a cloaked ship uses the cloak shift ALONE — ECM/ECCM are ignored, so ECCM cannot erode it
@@ -828,6 +829,12 @@ function resolveRepairStage() {   // Record Keeping (D9.21/D9.7): damage control
 }
 function resolveFinalActivity(skLog) {   // Final Activity Phase (7): reload, non-holdable discharge, reserve→battery, D8 crit repair, D14 emergency damage repair
   for (const s of ships) {
+    if (s.cloaked && s.cloakPaidTurn !== clock.turn) {   // G13.23: a ship still cloaked into the new turn must pay the cloak cost again; if it cannot, the device drops (G13.21)
+      const cost = powerOf(s).cloakCost || 0;
+      if (cost > 0 && batteryOf(s) >= cost) { s.batteryCharge = batteryOf(s) - cost; s.cloakPaidTurn = clock.turn; }
+      else if (cost > 0) { s.cloaked = false; s.fcReactAt = { turn: clock.turn, impulse: 1 }; skLog.push({ kind: 'decloak', ship: s.id, reason: 'no cloak power (G13.21)' }); }
+      else s.cloakPaidTurn = clock.turn;
+    }
     if (s.drones) s.drones.racks = s.drones.racks.map(r => (loadoutSpaces(r.loaded) < r.capacity && r.reloadsLeft > 0 && r.firedTurn !== clock.turn - 1) ? reloadStep(r) : r); s.shuttlesLeft = shuttleBaysOf(s);   // FD2.421: reload 2 spaces/turn from the magazine, only if the rack did not fire the turn just ended; plasma re-arms through the EAF (FP1.21)
     for (const w of powerOf(s).weapons) if (!canHold(w.cls) && s.armProgress && isArmed(w.cls, s.armProgress[w.id] || 0)) s.armProgress[w.id] = 0;   // non-holdable weapon armed but not fired → discharge (E3.24 disruptor, FP1.311 plasma-R)
     if (s.reserveWarp) { s.batteryCharge = Math.min(powerOf(s).batteries, batteryOf(s) + s.reserveWarp); s.reserveWarp = 0; }   // H7.36: unused reserve warp drains into the batteries at end of turn
@@ -1591,7 +1598,7 @@ async function resolveEnergy(allEaf) {                        // fold each locke
     s.armed = ts.armed; s.armProgress = ts.armProgress; s.capacitor = ts.capacitor; s.reinforce = ts.reinforce; s.reinfLeft = null; s.reserveWarp = ts.reserveWarp || 0;   // held reserve warp, spendable reactively this turn (H7.4)
     s.ecmLevel = ts.ecmLevel; s.eccmLevel = ts.eccmLevel; s.queuedTurn = 0;
     const wasPassiveFC = passiveFcOf(s); s.fcPassive = !!col.fcPassive;   // D19: voluntary passive-fire-control choice for the turn
-    if (wasPassiveFC && !passiveFcOf(s)) s.fcReactTurn = clock.turn;   // D19.26: restored active FC can't fire/guide for the first 4 impulses of this turn
+    if (wasPassiveFC && !passiveFcOf(s)) s.fcReactAt = { turn: clock.turn, impulse: clock.impulse };   // D19.26: FC restored from passive can't fire/guide for 4 impulses
     s.em = !!col.em && !hasCrit(s.criticals, 'maneuver');   // C10: erratic maneuvers for the turn; a maneuver crit forbids EM (D8.2 #11)
     s.tractorPower = Math.floor(col.tractor || 0);   // G7.15: whole points allocated to tractor beams this turn
     s.edr = hasCrit(s.criticals, 'labs') ? 0 : Math.floor(col.edr || 0);   // D14: powered labs for emergency damage repair (labs crit → none)
@@ -1672,10 +1679,12 @@ createBattleMap({
 });
 document.addEventListener('click', () => { document.getElementById('ctxMenu').style.display = 'none'; });
 document.getElementById('ctxMenu').addEventListener('click', e => { const it = e.target.closest('[data-act]'); if (!it || !ctxShip) return; if (it.dataset.act === 'ssd') openSSD(ctxShip); else if (it.dataset.act === 'ea' && isMine(byId(ctxShip))) { ui.eaSelected = ctxShip; if (getPhase() === 'energy') ui.eaHidden = false; else ui.viewEA = ctxShip; render(); } else if (it.dataset.act === 'intel') openIntel(ctxShip); else if (it.dataset.act === 'setspeed') openSetSpeed(ctxShip); else if (it.dataset.act === 'cloak') { const s = byId(ctxShip); if (s) {
-      if (!s.cloaked) { const cost = powerOf(s).cloakCost || 0;   // G13.21: activating the cloak costs energy (here paid from reserve/battery, H7.2)
+      if (!s.cloaked) { const cost = (s.cloakPaidTurn === clock.turn) ? 0 : (powerOf(s).cloakCost || 0);   // G13.23: cloak energy is paid ONCE per turn regardless of on/off cycling — re-cloaking in the same turn is free (G13.232)
         if (cost > 0 && reservePoolS(s) < cost) { alert(`Activating the cloak needs ${cost} reserve/battery power (G13.21); ${reservePoolS(s)} available.`); return; }
-        if (cost > 0) { const np = spendReserve(s.reserveWarp || 0, batteryOf(s), cost, (s.reserveWarp || 0) >= batteryOf(s) ? 'warp' : 'battery'); s.reserveWarp = np.reserveWarp; s.batteryCharge = np.battery; } }
-      s.cloaked = !s.cloaked; saveSoon(s.id); render(); } } else if (it.dataset.act === 'weasel') launchWeasel(byId(ctxShip)); else if (it.dataset.act === 'mine') layMine(byId(ctxShip), MINE); else if (it.dataset.act === 'nukemine') layMine(byId(ctxShip), NUCLEAR_MINE); else if (it.dataset.act === 'tbomb') transporterBomb(byId(ctxShip)); else if (it.dataset.act === 'admin') launchAdminShuttle(byId(ctxShip)); else if (it.dataset.act === 'raid') boardingRaid(byId(ctxShip)); else if (it.dataset.act === 'tractor') { const from = byId(ctxShip); const tgt = ships.filter(s => s.id !== ctxShip && !isDead(s)).map(s => ({ s, d: hexDistance(from, s) })).filter(x => canTractor(x.d)).sort((a, b) => a.d - b.d)[0]; if (tgt) establishTractor(from, tgt.s); else alert(`No unit within tractor range (${TRACTOR_MAX_RANGE} hexes).`); } else if (it.dataset.act === 'release') releaseTractor(byId(ctxShip)); else if (it.dataset.act === 'breaktractor') breakTractor(byId(ctxShip)); else if (it.dataset.act === 'selfdestruct') { const s = byId(ctxShip); if (s) { s.selfDestructPlot = !s.selfDestructPlot; render(); } } });
+        if (cost > 0) { const np = spendReserve(s.reserveWarp || 0, batteryOf(s), cost, (s.reserveWarp || 0) >= batteryOf(s) ? 'warp' : 'battery'); s.reserveWarp = np.reserveWarp; s.batteryCharge = np.battery; }
+        s.cloakPaidTurn = clock.turn; }
+      const wasCloaked = s.cloaked; s.cloaked = !s.cloaked; if (wasCloaked) s.fcReactAt = { turn: clock.turn, impulse: clock.impulse };   // G13.13/G13.15: decloak → fire control must reactivate (4 impulses) before firing/launching
+      saveSoon(s.id); render(); } } else if (it.dataset.act === 'weasel') launchWeasel(byId(ctxShip)); else if (it.dataset.act === 'mine') layMine(byId(ctxShip), MINE); else if (it.dataset.act === 'nukemine') layMine(byId(ctxShip), NUCLEAR_MINE); else if (it.dataset.act === 'tbomb') transporterBomb(byId(ctxShip)); else if (it.dataset.act === 'admin') launchAdminShuttle(byId(ctxShip)); else if (it.dataset.act === 'raid') boardingRaid(byId(ctxShip)); else if (it.dataset.act === 'tractor') { const from = byId(ctxShip); const tgt = ships.filter(s => s.id !== ctxShip && !isDead(s)).map(s => ({ s, d: hexDistance(from, s) })).filter(x => canTractor(x.d)).sort((a, b) => a.d - b.d)[0]; if (tgt) establishTractor(from, tgt.s); else alert(`No unit within tractor range (${TRACTOR_MAX_RANGE} hexes).`); } else if (it.dataset.act === 'release') releaseTractor(byId(ctxShip)); else if (it.dataset.act === 'breaktractor') breakTractor(byId(ctxShip)); else if (it.dataset.act === 'selfdestruct') { const s = byId(ctxShip); if (s) { s.selfDestructPlot = !s.selfDestructPlot; render(); } } });
 let navSpeed = null;   // nav-hex speed-change target { shipId, idx }
 document.addEventListener('click', () => { document.getElementById('speedMenu').style.display = 'none'; });
 document.getElementById('speedMenu').addEventListener('click', e => {
