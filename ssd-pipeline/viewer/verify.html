@@ -147,7 +147,7 @@
       </div>
     </div>
     <div class="foot">
-      <span class="hint" id="eafHint">Drag each control onto its slot. Positions save as % of the art and drive the battle EA panel.</span>
+      <span class="hint" id="eafHint">Drag a control to move it; <b>Shift-drag</b> moves its whole group (shields / weapons / systems). Positions save as % of the art and drive the battle EA panel.</span>
       <span><button class="btn" id="eafCancel">Close</button> <button class="btn primary" id="eafSaveBtn">Save layout</button></span>
     </div>
   </div>
@@ -581,9 +581,14 @@ function renderEafEditor(){ const wrap=document.getElementById("eafArtWrap"); [.
     node.dataset.cid=c.id; node.addEventListener("mousedown",e=>eafDragCtl(e,c.id,node)); wrap.appendChild(node); }
   document.getElementById("eafPalette").innerHTML=list.map(c=>`<div class="pal ${L.controls[c.id]?"placed":""}" data-cid="${c.id}" draggable="true">${c.label}</div>`).join("");
   renderEafValid(); }
+const eafCategory=id=>/^shield-|^shields-toggle/.test(id)?"shield":/^weapon-|^phaser-cap|^fire-control|^gen-reinf/.test(id)?"weapon":/^batteries|^tractor|^transporter|^damage-control|^ew$|^repair-target/.test(id)?"system":"misc";
+// drag one control, or Shift-drag to move its whole category group (shields / weapons / systems / misc) together
 function eafDragCtl(e,cid,node){ e.preventDefault(); const wrap=document.getElementById("eafArtWrap"),rect=wrap.getBoundingClientRect();
-  const move=ev=>{ const x=Math.max(0,Math.min(100,(ev.clientX-rect.left)/rect.width*100)), y=Math.max(0,Math.min(100,(ev.clientY-rect.top)/rect.height*100));
-    editLayout.controls[cid]=[+x.toFixed(1),+y.toFixed(1)]; node.style.left=x+"%"; node.style.top=y+"%"; };
+  const grp=e.shiftKey?eafCategory(cid):null, members=grp?Object.keys(editLayout.controls).filter(id=>eafCategory(id)===grp):[cid];
+  const start={x:e.clientX,y:e.clientY}, base={}; members.forEach(id=>base[id]=[...editLayout.controls[id]]);
+  const move=ev=>{ const dx=(ev.clientX-start.x)/rect.width*100, dy=(ev.clientY-start.y)/rect.height*100;
+    members.forEach(id=>{ const nx=Math.max(0,Math.min(100,base[id][0]+dx)), ny=Math.max(0,Math.min(100,base[id][1]+dy));
+      editLayout.controls[id]=[+nx.toFixed(1),+ny.toFixed(1)]; const el=wrap.querySelector(`.ctl[data-cid="${id}"]`); if(el){ el.style.left=nx+"%"; el.style.top=ny+"%"; } }); };
   const up=()=>{ document.removeEventListener("mousemove",move); document.removeEventListener("mouseup",up); renderEafValid(); };
   document.addEventListener("mousemove",move); document.addEventListener("mouseup",up); }
 // palette → drop a control onto the form to place it
