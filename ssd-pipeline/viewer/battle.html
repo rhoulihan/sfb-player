@@ -599,7 +599,8 @@ function stepSeekers(out) {   // 6A: move every seeker one impulse toward its ta
         if (hits > 0) { s2.phaserHits = (s2.phaserHits || 0) + hits * PD_PLASMA_DMG; out.push({ kind: 'shot', firer: target.id, cls: 'PD', target: s2.id, points: hits * PD_PLASMA_DMG, hit: true }); }
         if (seekerDamage(s2) <= 0) return { ...s2, _done: true };     // whittled down to no warhead
       } else if (pdRange <= PD_RANGE) {                               // drones / shuttles in point-defense range
-        const adds = Math.min(addRacksOf(target), addAmmoOf(target));  // one ADD per rack per impulse (E5.13), limited by loaded ammo
+        ensureLocks(); const targetHasLock = lockOn[target.id] === true || (lockOn[target.id] instanceof Set && lockOn[target.id].size > 0);   // E5.14: an ADD cannot fire if its ship has no lock-on
+        const adds = targetHasLock ? Math.min(addRacksOf(target), addAmmoOf(target)) : 0;  // one ADD per rack per impulse (E5.13), limited by loaded ammo
         const killed = pointDefense(phaserPdOf(target) + adds, rng, pdRange);   // PH-3 (unlimited) + ADDs
         if (adds > 0) target.addAmmo = addAmmoOf(target) - adds;       // anti-drones are expended whether they hit or miss (E5.13)
         if (killed) {
