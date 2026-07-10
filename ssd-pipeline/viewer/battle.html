@@ -325,7 +325,7 @@ import { armLabel, isArmed, canHold, canRoll, armTurns, rollCost, reserveComplet
 import { ctl, stepPair, stackCtl, barCtl, sysCtl, batteryCtl, ewCtl, toggleCtl, shieldCtl, weaponCtl, capCtl, segCtl } from './eaf-controls.js';   // shared EA control renderers (also used by the verify.html EAF layout editor)
 import { reservePool as reservePoolOf, spendReserve, reserveCost } from './reserve-power.js';   // reactive power (H5/H7)
 import { legalNextHexes, tryStep, impulseTimeline, hexesInPlot, setSpeedChange, speedAt, legalSideslips, trySideslip } from './course-plan.js';
-import { family, segmentName } from './battle-phase.js';   // SFB Sequence-of-Play segment cursor
+import { family, segmentName, advance } from './battle-phase.js';   // SFB Sequence-of-Play segment cursor + driver
 import { hexPath, rad, plotOverlaySvg, createBattleMap } from './battle-map.js';
 import { SCENARIO } from './scenario.js';
 
@@ -836,21 +836,46 @@ function resolveFinalActivity(skLog) {   // Final Activity Phase (7): reload, no
     }
   }
 }
+// ---- Sequence-of-Play driver (B2.2): battle-phase.js advance() walks the cursor; the host runs each segment's resolver ----
+// Movement is automatic in this game (speed plot + queued turns), so the movement gate is auto-satisfied and the
+// only per-impulse pause is the 6D fire gate — the player fires at the post-movement positions, exactly as before.
+let seqAlive = new Set(), seqLog = [];   // in-flight impulse: who was alive before this impulse's movement, and the impulse's event log
+function resolvePlottedSelfDestruct() { /* Phase 3 (B2.3-3): resolve ships plotted to self-destruct — wired in a later stage */ }
+function runSegment(seg) {
+  switch (seg) {
+    case 'self-destruct': resolvePlottedSelfDestruct(); break;                          // Phase 3
+    case 'lockon': ensureLocks(); break;                                                // Phase 4 (D6.1): one lock-on roll for the whole turn
+    case 'initial': break;                                                              // Phase 5 Initial Activity — hook for tractor/undock announcements
+    case '6A1':                                                                         // start of an impulse: fresh fire commits + per-impulse tallies
+      myCommitted = false; committed = {};
+      ships.forEach(s => s._shieldDmg = {});                                            // D8.1 per-impulse shield-damage tally
+      ships.forEach(applyReserveQueue);                                                 // H7.1 queued reserve allocations take effect at the impulse boundary
+      seqAlive = new Set(ships.filter(s => !isDead(s)).map(s => s.id));
+      break;
+    case '6A2': resolveMovement(); break;                                               // 6A Movement Segment
+    case '6A4':                                                                         // end of 6A: seeking weapons impact (F2.2), then announce seeking deaths — before any 6D fire
+      seqLog.push(...resolveSeekingImpact());
+      resolvePostCombat(seqAlive, seqLog);
+      break;
+    case 'final': resolveRepairStage(); resolveFinalActivity(seqLog); break;            // Record Keeping repair (D9.21/D9.7) + Final Activity Phase (7)
+    case 'record': eafDraft = {}; myLockedEnergy = false; ui.eaHidden = false; break;   // → next turn's Energy Allocation
+    // speed, 6A3, 6B*, 6C, 6D* — no host side-effect here (direct fire resolves through the commit protocol)
+  }
+}
+function runSequence(extraGates) {   // advance the cursor to the next player gate, running each segment's resolver in order
+  const st = { clock: { ...clock }, gates: { energyResolved: false, moveSatisfied: true, fireResolved: false, ...extraGates } };
+  const { ran } = advance(st);
+  clock = st.clock;                  // move to the rest position first — resolvers (movement etc.) read clock.impulse
+  for (const seg of ran) runSegment(seg);
+}
 function stepImpulse() {
   if (getPhase() !== 'impulse') return;
-  const aliveBefore = new Set(ships.filter(s => !isDead(s)).map(s => s.id));   // 6E: announce ships lost this impulse
-  clock.impulse++;
-  myCommitted = false; committed = {};                            // new impulse → fresh firing commits
-  let wrapped = false;
-  if (clock.impulse > 32) { clock.impulse = 1; clock.turn++; wrapped = true; }   // new turn → back to energy allocation
-  ships.forEach(s => s._shieldDmg = {});   // D8.1: shield-damage tally is per-impulse (direct fire + seekers combine within an impulse)
-  ships.forEach(applyReserveQueue);        // H7.1: queued reserve allocations take effect at the impulse boundary (their applicable segment)
-  resolveMovement();                       // 6A Movement Segment
-  if (wrapped) { resolveRepairStage(); clock.phase = 'energy'; eafDraft = {}; myLockedEnergy = false; ui.eaHidden = false; }   // Record Keeping → next turn's Energy Allocation
-  const skLog = resolveSeekingImpact();    // end of 6A: seeking weapons advance + impact
-  resolvePostCombat(aliveBefore, skLog);   // 6E Post-Combat: announce the fallen
-  if (wrapped) resolveFinalActivity(skLog);   // Final Activity Phase
-  pruneUnavailable(); render(); if (skLog.length) renderLog({ log: skLog }, true); save(null, wrapped ? { step: true, phase: 'energy' } : { step: true });   // movement syncs to all commanders
+  seqLog = [];
+  runSequence({ fireResolved: true, moveSatisfied: false });   // past this impulse's 6D fire + 6E (on impulse 32: Final/Record → next-turn Energy)
+  if (getPhase() === 'impulse') runSequence({ moveSatisfied: true, fireResolved: false });   // 6A of the next impulse: move + seeking, rest at its fire gate
+  const wrapped = getPhase() === 'energy';
+  pruneUnavailable(); render(); if (seqLog.length) renderLog({ log: seqLog }, true);
+  save(null, wrapped ? { step: true, phase: 'energy' } : { step: true });   // movement syncs to all commanders
 }
 // a queued turn executes when the ship next moves; applies to the given ship (defaults to the last-clicked one)
 function turnAction(dir, shipId = ui.selectedId) {
@@ -1552,7 +1577,10 @@ async function resolveEnergy(allEaf) {                        // fold each locke
     s.speedPlot = s.speedPlot ? { base: s.speedPlot.base, changes: s.speedPlot.changes } : { base: ts.speed, changes: [] };
     s.speed = speedAt(s.speedPlot, 1); s.hexesSinceTurn = turnModeOf(s); s._autoIdx = 0;   // autopilot restarts each turn
   }
-  clock.phase = '6A2'; myLockedEnergy = false; committed = {}; eafDraft = {};
+  myLockedEnergy = false; committed = {}; eafDraft = {};
+  seqLog = [];
+  runSequence({ energyResolved: true, moveSatisfied: true });   // B2.3 phases 2–5 (speed, self-destruct, lock-on, initial) then move into impulse 1, resting at its 6D fire gate
+  if (seqLog.length) renderLog({ log: seqLog }, true);
   render(); requestAnimationFrame(fitToShips);
   if (settings.solo) return;
   try { const j = await (await fetch('/api/battle', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: myCode, kind: 'energyResolved', phase: 'impulse', ships: ships.map(serializeShip) }) })).json(); if (j.rev) rev = j.rev; for (const [id, nr] of Object.entries(j.ships || {})) shipRev[id] = nr; } catch {}
