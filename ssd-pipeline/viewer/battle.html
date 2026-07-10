@@ -530,6 +530,13 @@ function breakTractor(held) {   // G7.35: the held ship spends negative-tractor 
   if (tractorBroken(need, need)) { noteBeamFreed(byId(link.from)); tractors = tractors.filter(t => t !== link); }   // G7.13: the freed beam is locked out 8 impulses
   saveSoon(held.id); render();
 }
+function repowerTractors(s) {   // G7.124/G7.42: at a new turn a tractor link continues only if the tower re-applies sufficient tractor power; links it no longer pays for drop
+  let budget = s.tractorPower || 0;
+  for (const link of tractorLinksFrom(s).slice()) {
+    if (budget >= link.power) { budget -= link.power; link.eaPower = link.power; }
+    else { tractors = tractors.filter(t => t !== link); noteBeamFreed(s); }
+  }
+}
 function dropTractorsInvolving(id) { tractors = tractors.filter(t => t.from !== id && t.to !== id); }               // crit (D8.2 #9), destruction, or out-of-range invalidation
 function pruneTractors() {   // G7.125: a link is broken the moment the units are no longer valid/in range
   tractors = tractors.filter(t => { const a = byId(t.from), b = byId(t.to); return a && b && !isDead(a) && !isDead(b) && !hasCrit(a.criticals, 'tractor') && canTractor(hexDistance(a, b)); });
@@ -1661,7 +1668,7 @@ async function resolveEnergy(allEaf) {                        // fold each locke
     const wasPassiveFC = passiveFcOf(s); s.fcPassive = !!col.fcPassive;   // D19: voluntary passive-fire-control choice for the turn
     if (wasPassiveFC && !passiveFcOf(s)) s.fcReactAt = { turn: clock.turn, impulse: clock.impulse };   // D19.26: FC restored from passive can't fire/guide for 4 impulses
     s.em = !!col.em && !hasCrit(s.criticals, 'maneuver');   // C10: erratic maneuvers for the turn; a maneuver crit forbids EM (D8.2 #11)
-    s.tractorPower = Math.floor(col.tractor || 0); s.negTractorUsed = 0;   // G7.15: whole points allocated to tractor beams this turn (negative-tractor spend resets)
+    s.tractorPower = Math.floor(col.tractor || 0); s.negTractorUsed = 0; repowerTractors(s);   // G7.15: tractor allocation this turn; G7.124: links not re-powered drop
     s._priorDamage = new Set(Object.keys(s.status || {}));   // D9.73: snapshot damage present at turn start — only these boxes are repairable this turn (not damage taken during it)
     { const m = s.model || (s.model = buildShipModel(s._ver, s._det)); s._priorShieldDown = {}; for (const n of [1, 2, 3, 4, 5, 6]) s._priorShieldDown[n] = (m.shields[n] && m.shields[n].down) || 0; }   // D9.22: shield boxes down at turn start (only these are repairable this turn)
     s.edr = hasCrit(s.criticals, 'labs') ? 0 : Math.floor(col.edr || 0);   // D14: powered labs for emergency damage repair (labs crit → none)
