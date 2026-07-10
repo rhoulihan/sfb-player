@@ -1,6 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { launchSeeker, stepSeeker, seekerImpacts, seekerDamage, seekerExpired, bearingToward } from '../viewer/seeking.js';
+import { launchSeeker, stepSeeker, seekerImpacts, seekerDamage, seekerExpired, bearingToward, stepSeekerBallistic } from '../viewer/seeking.js';
+
+test('F3.31/F3.4: an uncontrolled seeker continues straight on its last bearing (no re-homing)', () => {
+  const sk = { q: 10, r: 10, facing: 0, speed: 32, endurance: 5, travelled: 0 };
+  const s2 = stepSeekerBallistic(sk, 1);
+  const straight = neighbor(10, 10, 0);
+  assert.deepEqual([s2.q, s2.r, s2.facing], [straight.q, straight.r, 0], 'moves one hex in its current facing, facing unchanged');
+  assert.equal(s2.endurance, 4);
+});
 import { neighbor } from '../viewer/movement.js';
 
 test('F2.121/F2.14: a seeker turns at most one hexside per hex and never reverses (Turn Mode 1)', () => {

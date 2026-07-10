@@ -46,6 +46,15 @@ export function stepSeeker(seeker, target, impulse) {
   return { ...seeker, q: n.q, r: n.r, facing, endurance, travelled: (seeker.travelled || 0) + 1 };
 }
 
+// F3.31/F3.4: a seeking weapon whose controller no longer meets the control conditions goes uncontrolled — it
+// continues straight on its last bearing (no re-homing) until it expires. Same movement cadence as a homing seeker.
+export function stepSeekerBallistic(seeker, impulse) {
+  const endurance = (seeker.endurance ?? Infinity) - 1;
+  if (!movesOnImpulse(seeker.speed, impulse)) return { ...seeker, endurance };
+  const n = neighbor(seeker.q, seeker.r, seeker.facing);
+  return { ...seeker, q: n.q, r: n.r, endurance, travelled: (seeker.travelled || 0) + 1 };
+}
+
 export function seekerImpacts(seeker, target) {
   return seeker.q === target.q && seeker.r === target.r;   // co-located = impact (hexDistance floors at 1, so compare hexes)
 }

@@ -304,7 +304,7 @@ import { resolveAttackPlan } from './direct-fire.js';
 import { makeRng } from './rng.js';
 import { repairBoxes, repairSystemStep, canRepairFamily } from './repair.js';   // D9.7 continuous damage repair (free points, Annex #9 costs, one box/turn)
 import { resolveLocks, applyLockGate } from './lock-on.js';
-import { launchSeeker, stepSeeker, seekerImpacts, seekerDamage, seekerExpired, plasmaSpec, pointDefense, pointDefenseHits, PD_PLASMA_DMG, PD_RANGE, controlLimit, controlledCount, SUICIDE_SHUTTLE, weaselFor, ADMIN_SHUTTLE, SCATTER_PACK } from './seeking.js';
+import { launchSeeker, stepSeeker, stepSeekerBallistic, seekerImpacts, seekerDamage, seekerExpired, plasmaSpec, pointDefense, pointDefenseHits, PD_PLASMA_DMG, PD_RANGE, controlLimit, controlledCount, CONTROLLED_TYPES, SUICIDE_SHUTTLE, weaselFor, ADMIN_SHUTTLE, SCATTER_PACK } from './seeking.js';   // F3.31 control maintenance
 import { makeRack, reloadStep, loadoutSpaces, droneWarhead } from './drone-inventory.js';
 import { applyVolley, makeDice } from './dac-allocator.js';
 import { CRIT_THRESHOLD as D8_THRESHOLD, critForRoll, critRepairs, addCrit, hasCrit, activeCrits, CRIT_INFO } from './criticals.js';
@@ -551,6 +551,16 @@ function accrueShieldDamage(target, shield, points, log) {
   if (log) log.push({ kind: 'crit', ship: target.id, roll, type, shield });
   saveSoon(target.id);
 }
+const SEEKER_CONTROL_RANGE = 35;   // F3.31: 35 hexes between controller↔target, controller↔weapon, and weapon↔target
+function controlsSeeker(sk, target) {   // F3.31: the six conditions to keep guiding a seeking weapon (channels are gated at launch)
+  const owner = byId(sk.owner);
+  if (!owner || isDead(owner)) return false;
+  if (passiveFcOf(owner) || fcReactivating(owner)) return false;                  // (1) active fire control
+  ensureLocks(); if (!hasLockOn(lockOn, owner.id, target.id)) return false;       // (2) lock-on to the target
+  return hexDistance(owner, target) <= SEEKER_CONTROL_RANGE                       // (3) controller within 35 of target
+    && hexDistance(owner, sk) <= SEEKER_CONTROL_RANGE                             // (4) controller within 35 of the weapon
+    && hexDistance(sk, target) <= SEEKER_CONTROL_RANGE;                           // (5) weapon within 35 of target
+}
 function stepSeekers(out) {   // 6A: move every seeker one impulse toward its target; resolve any impact through the DAC
   if (!seekers.length) return;
   const rng = makeRng((seed + clock.turn * 1000 + clock.impulse) >>> 0), dice = makeDice(rng.next), impacts = [];
@@ -562,7 +572,8 @@ function stepSeekers(out) {   // 6A: move every seeker one impulse toward its ta
     if (!target || isDead(target)) return { ...sk, _done: true };   // target gone → the seeker lapses
     const weasel = weaselFor(sk.targetId, seekers);                  // divert to a wild weasel the target deployed
     const home = weasel || target;
-    const s2 = stepSeeker(sk, home, clock.impulse);
+    const guided = !CONTROLLED_TYPES.has(sk.type) || controlsSeeker(sk, target);   // F3.31: guided types need a valid controller; if lost → ballistic (F3.4)
+    const s2 = guided ? stepSeeker(sk, home, clock.impulse) : stepSeekerBallistic(sk, clock.impulse);
     if (!weasel && !seekerImpacts(s2, target)) {                       // point-defense (before impact)
       const pdRange = hexDistance(s2, target);
       if (s2.type === 'plasma') {                                     // FP1.611: phasers WEAKEN a plasma, they do not shoot it down
