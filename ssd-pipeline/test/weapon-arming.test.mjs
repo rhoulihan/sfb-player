@@ -1,6 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ARM_SCHEDULE, armSchedule, armTurns, isArmed, armStepCost, armLabel, canHold, rollCost, canRoll, reserveCompletionCost, firedThisTurn } from '../viewer/weapon-arming.js';
+import { ARM_SCHEDULE, armSchedule, armTurns, isArmed, armStepCost, armLabel, canHold, rollCost, canRoll, reserveCompletionCost, firedThisTurn, impulsesSince, refireReady } from '../viewer/weapon-arming.js';
+
+test('E1.5/E1.52 refire cadence: 8 impulses between shots, spanning the turn boundary', () => {
+  assert.equal(impulsesSince(null, 1, 1), Infinity, 'never fired → infinitely long ago');
+  assert.equal(impulsesSince({ turn: 1, impulse: 25 }, 2, 1), 8, 'imp 25 turn 1 → imp 1 turn 2 is 8 impulses (E1.52 example)');
+  assert.equal(refireReady(null, 5, 3), true, 'never fired → ready');
+  assert.equal(refireReady({ turn: 1, impulse: 25 }, 2, 1), true, 'fired imp 25 → may fire imp 1 of next turn (8 later)');
+  assert.equal(refireReady({ turn: 1, impulse: 28 }, 2, 1), false, 'fired imp 28 → NOT ready imp 1 next turn (only 5 later)');
+  assert.equal(refireReady({ turn: 1, impulse: 28 }, 2, 4), true, 'fired imp 28 → ready imp 4 next turn (8 later)');
+  assert.equal(refireReady({ turn: 3, impulse: 10 }, 3, 17), false, 'within a turn: 7 impulses is not yet 8');
+  assert.equal(refireReady({ turn: 3, impulse: 10 }, 3, 18), true, 'within a turn: 8 impulses later is ready');
+});
 
 test('E2.23 frequency: a weapon that fired this turn is not ready again until a later turn', () => {
   assert.equal(firedThisTurn(null, 3), false, 'never fired → not fired this turn');

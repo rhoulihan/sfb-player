@@ -19,6 +19,12 @@ const DEFAULT = { turns: [2], hold: null };
 // this turn, so the mount is not eligible again until a later turn.
 export function firedThisTurn(firedAt, turn) { return !!firedAt && firedAt.turn >= turn; }
 
+// E1.5/E1.52 REFIRE CADENCE: most weapons need 8 impulses between shots, and that gap SPANS the turn boundary —
+// a weapon fired on impulse 25 can next fire on impulse 1 of the following turn (8 impulses later), one fired on
+// impulse 28 not until impulse 4. 32 impulses per turn. `firedAt` = {turn, impulse} of the last shot, or null.
+export function impulsesSince(firedAt, turn, impulse) { return firedAt ? (turn - firedAt.turn) * 32 + (impulse - firedAt.impulse) : Infinity; }
+export function refireReady(firedAt, turn, impulse, minGap = 8) { return impulsesSince(firedAt, turn, impulse) >= minGap; }
+
 export function armSchedule(cls) { return ARM_SCHEDULE[cls] || DEFAULT; }
 export function armTurns(cls) { return armSchedule(cls).turns.length; }
 export function isArmed(cls, progress) { return progress >= armTurns(cls); }   // full schedule done → may fire

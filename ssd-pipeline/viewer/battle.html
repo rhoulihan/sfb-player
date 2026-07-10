@@ -321,7 +321,7 @@ const SHIP_TURN_CATEGORY = { 'FED-CA': 'D', 'FED-CL': 'C', 'FED-NCL': 'C', 'GOR-
 const turnCategoryOf = code => SHIP_TURN_CATEGORY[code] || 'C';
 const turnModeOf = s => turnModeFor(s.turnCat || turnCategoryOf(s.code), s.speed) + (hasCrit(s.criticals, 'maneuver') ? 1 : 0);   // D8.2 maneuver crit: turn mode +1 at all speeds
 import { shipPower, newEafColumn, validateEaf, foldEaf, sinkMax, specReinfMax, plasmaClsOf } from './energy-model.js';
-import { armLabel, isArmed, canHold, canRoll, armTurns, rollCost, reserveCompletionCost, firedThisTurn } from './weapon-arming.js';   // multi-turn arming: label, fire-gate, holdability, rolling delay (E4.21/E3.24/FP1.311/FP1.221); E2.23 frequency
+import { armLabel, isArmed, canHold, canRoll, armTurns, rollCost, reserveCompletionCost, firedThisTurn, refireReady } from './weapon-arming.js';   // multi-turn arming: label, fire-gate, holdability, rolling delay (E4.21/E3.24/FP1.311/FP1.221); E2.23 frequency; E1.52 refire cadence
 import { ctl, stepPair, stackCtl, barCtl, sysCtl, batteryCtl, ewCtl, toggleCtl, shieldCtl, weaponCtl, capCtl, segCtl } from './eaf-controls.js';   // shared EA control renderers (also used by the verify.html EAF layout editor)
 import { reservePool as reservePoolOf, spendReserve, reserveCost } from './reserve-power.js';   // reactive power (H5/H7)
 import { legalNextHexes, tryStep, impulseTimeline, hexesInPlot, setSpeedChange, speedAt, legalSideslips, trySideslip } from './course-plan.js';
@@ -1309,9 +1309,11 @@ const healthColor = h => h > 0.6 ? '#16a34a' : h > 0.3 ? '#d97706' : '#C74634';
 const PHASER_FIRE_COST = 1;   // each phaser draws 1 from the charged capacitor when fired (H6)
 const isPhaser = cls => cls === 'PH-1' || cls === 'PH-2' || cls === 'PH-3';
 function isCharged(s, mountId, cls) {
-  if (firedThisTurn(s.firedAt[mountId], clock.turn)) return false;   // E2.23: each weapon (phaser or heavy) fires at most once per turn
+  const f = s.firedAt[mountId];
+  if (!refireReady(f, clock.turn, clock.impulse)) return false;   // E1.5/E1.52: 8 impulses between shots — a weapon fired late in a turn is unavailable early the next turn (spans the boundary)
+  if (firedThisTurn(f, clock.turn)) return false;                 // E2.23: each phaser (and each heavy weapon) fires at most once per turn
   if (isPhaser(cls)) return (s.capacitor || 0) >= PHASER_FIRE_COST;   // phasers also need a charged capacitor (H6)
-  return true;   // heavy weapons re-arm with next turn's allocation
+  return true;   // heavy weapons additionally re-arm over turns (armedOk / isArmed)
 }
 const chargedCount = s => s.mounts.filter(m => isCharged(s, m.id, m.cls)).length;
 const HEAVY_CLS = new Set(['PHOTON', 'DISR']);   // heavy weapons must be armed in energy allocation to fire; phasers aren't
