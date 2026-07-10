@@ -1,29 +1,43 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { MINE, mineTriggeredBy, hitAndRunSucceeds, hitAndRunResult } from '../viewer/mines.js';
+import { MINE, mineTriggeredBy, mineShouldArm, hitAndRunSucceeds, hitAndRunResult } from '../viewer/mines.js';
 
 test('MINE has a warhead and a trigger radius', () => {
   assert.ok(MINE.warhead > 0 && MINE.radius >= 1);
 });
 
-test('a mine triggers on the nearest enemy inside its radius', () => {
-  const mine = { q: 5, r: 5, side: 'friendly', radius: 1, warhead: 20 };
+test('an armed mine triggers on the nearest unit inside its radius', () => {
+  const mine = { q: 5, r: 5, side: 'friendly', radius: 1, warhead: 20, armed: true };
   const ships = [{ id: 'E1', side: 'enemy', q: 5, r: 5 }, { id: 'E2', side: 'enemy', q: 15, r: 5 }];
   assert.equal(mineTriggeredBy(mine, ships).id, 'E1');
 });
 
-test("a mine ignores its own fleet", () => {
-  const mine = { q: 5, r: 5, side: 'friendly', radius: 1 };
-  assert.equal(mineTriggeredBy(mine, [{ id: 'F1', side: 'friendly', q: 5, r: 5 }]), null);
+test('M2.23: an armed mine is neutral — it triggers on ANY unit, including its own side and the dropper', () => {
+  const mine = { q: 5, r: 5, side: 'friendly', owner: 'F1', radius: 1, armed: true };
+  assert.equal(mineTriggeredBy(mine, [{ id: 'F1', side: 'friendly', q: 5, r: 5 }]).id, 'F1', 'the dropper itself triggers the mine');
+  assert.equal(mineTriggeredBy(mine, [{ id: 'F2', side: 'friendly', q: 6, r: 5 }]).id, 'F2', 'a same-side unit triggers it too');
 });
 
-test('a ship outside the radius does not trigger the mine', () => {
-  const mine = { q: 5, r: 5, side: 'friendly', radius: 1 };
+test('M2.31: a freshly-laid (un-armed) mine is inert — it does not trigger the impulse it is dropped', () => {
+  const mine = { q: 5, r: 5, side: 'friendly', owner: 'F1', radius: 1 };   // no armed flag
+  assert.equal(mineTriggeredBy(mine, [{ id: 'E1', side: 'enemy', q: 5, r: 5 }]), null, 'an un-armed mine triggers nothing');
+});
+
+test('M2.31: a mine arms once the dropping unit leaves detection range (≥2 hexes away)', () => {
+  const mine = { q: 5, r: 5, owner: 'F1', radius: 1 };
+  assert.equal(mineShouldArm(mine, [{ id: 'F1', q: 6, r: 5 }]), false, 'dropper still adjacent → stays inert');
+  assert.equal(mineShouldArm(mine, [{ id: 'F1', q: 7, r: 5 }]), true, 'dropper 2 hexes away → arms');
+  assert.equal(mineShouldArm(mine, []), true, 'dropper gone → armed');
+  assert.equal(mineShouldArm({ ...mine, armed: true }, [{ id: 'F1', q: 5, r: 5 }]), true, 'once armed it stays armed even if the dropper returns');
+});
+
+test('a ship outside the radius does not trigger an armed mine', () => {
+  const mine = { q: 5, r: 5, side: 'friendly', radius: 1, armed: true };
   assert.equal(mineTriggeredBy(mine, [{ id: 'E1', side: 'enemy', q: 10, r: 5 }]), null);
 });
 
-test('an adjacent enemy (radius 1) triggers the mine', () => {
-  const mine = { q: 5, r: 5, side: 'friendly', radius: 1 };
+test('an adjacent unit (radius 1) triggers an armed mine', () => {
+  const mine = { q: 5, r: 5, side: 'friendly', radius: 1, armed: true };
   assert.ok(mineTriggeredBy(mine, [{ id: 'E1', side: 'enemy', q: 6, r: 5 }]));
 });
 

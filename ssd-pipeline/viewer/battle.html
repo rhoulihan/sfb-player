@@ -312,7 +312,7 @@ import { tractorCost, canTractor, tractorBroken, TRACTOR_MAX_RANGE } from './tra
 import { cloakEcm, applyCloakFireGate, CLOAK_ECM } from './cloak.js';   // G13: cloak fire penalty + fire gate
 import { ewShift } from './ew.js';   // D6.34 net-ECM → shift (used for D17.26 tactical-intel level shift)
 import { makeScenario, applyLoSGate } from './terrain.js';
-import { MINE, mineTriggeredBy, hitAndRunSucceeds, SELF_DESTRUCT, selfDestructHits, selfDestructDamage, selfDestructZone, DEFAULT_BES, NUCLEAR_MINE, transporterTarget, TRANSPORTER_RANGE, TBOMB_WARHEAD } from './mines.js';   // D5: per-ship BES self-destruction; G8.14 transporter range
+import { MINE, mineTriggeredBy, mineShouldArm, hitAndRunSucceeds, SELF_DESTRUCT, selfDestructHits, selfDestructDamage, selfDestructZone, DEFAULT_BES, NUCLEAR_MINE, transporterTarget, TRANSPORTER_RANGE, TBOMB_WARHEAD } from './mines.js';   // D5: per-ship BES self-destruction; G8.14 transporter range; M2.31 mine arming
 import { shuttleMaxHp, damageShuttle, shuttleDestroyed } from './shuttle-inventory.js';
 const PD_SHUTTLE_DMG = 2;   // point-defense damage per hit vs a shuttle (shuttles soak, drones one-shot)
 import { movesOnImpulse, neighbor, turnMode, turnModeFor, accelCap, pseudoSpeed } from './movement.js';
@@ -585,7 +585,9 @@ function stepSeekers(out) {   // 6A: move every seeker one impulse toward its ta
   const hitWeasels = new Set();
   seekers = seekers.map(sk => {
     if (sk.type === 'weasel') { const e = (sk.endurance ?? 8) - 1; return { ...sk, endurance: e, _done: e <= 0 }; }   // decoy ages out over the turn
-    if (sk.type === 'mine') { const victim = mineTriggeredBy(sk, ships.filter(s => !isDead(s))); if (victim) { impacts.push({ shield: exposedShield(sk, victim), points: sk.warhead, t: victim, id: sk.id, cls: 'MINE' }); return { ...sk, _done: true }; } return sk; }   // dormant until an enemy enters the radius
+    if (sk.type === 'mine') { const live = ships.filter(s => !isDead(s)); const armed = sk.armed || mineShouldArm(sk, live);   // M2.31: arms once the dropper leaves detection range, then latches
+      const mine = armed ? { ...sk, armed: true } : sk; const victim = mineTriggeredBy(mine, live);   // M2.23: an armed mine triggers on ANY unit in radius (friend, foe, or the dropper)
+      if (victim) { impacts.push({ shield: exposedShield(mine, victim), points: mine.warhead, t: victim, id: mine.id, cls: 'MINE' }); return { ...mine, _done: true }; } return mine; }
     const target = byId(sk.targetId);
     if (!target || isDead(target)) return { ...sk, _done: true };   // target gone → the seeker lapses
     const weasel = weaselFor(sk.targetId, seekers);                  // divert to a wild weasel the target deployed

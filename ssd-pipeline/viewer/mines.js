@@ -1,7 +1,8 @@
-// Mines & boarding (C10/D15) — a lightweight slice. A mine is a static token (owner side, hex, warhead,
-// trigger radius) that detonates on the nearest enemy ship inside its radius; the host hands the hit to the
-// DAC. Hit-and-run is a transporter raid resolved by a die roll. Uses true (unfloored) cube distance so the
-// radius is exact. Pure functions; the host owns laying, per-impulse checking, and applying damage.
+// Mines (M2.0 nuclear space mines / M3.0 transporter bombs) & boarding (D15) — a lightweight slice. A mine is a static
+// token (owner, side, hex, warhead, trigger radius) that, once armed, detonates on the nearest unit inside its radius
+// regardless of side (M2.23); the host hands the hit to the DAC. Hit-and-run is a transporter raid resolved by a die
+// roll (D7.8). Uses true (unfloored) cube distance so the radius is exact. Pure functions; the host owns laying,
+// per-impulse checking, and applying damage.
 const toCube = (q, r) => { const x = q, z = r - (q - (q & 1)) / 2; return { x, y: -x - z, z }; };
 const dist = (a, b) => {
   const A = toCube(a.q, a.r), B = toCube(b.q, b.r);
@@ -19,10 +20,23 @@ export function transporterTarget(ship, ships, range = TRANSPORTER_RANGE) {
   return hits.sort((a, b) => dist(ship, a) - dist(ship, b))[0] || null;
 }
 
-// the nearest enemy ship (side !== mine.side) within the mine's trigger radius, or null
+export const MINE_DETECTION_RANGE = 2;   // M2.35 (Basic Set): the dropper arms the mine by moving two hexes away — no longer in the mine's hex or an adjacent one
+
+// M2.31: a mine arms automatically the instant the unit that dropped it leaves the mine's Detection Range (two hexes,
+// M2.35). Once armed it stays armed even if the dropper returns. The host latches mine.armed once this returns true.
+export function mineShouldArm(mine, ships) {
+  if (mine.armed) return true;
+  const dropper = (ships || []).find(s => s.id === mine.owner);
+  return !dropper || dist(dropper, mine) >= MINE_DETECTION_RANGE;   // dropper gone or ≥2 hexes away → arms
+}
+
+// M2.23 NEUTRALITY: once armed, a mine is neutral — it triggers against ANY unit within its radius, friend or foe,
+// including the unit that dropped it (mines cannot be set to accept only enemy units). M2.31: it is inert until armed.
+// Returns the nearest triggering unit, or null.
 export function mineTriggeredBy(mine, ships) {
+  if (!mine || !mine.armed) return null;   // M2.31: inert until the dropper leaves the detection range
   const r = mine.radius ?? 1;
-  const hits = (ships || []).filter(s => s.side !== mine.side && dist(mine, s) <= r);
+  const hits = (ships || []).filter(s => dist(mine, s) <= r);   // no side filter — a dropped mine is neutral (M2.23)
   return hits.sort((a, b) => dist(mine, a) - dist(mine, b))[0] || null;
 }
 
@@ -40,7 +54,7 @@ export function hitAndRunSucceeds(roll) {
   return hitAndRunResult(roll).systemDestroyed;
 }
 
-// Self-destruct (D19) — the ship explodes, hitting every other ship in the blast radius; damage falls off
+// Self-destruct (D5) — the ship explodes, hitting every other ship in the blast radius; damage falls off
 // with distance. The host applies the hits through the DAC and removes the exploding ship.
 // Self-destruction (D5). A ship's Basic Explosion Strength (BES, D5.2/D5.41) comes from the Master Ship Chart —
 // it is a per-ship value captured in verified.json, never a fixed constant. DEFAULT_BES is only a fallback when a

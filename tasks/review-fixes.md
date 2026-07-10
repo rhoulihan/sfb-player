@@ -55,7 +55,7 @@ Source: `docs/adversarial-review.md` (96 confirmed findings). Strict TDD, one cl
 - [x] 🟠 **D5.41** `ssd-pipeline/viewer/mines.js:36` — Self-destruct blast radius is hardcoded to 2 hexes; the rule caps the zone at radius 1 (or radius 0 for a small explosion).
 - [x] 🟠 **D5.2** `ssd-pipeline/viewer/mines.js:36` — Self-destruction force is a hardcoded 30 for all ships instead of the per-ship value from the Master Ship Chart.
 - [x] 🟠 **D5.41** `ssd-pipeline/viewer/mines.js:37` — Self-destruct blast uses radius 2 with a 1/distance damage falloff; D5.41 is radius 1 (BES>=10) or same-hex-only (BES<=9), with the FULL BES applied to every unit in the zone.
-- [ ] 🟡 **D5.0 / D7.8 / M3.0** `ssd-pipeline/viewer/mines.js:34` — Several rule-number citations in the comments point to the wrong rules for this edition.
+- [x] 🟡 **D5.0 / D7.8 / M3.0** `ssd-pipeline/viewer/mines.js:34` — Several rule-number citations in the comments point to the wrong rules for this edition.
 
 ## Wild weasel / shuttles (J3/C6)
 
@@ -144,10 +144,10 @@ Source: `docs/adversarial-review.md` (96 confirmed findings). Strict TDD, one cl
 - [x] 🟠 **G8.21** `ssd-pipeline/viewer/battle.html:440` — Hit-and-run raid and transporter bomb ignore the target's shields; transporters cannot beam through an intact shield.
 - [x] 🟠 **D7.81** `ssd-pipeline/viewer/battle.html:445` — Hit-and-run picks a random enemy box; the rules require the attacker to designate the specific box, and restrict which boxes are legal.
 - [x] 🟠 **G8.14** `ssd-pipeline/viewer/mines.js:13` — Transporter range hardcoded to 1 hex (adjacent) instead of the rulebook's 5.
-- [ ] 🟠 **M2.23** `ssd-pipeline/viewer/mines.js:25` — Mines only trigger on enemy units, but rules make a dropped mine neutral to all sides.
+- [x] 🟠 **M2.23** `ssd-pipeline/viewer/mines.js:25` — Mines only trigger on enemy units, but rules make a dropped mine neutral to all sides.
 - [x] 🟠 **D7.81** `ssd-pipeline/viewer/mines.js:30` — Hit-and-run raid resolves 'success on 4+', but the D7.81 chart destroys the target system on a roll of 1-2 for a normal boarding party.
 - [ ] 🟡 **G8.13** `ssd-pipeline/viewer/battle.html:437` — Hit-and-run raids and transporter bombs cost no energy; a transporter operation requires 1 energy point.
-- [ ] 🟡 **M2.31 / M2.34** `ssd-pipeline/viewer/mines.js:23` — No mine-arming delay: a mine can detonate the same impulse it is laid.
+- [x] 🟡 **M2.31 / M2.34** `ssd-pipeline/viewer/mines.js:23` — No mine-arming delay: a mine can detonate the same impulse it is laid.
 
 ## Remaining — ssd
 
