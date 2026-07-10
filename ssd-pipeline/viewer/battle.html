@@ -760,9 +760,10 @@ function stepImpulse() {
   if (clock.impulse > 32) { clock.impulse = 1; clock.turn++; wrapped = true; }   // new turn → back to energy allocation
   ships.forEach(s => s._shieldDmg = {});   // D8.1: shield-damage tally is per-impulse (direct fire + seekers combine within an impulse)
   ships.forEach(applyReserveQueue);        // H7.1: queued reserve allocations take effect at the impulse boundary (their applicable segment)
+  const _towPos = Object.fromEntries(ships.map(s => [s.id, [s.q, s.r]]));   // pre-move positions → drag tractored ships along with their tower (G7.32/36)
   for (const s of ships) {
     s.speed = hasCrit(s.criticals, 'warp') ? 0 : speedAt(s.speedPlot || { base: s.speed, changes: [] }, clock.impulse);   // plotted speed changes fire on their locked impulses (C12.36); warp crit halts the ship (D8.23)
-    if (isDead(s) || heldBy(s) || tractorLinksFrom(s).length || !movesOnImpulse(s.speed, clock.impulse)) continue;   // G7.21: a tractor link locks both ships in place (simplified towing)
+    if (isDead(s) || heldBy(s) || !movesOnImpulse(s.speed, clock.impulse)) continue;   // a held ship is dragged by its tower (below), not self-propelled (G7.21)
     const auto = s.autopilot && s.course && s.course.steps[s._autoIdx || 0];
     if (auto) { const st = s.course.steps[s._autoIdx || 0], turned = st.facing !== s.facing;   // follow the plotted course
       s.facing = st.facing; s.q = st.q; s.r = st.r; s.hexesSinceTurn = turned ? 1 : s.hexesSinceTurn + 1;
@@ -771,6 +772,11 @@ function stepImpulse() {
     if (s.queuedTurn && s.hexesSinceTurn >= turnModeOf(s)) { s.facing = (s.facing + s.queuedTurn + 6) % 6; s.hexesSinceTurn = 0; s.queuedTurn = 0; }
     const n = neighbor(s.q, s.r, s.facing);
     if (n.q >= 0 && n.q < COLS && n.r >= 0 && n.r < ROWS) { s.q = n.q; s.r = n.r; s.hexesSinceTurn++; s.slipSince = (s.slipSince ?? 1) + 1; }   // a straight move increments slip spacing
+  }
+  for (const t of tractors) {   // G7.32/36: drag each held ship by its tower's movement this impulse, keeping the relative position
+    const tower = byId(t.from), held = byId(t.to); if (!tower || !held) continue;
+    const dq = tower.q - _towPos[tower.id][0], dr = tower.r - _towPos[tower.id][1];
+    if ((dq || dr) && !hasCrit(held.criticals, 'warp')) { const nq = held.q + dq, nr = held.r + dr; if (nq >= 0 && nq < COLS && nr >= 0 && nr < ROWS) { held.q = nq; held.r = nr; } }
   }
   pruneTractors();   // G7.125: break any link whose units are no longer valid/in range after movement
   if (wrapped) {
