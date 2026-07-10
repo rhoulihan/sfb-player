@@ -147,7 +147,7 @@
       </div>
     </div>
     <div class="foot">
-      <span class="hint" id="eafHint">Drag a control to move it; <b>Shift-drag</b> moves its whole group (shields / weapons / systems). Positions save as % of the art and drive the battle EA panel.</span>
+      <span class="hint" id="eafHint">Drag to move; <b>Shift-drag</b> moves the whole group; <b>drag off the form</b> to unplace. Positions save as % of the art and drive the battle EA panel.</span>
       <span><button class="btn" id="eafCancel">Close</button> <button class="btn primary" id="eafSaveBtn">Save layout</button></span>
     </div>
   </div>
@@ -589,7 +589,9 @@ function eafDragCtl(e,cid,node){ e.preventDefault(); const wrap=document.getElem
   const move=ev=>{ const dx=(ev.clientX-start.x)/rect.width*100, dy=(ev.clientY-start.y)/rect.height*100;
     members.forEach(id=>{ const nx=Math.max(0,Math.min(100,base[id][0]+dx)), ny=Math.max(0,Math.min(100,base[id][1]+dy));
       editLayout.controls[id]=[+nx.toFixed(1),+ny.toFixed(1)]; const el=wrap.querySelector(`.ctl[data-cid="${id}"]`); if(el){ el.style.left=nx+"%"; el.style.top=ny+"%"; } }); };
-  const up=()=>{ document.removeEventListener("mousemove",move); document.removeEventListener("mouseup",up); renderEafValid(); };
+  const up=ev=>{ document.removeEventListener("mousemove",move); document.removeEventListener("mouseup",up);
+    const off=ev&&(ev.clientX<rect.left||ev.clientX>rect.right||ev.clientY<rect.top||ev.clientY>rect.bottom);   // dropped off the form → unplace
+    if(off){ members.forEach(id=>delete editLayout.controls[id]); renderEafEditor(); } else renderEafValid(); };
   document.addEventListener("mousemove",move); document.addEventListener("mouseup",up); }
 // palette → drop a control onto the form to place it
 document.getElementById("eafPalette").addEventListener("dragstart",e=>{ const pal=e.target.closest(".pal"); if(pal)e.dataTransfer.setData("text/cid",pal.dataset.cid); });
