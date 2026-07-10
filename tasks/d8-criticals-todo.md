@@ -1,4 +1,8 @@
-# D8 Critical Hits — full-simulation build (all nine inline)
+# D8 Critical Hits — full-simulation build (all nine inline) — ✅ COMPLETE
+
+**Status: all 9 outcomes wired + verified; framework, trigger, repair, badges, modal done; G7 tractor, EM, and
+D14 subsystems built. Suite 220. Remaining = noted refinements + the Rick-deferred full D22 engine.**
+
 
 Approved design: `docs/rules-audit.md` → "D8.0 Critical hits — full systems map". Rick approved "everything inline";
 full D22 engine deferred to a TODO (warp crit uses the D8.23 simplification: cancel movement energy).
@@ -37,7 +41,7 @@ reinforcement functionality, **general reinforcement highlights all 6 shield fie
 ## Phase 3 — Absent subsystems (make outcomes fully bite) — 🎉 ALL 9 OUTCOMES WIRED
 - [x] `tractor.js` (TDD) + full G7 integration (establish/hold/release/map/persist, crit-release) — `d6cd329`/`b4f232a`
 - [x] EM erratic maneuvers (C10): cost 6 move-hexes (`18c9e2a`) + ±4 ECM at & by the EM unit (`b0021e8`)
-- [ ] D14 emergency damage repair: mark DC box + 3 power/lab; end-of-turn roll ≤ DC rating (EDR control exists but is inert — the last "plus" item)
+- [x] D14 emergency damage repair: mark DC box + 3 power/lab; end-of-turn roll ≤ DC rating repairs boxes (verified: 3 restored) — `956220c`
 - [ ] Bay identity in verify.html + verified.json (specific bay by die roll, drone racks inside a bay — refinement)
 - [ ] Refinements: negative-tractor break auction UI (currently auto/pruned); proper towing movement; passive-FC voluntary-toggle deeper effects
 
