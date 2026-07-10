@@ -141,9 +141,9 @@ Source: `docs/adversarial-review.md` (96 confirmed findings). Strict TDD, one cl
 
 - [ ] 🟠 **J2.221 / J2.2211** `ssd-pipeline/viewer/battle.html:397` — Suicide shuttle launches instantly with a fixed 12-point warhead; the rules require three turns of arming and a variable warhead.
 - [ ] 🟠 **D7.821** `ssd-pipeline/viewer/battle.html:437` — No per-turn / per-transporter cap on hit-and-run raids — a ship can raid every impulse without limit.
-- [ ] 🟠 **G8.21** `ssd-pipeline/viewer/battle.html:440` — Hit-and-run raid and transporter bomb ignore the target's shields; transporters cannot beam through an intact shield.
+- [x] 🟠 **G8.21** `ssd-pipeline/viewer/battle.html:440` — Hit-and-run raid and transporter bomb ignore the target's shields; transporters cannot beam through an intact shield.
 - [ ] 🟠 **D7.81** `ssd-pipeline/viewer/battle.html:445` — Hit-and-run picks a random enemy box; the rules require the attacker to designate the specific box, and restrict which boxes are legal.
-- [ ] 🟠 **G8.14** `ssd-pipeline/viewer/mines.js:13` — Transporter range hardcoded to 1 hex (adjacent) instead of the rulebook's 5.
+- [x] 🟠 **G8.14** `ssd-pipeline/viewer/mines.js:13` — Transporter range hardcoded to 1 hex (adjacent) instead of the rulebook's 5.
 - [ ] 🟠 **M2.23** `ssd-pipeline/viewer/mines.js:25` — Mines only trigger on enemy units, but rules make a dropped mine neutral to all sides.
 - [ ] 🟠 **D7.81** `ssd-pipeline/viewer/mines.js:30` — Hit-and-run raid resolves 'success on 4+', but the D7.81 chart destroys the target system on a roll of 1-2 for a normal boarding party.
 - [ ] 🟡 **G8.13** `ssd-pipeline/viewer/battle.html:437` — Hit-and-run raids and transporter bombs cost no energy; a transporter operation requires 1 energy point.

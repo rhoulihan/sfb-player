@@ -312,7 +312,7 @@ import { tractorCost, canTractor, tractorBroken, TRACTOR_MAX_RANGE } from './tra
 import { cloakEcm, applyCloakFireGate, CLOAK_ECM } from './cloak.js';   // G13: cloak fire penalty + fire gate
 import { ewShift } from './ew.js';   // D6.34 net-ECM → shift (used for D17.26 tactical-intel level shift)
 import { makeScenario, applyLoSGate } from './terrain.js';
-import { MINE, mineTriggeredBy, hitAndRunSucceeds, SELF_DESTRUCT, selfDestructHits, selfDestructDamage, selfDestructZone, DEFAULT_BES, NUCLEAR_MINE, transporterTarget, TBOMB_WARHEAD } from './mines.js';   // D5: per-ship BES self-destruction
+import { MINE, mineTriggeredBy, hitAndRunSucceeds, SELF_DESTRUCT, selfDestructHits, selfDestructDamage, selfDestructZone, DEFAULT_BES, NUCLEAR_MINE, transporterTarget, TRANSPORTER_RANGE, TBOMB_WARHEAD } from './mines.js';   // D5: per-ship BES self-destruction; G8.14 transporter range
 import { shuttleMaxHp, damageShuttle, shuttleDestroyed } from './shuttle-inventory.js';
 const PD_SHUTTLE_DMG = 2;   // point-defense damage per hit vs a shuttle (shuttles soak, drones one-shot)
 import { movesOnImpulse, neighbor, turnMode, turnModeFor, accelCap, pseudoSpeed } from './movement.js';
@@ -452,6 +452,7 @@ function transporterBomb(ship) {   // D15: beam a bomb onto an adjacent enemy �
   if (hasCrit(ship.criticals, 'transporter')) { alert('Transporters disabled by a critical hit (D8.2).'); return; }
   const tgt = transporterTarget(ship, ships.filter(s => !isDead(s)));
   if (!tgt) { renderLog({ log: [{ kind: 'shot', firer: ship.id, cls: 'T-BOMB', target: '\u2014', points: 0, hit: false }] }, true); return; }
+  if (shieldsNow(tgt)[exposedShield(ship, tgt) - 1] > 0) { alert('The target\u2019s facing shield is up \u2014 transporters cannot function through a shield (G8.21).'); return; }
   seekers.push({ id: `tb${++seekerSeq}`, owner: ship.id, side: ship.side, type: 'mine', q: tgt.q, r: tgt.r, facing: ship.facing, warhead: TBOMB_WARHEAD, radius: 0 });
   saveSoon(ship.id); render();
 }
@@ -459,7 +460,8 @@ function boardingRaid(ship) {   // D15: a transporter hit-and-run raid on an adj
   if (!ship) return;
   if (ship.cloaked) { alert('A cloaked ship cannot use transporters (G13.51).'); return; }
   if (hasCrit(ship.criticals, 'transporter')) { alert('Transporters disabled by a critical hit (D8.2).'); return; }
-  const enemy = ships.find(s => s.side !== ship.side && !isDead(s) && hexDistance(ship, s) <= 1);
+  const enemy = ships.find(s => s.side !== ship.side && !isDead(s) && hexDistance(ship, s) <= TRANSPORTER_RANGE);   // G8.14: transporters reach five hexes
+  if (enemy && shieldsNow(enemy)[exposedShield(ship, enemy) - 1] > 0) { alert('The target’s facing shield is up — transporters cannot function through a shield (G8.21).'); return; }
   const rng = makeRng((seed + rngCursor) >>> 0); rngCursor = rng.cursor();
   const log = [];
   if (!enemy) log.push({ kind: 'shot', firer: ship.id, cls: 'RAID', target: '\u2014', points: 0, hit: false });
