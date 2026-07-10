@@ -645,7 +645,7 @@ function ensureLocks() {   // roll phase-4 locks lazily for this turn (determini
   lockOn = {}; const lockRng = makeRng((seed ^ (clock.turn * 0x9e3779b9)) >>> 0);
   for (const side of ['friendly', 'enemy']) {
     const firers = ships.filter(s => s.side === side && !isDead(s)), targets = ships.filter(s => s.side !== side && !isDead(s));
-    Object.assign(lockOn, resolveLocks(firers, targets, lockRng, lockDenyOf));
+    Object.assign(lockOn, resolveLocks(firers, targets, lockRng, lockDenyOf, sensorRating));   // D6.11: lock roll ≤ the firer's sensor rating
   }
   lockOnTurn = clock.turn;
 }

@@ -23,6 +23,12 @@ test('D6.112: ECM does not break a lock — only cloak/terrain do (lockDeny is c
   assert.ok(!locks.F1.has('E2'), 'cloaked target denies the lock');
 });
 
+test('D6.11: lock roll must be ≤ the sensor rating — intact sensors auto-lock, a damaged track can fail', () => {
+  for (let r = 1; r <= 6; r++) assert.equal(attemptLock(r, 0, 6), true, 'sensor rating 6 → any d6 locks (automatic)');
+  assert.equal(attemptLock(5, 0, 4), false, 'sensor rating 4 → a roll of 5 fails to lock');
+  assert.equal(attemptLock(4, 0, 4), true, 'sensor rating 4 → a roll of 4 locks');
+});
+
 test('negative net ECM is treated as zero', () => {
   assert.equal(attemptLock(6, -4), true);
 });
