@@ -14,6 +14,11 @@ export const ARM_SCHEDULE = {
 };
 const DEFAULT = { turns: [2], hold: null };
 
+// E2.23 FREQUENCY: each phaser (and each heavy weapon) may fire at most once per turn — gatlings (E2.151) excepted,
+// but there are none in the cruiser roster. `firedAt` is the {turn} of the last shot (or null); true = already fired
+// this turn, so the mount is not eligible again until a later turn.
+export function firedThisTurn(firedAt, turn) { return !!firedAt && firedAt.turn >= turn; }
+
 export function armSchedule(cls) { return ARM_SCHEDULE[cls] || DEFAULT; }
 export function armTurns(cls) { return armSchedule(cls).turns.length; }
 export function isArmed(cls, progress) { return progress >= armTurns(cls); }   // full schedule done → may fire

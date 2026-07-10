@@ -1,6 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ARM_SCHEDULE, armSchedule, armTurns, isArmed, armStepCost, armLabel, canHold, rollCost, canRoll, reserveCompletionCost } from '../viewer/weapon-arming.js';
+import { ARM_SCHEDULE, armSchedule, armTurns, isArmed, armStepCost, armLabel, canHold, rollCost, canRoll, reserveCompletionCost, firedThisTurn } from '../viewer/weapon-arming.js';
+
+test('E2.23 frequency: a weapon that fired this turn is not ready again until a later turn', () => {
+  assert.equal(firedThisTurn(null, 3), false, 'never fired → not fired this turn');
+  assert.equal(firedThisTurn({ turn: 3, impulse: 8 }, 3), true, 'fired on turn 3 → counts as fired this turn');
+  assert.equal(firedThisTurn({ turn: 2, impulse: 30 }, 3), false, 'fired last turn → available again this turn');
+});
 
 test('arming schedules match the rulebook (E4.21 photon 2+2, FP2.51 plasma 3-turn)', () => {
   assert.deepEqual(ARM_SCHEDULE.PHOTON.turns, [2, 2]);

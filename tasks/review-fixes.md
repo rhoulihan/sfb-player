@@ -5,7 +5,7 @@ Source: `docs/adversarial-review.md` (96 confirmed findings). Strict TDD, one cl
 
 ## Phaser once-per-turn (E2.23)
 
-- [ ] 🔴 **E2.23** `ssd-pipeline/viewer/battle.html:1304` — A phaser can fire more than once per turn: eligibility is gated only on capacitor charge, not on whether that mount already fired this turn.
+- [x] 🔴 **E2.23** `ssd-pipeline/viewer/battle.html:1304` — A phaser can fire more than once per turn: eligibility is gated only on capacitor charge, not on whether that mount already fired this turn.
 
 ## Turn-mode category in commit path (C3)
 
