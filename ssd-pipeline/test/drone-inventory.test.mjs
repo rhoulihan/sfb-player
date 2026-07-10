@@ -1,12 +1,46 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { RACK_CAPACITY, DRONE_CATALOG, rackCapacity, droneSpaces, droneWarhead, loadoutSpaces, spaceLeft, canFit, fillRack, makeRack, reloadStep } from '../viewer/drone-inventory.js';
+import { RACK_CAPACITY, DRONE_CATALOG, rackCapacity, droneSpaces, droneWarhead, droneWarheadVs, loadoutSpaces, spaceLeft, canFit, fillRack, makeRack, reloadStep, rackRate, rackMinGap, rackReadyToFire, noteRackFire } from '../viewer/drone-inventory.js';
 
 test('droneWarhead delivers the loaded type warhead — Type-IV 24, not a fixed 12 (FD2.1)', () => {
   assert.equal(droneWarhead('Type-I'), 12);
   assert.equal(droneWarhead('Type-IV'), 24);
-  assert.equal(droneWarhead('Type-VI'), 6);
+  assert.equal(droneWarhead('Type-VI'), 8, 'FD2.1 Drone Type Chart lists the type-VI warhead as 8 (was miscoded 6)');
   assert.equal(droneWarhead('unknown'), 12);
+});
+
+test('FD2.54: a dogfight (type-VI) drone does LIMITED damage by target size class — 2 vs ships, 4 vs SC5, 8 vs SC6', () => {
+  assert.equal(droneWarheadVs('Type-VI', 3), 2, 'a cruiser (SC3) takes only 2 from a type-VI');
+  assert.equal(droneWarheadVs('Type-VI', 4), 2, 'SC4 still 2');
+  assert.equal(droneWarheadVs('Type-VI', 5), 4, 'SC5 (PF) takes 4');
+  assert.equal(droneWarheadVs('Type-VI', 6), 8, 'SC6 (shuttle) takes the full 8');
+  assert.equal(droneWarheadVs('Type-I', 3), 12, 'a normal drone is unaffected by target size class');
+});
+
+test('FD3.3/FD3.5: rack rate of fire — A/B fire 1/turn, C 2/turn (12-impulse gap), E 4/turn (8-impulse gap)', () => {
+  assert.equal(rackRate('A'), 1); assert.equal(rackRate('B'), 1);
+  assert.equal(rackRate('C'), 2, 'type-C rapid-fire: two drones per turn');
+  assert.equal(rackRate('E'), 4, 'type-E: up to four dogfight drones per turn');
+  assert.equal(rackMinGap('C'), 12, 'type-C drones cannot launch within 12 impulses of each other');
+  assert.equal(rackMinGap('E'), 8, 'type-E: no two within 8 impulses');
+  assert.equal(rackMinGap('A'), 8, 'FD3.1: a type-A rack cannot fire within 8 impulses of its previous shot');
+});
+
+test('rackReadyToFire enforces per-turn rate and the impulse gap (gap spans the turn boundary)', () => {
+  const rackC = { type: 'C', loaded: ['Type-I', 'Type-I'] };
+  assert.equal(rackReadyToFire(rackC, 1, 5), true, 'first shot is allowed');
+  noteRackFire(rackC, 1, 5);
+  assert.equal(rackReadyToFire(rackC, 1, 10), false, 'only 5 impulses later → under the 12-impulse gap');
+  assert.equal(rackReadyToFire(rackC, 1, 17), true, '12 impulses later → second shot allowed');
+  noteRackFire(rackC, 1, 17);
+  assert.equal(rackReadyToFire(rackC, 1, 30), false, 'type-C is capped at 2 launches per turn');
+  assert.equal(rackReadyToFire(rackC, 2, 1), true, 'the per-turn count resets next turn and the 12-impulse gap has cleared');
+  const rackA = { type: 'A', loaded: ['Type-I'] };
+  noteRackFire(rackA, 1, 28);
+  assert.equal(rackReadyToFire(rackA, 2, 3), false, 'gap spans the boundary: impulse 28→next-turn 3 is 7 impulses (<8)');
+  assert.equal(rackReadyToFire(rackA, 2, 4), true, 'impulse 28→next-turn 4 is 8 impulses (≥8)');
+  const empty = { type: 'C', loaded: [] };
+  assert.equal(rackReadyToFire(empty, 1, 5), false, 'an empty rack cannot fire');
 });
 
 test('rackCapacity: spaces by rack type (Type-A 4, E 8, G 2, B 6)', () => {

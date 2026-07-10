@@ -305,7 +305,7 @@ import { makeRng } from './rng.js';
 import { repairBoxes, repairSystemStep, canRepairFamily } from './repair.js';   // D9.7 continuous damage repair (free points, Annex #9 costs, one box/turn)
 import { resolveLocks, applyLockGate } from './lock-on.js';
 import { launchSeeker, stepSeeker, stepSeekerBallistic, seekerImpacts, seekerDamage, seekerExpired, plasmaSpec, pointDefense, pointDefenseHits, PD_PLASMA_DMG, PD_RANGE, controlLimit, controlledCount, CONTROLLED_TYPES, SUICIDE_SHUTTLE, weaselFor, ADMIN_SHUTTLE, SCATTER_PACK } from './seeking.js';   // F3.31 control maintenance
-import { makeRack, reloadStep, loadoutSpaces, droneWarhead } from './drone-inventory.js';
+import { makeRack, reloadStep, loadoutSpaces, droneWarhead, droneWarheadVs, DRONE_CATALOG, rackReadyToFire, noteRackFire } from './drone-inventory.js';   // FD2.54 dogfight scaling + FD3.3/FD3.5 rack rate of fire
 import { applyVolley, makeDice } from './dac-allocator.js';
 import { CRIT_THRESHOLD as D8_THRESHOLD, critForRoll, critRepairs, addCrit, hasCrit, activeCrits, CRIT_INFO } from './criticals.js';
 import { tractorCost, canTractor, tractorBroken, TRACTOR_MAX_RANGE } from './tractor.js';
@@ -343,7 +343,7 @@ let settings = { criticals: true, d8crits: false, advancedShuttles: false, drone
 const DRONE_ENDURANCE_TURNS = 3;   // FD1.4: a standard (Type-I) drone lives three turns
 // a launched drone delivers its LOADED type's warhead (FD2.1) at the game's drone-speed class, and lives
 // DRONE_ENDURANCE_TURNS turns (= turns × 32 impulses of existence, FD1.4)
-const droneSpec = (dtype = 'Type-I') => ({ type: 'drone', speed: settings.droneSpeed || 20, warhead: droneWarhead(dtype), fade: 0, endurance: DRONE_ENDURANCE_TURNS * 32 });
+const droneSpec = (dtype = 'Type-I') => ({ type: 'drone', dtype, speed: settings.droneSpeed || 20, warhead: droneWarhead(dtype), fade: 0, endurance: DRONE_ENDURANCE_TURNS * 32 });   // dtype carried so a dogfight drone can be scaled by target size class at impact (FD2.54)
 const droneRacksOf = s => (s._ver.groups || []).filter(g => g.family === 'drone-rack').reduce((n, g) => n + (g.boxIds || []).filter(id => !s.status[id]).length, 0);
 const DRONE_RELOADS = 2;   // default reload sets per rack (Fed 2-3, Klingon 1-2; tunable)
 function initDrones(s) {   // Phase 2: real rack inventory — capacity in spaces (box count → type), reloads
@@ -354,7 +354,7 @@ function initDrones(s) {   // Phase 2: real rack inventory — capacity in space
 }
 const dronesOf = s => (s.drones || (s.drones = initDrones(s)));
 const dronesLeftOf = s => dronesOf(s).racks.reduce((n, r) => n + r.loaded.length, 0);
-const dronesLaunchableOf = s => dronesOf(s).racks.filter((r, i) => r.loaded.length && r.firedTurn !== clock.turn && !rackInJammedBay(s, i)).length;   // FD3.1: one drone per rack per turn; a rack in a jammed shuttle bay can't fire (D8.24)
+const dronesLaunchableOf = s => dronesOf(s).racks.filter((r, i) => rackReadyToFire(r, clock.turn, clock.impulse) && !rackInJammedBay(s, i)).length;   // FD3.1/FD3.3/FD3.5: racks within their per-turn rate + impulse gap; a rack in a jammed shuttle bay can't fire (D8.24)
 const seekingArmedOf = s => dronesOf(s).racks.length > 0 || plasmaGroupsOf(s).length > 0;   // armed with drones or plasma (F3.211)
 const controlLimitOf = s => controlLimit(sensorRating(s), seekingArmedOf(s));                 // F3.21 control channels (sensor rating, or half)
 const canControlMore = s => controlledCount(seekers, s.id) < controlLimitOf(s);               // room to guide another seeker
@@ -371,10 +371,10 @@ function launchGate(firer, target) {   // D6.121: a unit that failed its lock-on
 function launchDrone(firer, target) {   // 6B: an armed rack puts a drone on the map, homing at the target
   if (!firer || !target || !canControlMore(firer)) return;   // F3.21: cannot guide more seekers than the control limit
   if (!launchGate(firer, target)) return;   // D6.121 lock-on + D19.22 passive-FC gate
-  const rack = dronesOf(firer).racks.find((r, i) => r.loaded.length && r.firedTurn !== clock.turn && !rackInJammedBay(firer, i));   // a loaded rack that hasn't fired this turn and isn't in a jammed bay (D8.24)
+  const rack = dronesOf(firer).racks.find((r, i) => rackReadyToFire(r, clock.turn, clock.impulse) && !rackInJammedBay(firer, i));   // a loaded rack within its per-turn rate + impulse gap (FD3.1/FD3.3/FD3.5), not in a jammed bay (D8.24)
   if (!rack) return;
   const dtype = rack.loaded.shift();   // consume the loaded drone; its type sets the warhead delivered (FD2.1)
-  rack.firedTurn = clock.turn;         // this rack has now fired for the turn (FD3.1)
+  noteRackFire(rack, clock.turn, clock.impulse);   // record the launch: advances the per-turn count + stamps the last-fire impulse (FD3.3 rapid fire)
   seekers.push(launchSeeker({ id: `dr${++seekerSeq}`, owner: firer.id, q: firer.q, r: firer.r, facing: firer.facing, targetId: target.id, ...droneSpec(dtype) }));
   saveSoon(firer.id); render();
 }
@@ -611,7 +611,9 @@ function stepSeekers(out) {   // 6A: move every seeker one impulse toward its ta
     }
     if (seekerImpacts(s2, home)) {
       if (weasel) { hitWeasels.add(weasel.id); out.push({ kind: 'shot', firer: sk.targetId, cls: 'WEASEL', target: s2.id, points: 0, hit: false }); }   // decoyed onto the weasel — no ship damage
-      else impacts.push({ shield: exposedShield(sk, target), points: seekerDamage(s2), t: target, id: s2.id, cls: s2.type === 'plasma' ? 'PLASMA' : s2.type === 'shuttle' ? 'SHUTTLE' : 'DRONE' });
+      else { const dogfight = s2.type === 'drone' && DRONE_CATALOG[s2.dtype]?.dogfight;
+        const points = dogfight ? droneWarheadVs(s2.dtype, powerOf(target).sizeClass) : seekerDamage(s2);   // FD2.54: a dogfight (type-VI) drone does limited damage scaled by target size class
+        impacts.push({ shield: exposedShield(sk, target), points, t: target, id: s2.id, cls: s2.type === 'plasma' ? 'PLASMA' : s2.type === 'shuttle' ? 'SHUTTLE' : 'DRONE' }); }
       s2._done = true;
     } else if (seekerExpired(s2)) s2._done = true;
     return s2;
