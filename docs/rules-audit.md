@@ -114,17 +114,17 @@ one **2d6** roll, **once per turn** per ship (6–8 = no crit still consumes the
 same occurrence. No repair stage exists today.
 
 **Missing underlying systems — checklist (added for the "full simulation" build):**
-- [ ] **Crit trigger infra** — per-shield/impulse damage accumulator + one-roll-per-turn ship state (damage is applied per-volley today with no accumulation).
-- [ ] **`criticals.js` module** — D8.2 table (2d6 → type), `rollCritical`, per-ship active-crit occurrences, `hasCrit(state,type)` predicates.
-- [ ] **Passive fire control (D19)** — effective range = 2× true (D19.11), direct-fire cap 5 hex true (D19.23), no ECCM (D19.12), no seeking-weapon guidance (D19.22); driven by the fire-control crit.
-- [ ] **End-of-turn repair stage (D8.31)** — 1d6 repair rolls, one/turn, cumulative penalty; shared stage also unlocks **shield repair (D9.21)**.
-- [ ] **Shuttle/drone bay identity** — so a bay crit jams exactly one bay's launch/recovery (D8.24).
-- [ ] **EM erratic maneuvers (C10.52)** — referenced by the maneuver crit ("no EM") and passive FC; entirely absent today.
-- [ ] **Tractor beams (G7)** — tractor links to release on a tractor crit; currently allocation-only.
-- [ ] **D14 emergency damage repair** + lab combat functions — absent; the labs crit is authoritative-flag-only until built.
+- [x] **Crit trigger infra** — per-shield/impulse damage accumulator + one-roll-per-turn ship state (damage is applied per-volley today with no accumulation).
+- [x] **`criticals.js` module** — D8.2 table (2d6 → type), `rollCritical`, per-ship active-crit occurrences, `hasCrit(state,type)` predicates.
+- [x] **Passive fire control (D19)** — effective range = 2× true (D19.11), direct-fire cap 5 hex true (D19.23), no ECCM (D19.12), no seeking-weapon guidance (D19.22); driven by the fire-control crit.
+- [x] **End-of-turn repair stage (D8.31)** — crit repair done; shield-repair D9.21 still a refinement — 1d6 repair rolls, one/turn, cumulative penalty; shared stage also unlocks **shield repair (D9.21)**.
+- [x] **Shuttle-bay crit** — jams a bay (specific-bay identity a refinement) — so a bay crit jams exactly one bay's launch/recovery (D8.24).
+- [x] **EM erratic maneuvers (C10)** — referenced by the maneuver crit ("no EM") and passive FC; entirely absent today.
+- [x] **Tractor beams (G7)** — full subsystem — tractor links to release on a tractor crit; currently allocation-only.
+- [x] **D14 emergency damage repair** + lab combat functions — absent; the labs crit is authoritative-flag-only until built.
 - [ ] **D22 power-loss reallocation (warp crit)** — uses D8.23's own allowance (cancel movement energy) for now.
 - [ ] **Full D22 energy-balance engine (DEFERRED — Rick-flagged TODO)** — incremental / instantaneous / continuous power-loss reallocation (D22.1–D22.6); the simplified path above stands in until this lands.
-- [ ] **Relabel the DAC-1 toggle** to "Secondary explosions" and add a separate **optional, default-off** "D8 Critical hits" toggle (D8.0 is optional).
+- [x] **Relabel the DAC-1 toggle** to "Secondary explosions" and add a separate **optional, default-off** "D8 Critical hits" toggle (D8.0 is optional).
 - [ ] **Cloak ×2 no-lock range** (G13.301) — the +5 is modeled, the range-doubling when there's no lock is not.
 - [ ] **Enveloping plasma (FP5), pseudo-plasma bluff (FP6), plasma shotgun (FP7), rolling delay (FP1.221)** — advanced plasma options, unimplemented.
 - [ ] **Mid-turn speed-change restrictions (C12.31)** — max 4/turn, ≥8-impulse spacing, not before imp4/after imp28, decel ≤ ½ speed; **HET as an executable snap-turn** (C6.1) with mode reset.
