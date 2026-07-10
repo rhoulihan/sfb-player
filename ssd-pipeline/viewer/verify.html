@@ -137,7 +137,9 @@
 <div class="modal" id="eafModal">
   <div class="sheet" style="max-width:1120px;width:96vw">
     <h2>⬛ EAF Layout — <span id="eafTitle"></span> <span class="sp" style="flex:1"></span>
-      <label style="margin:0;font-size:12px">Art <select id="eafArtSel" style="padding:3px;border:1px solid var(--border);border-radius:6px"></select></label></h2>
+      <label style="margin:0;font-size:12px">Art <select id="eafArtSel" style="padding:3px;border:1px solid var(--border);border-radius:6px"></select></label>
+      <button class="btn" id="eafArtUpload" title="Upload a new EAF form image for a new race">⬆ Upload art</button>
+      <input type="file" id="eafArtFile" accept="image/png,image/jpeg" style="display:none"></h2>
     <div class="body" style="flex-direction:column;gap:8px;align-items:stretch">
       <div id="eafValid" style="font-size:12px;line-height:1.5"></div>
       <div style="font-size:11px;color:#94a3b8">Palette — drag a control onto the form (✓ = already placed):</div>
@@ -609,6 +611,12 @@ async function saveEafLayout(){ if(!editLayout)return; try{ await fetch(`/api/ea
 document.getElementById("eafEditBtn").onclick=openEafEditor;
 document.getElementById("eafCancel").onclick=()=>document.getElementById("eafModal").classList.remove("open");
 eafArtSel.onchange=()=>{ editLayout.art=eafArtSel.value; renderEafEditor(); };
+document.getElementById("eafArtUpload").onclick=()=>document.getElementById("eafArtFile").click();
+document.getElementById("eafArtFile").onchange=e=>{ const f=e.target.files[0]; if(!f)return;
+  const name=(prompt("Art name (letters/numbers/_/-, e.g. Romulan_EAF):", f.name.replace(/\.[^.]+$/,""))||"").replace(/[^A-Za-z0-9_-]/g,""); if(!name)return;
+  const rd=new FileReader(); rd.onload=async()=>{ try{ const j=await(await fetch(`/api/eaf-art/${name}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({dataUrl:rd.result})})).json();
+    if(j.ok){ if(!EAF_ARTS.includes(name))EAF_ARTS.push(name); eafArtSel.innerHTML=EAF_ARTS.map(a=>`<option>${a}</option>`).join(""); eafArtSel.value=name; if(editLayout){ editLayout.art=name; renderEafEditor(); } } }catch{} };
+  rd.readAsDataURL(f); e.target.value=""; };
 document.getElementById("eafSaveBtn").onclick=async()=>{ await saveEafLayout(); const l=eafLayouts.find(x=>x.id===editLayout.id); if(l)Object.assign(l,editLayout); else eafLayouts.push(editLayout);
   const b=document.getElementById("eafSaveBtn"); b.textContent="Saved ✓"; setTimeout(()=>b.textContent="Save layout",1400); };
 loadEafLayouts();
