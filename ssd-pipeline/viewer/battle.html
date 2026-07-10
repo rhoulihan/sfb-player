@@ -1158,18 +1158,27 @@ function fedShieldSvg(s, p) {
 }
 // Klingon shield overlay — same idea as the Fed CA (green→red by strength + a yellow reinforcement glow), but the
 // Klingon shields are discrete hexes, so a coloured hexagon is drawn on each shield slot from the layout positions.
-const shieldHexPath = (cx, cy, w, h) => { const x = w / 2, x2 = w / 4, y = h / 2;
-  return `M${(cx - x).toFixed(0)} ${cy.toFixed(0)} L${(cx - x2).toFixed(0)} ${(cy - y).toFixed(0)} L${(cx + x2).toFixed(0)} ${(cy - y).toFixed(0)} L${(cx + x).toFixed(0)} ${cy.toFixed(0)} L${(cx + x2).toFixed(0)} ${(cy + y).toFixed(0)} L${(cx - x2).toFixed(0)} ${(cy + y).toFixed(0)} Z`; };
+// Elongated hexagon rotated `deg` (about cx,cy): hl along the long axis, hw perpendicular, ti the pointed-tip inset.
+const rotHexPath = (cx, cy, hl, hw, ti, deg) => {
+  const th = deg * Math.PI / 180, c = Math.cos(th), s = Math.sin(th);
+  return 'M' + [[-hl, 0], [-hl + ti, -hw], [hl - ti, -hw], [hl, 0], [hl - ti, hw], [-hl + ti, hw]]
+    .map(([u, v]) => `${(cx + u * c - v * s).toFixed(0)} ${(cy + u * s + v * c).toFixed(0)}`).join(' L') + ' Z';
+};
 function kliShieldSvg(s, p, L) {
   const sn = shieldsNow(s), col = eaColOf(s), genPts = Math.floor((col.genReinf || 0) / 2);
+  const C = L.controls || {}, sh = L.shields || {};   // saved layout keys shields under controls['shield-N']; legacy CONSOLE uses shields[N]
+  const posOf = n => { const q = C['shield-' + n] || sh[n]; return q ? [q[0] / 100 * 2816, q[1] / 100 * 1536] : null; };
+  const cen = [1, 2, 3, 4, 5, 6].map(posOf).filter(Boolean);
+  if (!cen.length) return '<svg class="shsvg" viewBox="0 0 2816 1536" preserveAspectRatio="none"></svg>';
+  const rcx = cen.reduce((a, q) => a + q[0], 0) / cen.length, rcy = cen.reduce((a, q) => a + q[1], 0) / cen.length;   // ring centre → each hex orients tangent to the ring, matching the SSD's rotated shield boxes
   let fills = '', glows = '';
   for (const n of [1, 2, 3, 4, 5, 6]) {
-    const pos = (L.shields || {})[n]; if (!pos) continue;
-    const cx = pos[0] / 100 * 2816, cy = pos[1] / 100 * 1536;
+    const q = posOf(n); if (!q) continue;
+    const [cx, cy] = q, deg = Math.atan2(cy - rcy, cx - rcx) * 180 / Math.PI + 90;
     const max = p.shields[n - 1] || 1, t = Math.max(0, Math.min(1, (sn[n - 1] || 0) / max));   // 1=full→green, 0=down→red
-    fills += `<path d="${shieldHexPath(cx, cy, 210, 150)}" fill="hsl(${Math.round(120 * t)},85%,48%)" fill-opacity="0.4"/>`;
+    fills += `<path d="${rotHexPath(cx, cy, 112, 70, 62, deg)}" fill="hsl(${Math.round(120 * t)},85%,48%)" fill-opacity="0.4"/>`;
     const reinf = (col.specReinf[n] || 0) + genPts;   // specific + general (general glows all 6 — Rick)
-    if (reinf > 0) glows += `<path d="${shieldHexPath(cx, cy, 236, 172)}" fill="none" stroke="#fde047" stroke-linejoin="round" filter="url(#shGlow)" stroke-width="${8 + reinf * 5}" stroke-opacity="${Math.min(0.95, 0.3 + reinf * 0.22)}"/>`;
+    if (reinf > 0) glows += `<path d="${rotHexPath(cx, cy, 124, 82, 68, deg)}" fill="none" stroke="#fde047" stroke-linejoin="round" filter="url(#shGlow)" stroke-width="${8 + reinf * 5}" stroke-opacity="${Math.min(0.95, 0.3 + reinf * 0.22)}"/>`;
   }
   return `<svg class="shsvg" viewBox="0 0 2816 1536" preserveAspectRatio="none"><defs><filter id="shGlow" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="7"/></filter></defs>${fills}${glows}</svg>`;
 }

@@ -14,9 +14,9 @@ Lower-priority polish. None block normal cruiser play.
 - [x] **Shuttle-bay crit identity** (D8.24) — bays derived from the SSD; a bay crit jams a specific bay + its drone racks. `1e3b6bd`
 - [x] **New-race art upload** — EAF editor 'Upload art' → POST /api/eaf-art/<name> writes viewer/assets/<name>.png. `e196c69`
 - [x] **Towing speed restriction** (G7.36B) — `pseudoSpeed()` slows the tower to movement-energy ÷ combined move cost (tow a dead ship → half speed; verified 16→8 hexes/turn).
+- [x] **Klingon shield overlays** — hexes now read the saved layout (`controls['shield-N']`, was silently reading the wrong key), sized to the SSD boxes and rotated tangent to the ring (derived from the ring centroid). Screenshot-verified against the real Klingon EAF art.
 
 ## Still open
 - [ ] **Full D22 energy-balance engine** (Rick-flagged) — general mid-turn power-loss reallocation for *any* damage (D22.1–D22.6: incremental / instantaneous / continuous). The warp-crit slice above is done; the general engine (recomputing the EAF when any power source is lost mid-turn) is the remaining large piece.
 - [ ] **Shuttle-bay crit specifics (D8.24)** — pick the jammed bay by die roll + jam drone racks *inside* it. Needs bay identity (which racks/shuttles per bay) captured in verify.html/verified.json; today a bay crit just decrements the shuttle-bay count.
-- [ ] **Craft the Klingon (and future-race) shield overlays to match the art's hex shapes/positions precisely.** Basic `kliShieldSvg` is wired (approximate hexes); tune shape/size/orientation to sit exactly on the SSD shield boxes (ideally derive from the layout).
 - [ ] **Extract EA control CSS** to a shared `eaf-panel.css` (currently inline in battle.html + copied into verify.html).
