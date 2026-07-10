@@ -93,7 +93,7 @@ Source: `docs/adversarial-review.md` (96 confirmed findings). Strict TDD, one cl
 ## Remaining — movement
 
 - [ ] 🟠 **C1.43 / phaser range chart** `ssd-pipeline/viewer/battle-geom.js:17` — hexDistance clamps distance to a minimum of 1, making the range-0 column of every weapon chart unreachable.
-- [ ] 🟠 **C3.41 / C3.42** `ssd-pipeline/viewer/battle-map.js:40` — Turn-mode carryover between turns is not tracked; hexesSinceTurn is reseeded to full turn-mode satisfaction at the start of every turn.
+- [x] 🟠 **C3.41 / C3.42** `ssd-pipeline/viewer/battle-map.js:40` — Turn-mode carryover between turns is not tracked; hexesSinceTurn is reseeded to full turn-mode satisfaction at the start of every turn.
 - [x] 🟠 **C12.311 / C12.312 / C12.313 / C12.32** `ssd-pipeline/viewer/course-plan.js:68` — Mid-turn speed changes are accepted with none of the C12.3 legality restrictions enforced.
 - [ ] 🟠 **P3.31 / P3.33** `ssd-pipeline/viewer/terrain.js:31` — Regular asteroids are modeled as hard line-of-sight blockers, but SFB asteroid fields do not block fire — they give the target ECM.
 

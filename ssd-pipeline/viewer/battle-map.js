@@ -37,7 +37,9 @@ export function plotCursor(s, base) {
   // seed the slip counter from the carried-over state: a ship may sideslip on its first move UNLESS its
   // last move of the previous turn was a sideslip (s.slipSince === 0). Fresh ships default to 1 (allowed).
   const cat = s.turnCat || 'B';
-  let pos = { q: c.start.q, r: c.start.r }, facing = c.start.facing, hst = turnModeFor(cat, sp.base), slip = s.slipSince ?? 1;
+  // C3.41/C3.42: the turn-mode count carries over from the previous turn — a ship that just turned can't turn again
+  // immediately at the start of the next turn. Fall back to turnModeFor (able to turn) only for a fresh ship.
+  let pos = { q: c.start.q, r: c.start.r }, facing = c.start.facing, hst = s.hexesSinceTurn ?? turnModeFor(cat, sp.base), slip = s.slipSince ?? 1;
   for (const st of c.steps) {
     if (st.slip) { hst = hst + 1; slip = 0; }                                        // sideslip: straight for turn mode (C3.24), resets slip
     else { const turned = st.facing !== facing; hst = turned ? 1 : hst + 1; slip = slip + 1; }

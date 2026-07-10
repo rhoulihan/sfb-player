@@ -35,6 +35,12 @@ test('plotCursor seeds the slip counter from s.slipSince (first-move sideslip le
   assert.equal(plotCursor(mk({ slipSince: 3 }), 8).slip, 3, 'carried spacing is preserved');
 });
 
+test('C3.41/C3.42: plotCursor carries the turn-mode count over from the previous turn', () => {
+  const mk = extra => ({ q: 4, r: 4, facing: 0, turnCat: 'B', ...extra, course: { start: { q: 4, r: 4, facing: 0 }, steps: [] } });
+  assert.equal(plotCursor(mk({ hexesSinceTurn: 0 }), 8).hst, 0, 'just turned last turn → 0 hexes since turn (cannot turn immediately)');
+  assert.equal(plotCursor(mk({ hexesSinceTurn: 5 }), 8).hst, 5, 'carried count is preserved');
+});
+
 test('plotCursor tracks facing, hexes-since-turn, and slip along the course (base injected)', () => {
   const s = { q: 4, r: 4, facing: 0, course: { start: { q: 4, r: 4, facing: 0 }, steps: [
     { q: 5, r: 4, facing: 0 },              // straight
