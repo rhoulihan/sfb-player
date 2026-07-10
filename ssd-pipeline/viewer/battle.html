@@ -861,6 +861,7 @@ function resolveRepairStage() {   // Record Keeping: D9.2 shield repair (allocat
     // (D9.74 carryover) at its Annex #9 cost; only boxes destroyed in a PRIOR turn (D9.73); a ship never repairs
     // more boxes over a scenario than its original DC rating (D9.76).
     const dc = powerOf(s).dcRating || 0; if (dc <= 0) continue;
+    if (s.edr > 0) continue;   // D14.26/D9.75: continuous damage repair (D9.7) and emergency damage repair (D14) cannot both run on the same ship the same turn (D9.2 shield repair above still may)
     const prior = s._priorDamage || new Set(Object.keys(s.status || {}));   // snapshot at turn start; fallback treats existing damage as prior (resume)
     const repairable = Object.keys(s.status || {}).filter(id => prior.has(id) && canRepairFamily(famOf(id)));
     if (!repairable.length && !(s.repairState && s.repairState.target)) continue;

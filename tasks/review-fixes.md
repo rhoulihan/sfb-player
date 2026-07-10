@@ -114,7 +114,7 @@ Source: `docs/adversarial-review.md` (96 confirmed findings). Strict TDD, one cl
 - [ ] 🟠 **D8.31** `ssd-pipeline/viewer/battle.html:818` — When multiple criticals are active the engine always attempts to repair criticals[0] (the oldest); D8.31 gives the owning player the choice of which one to attempt.
 - [ ] 🟠 **D19.26** `ssd-pipeline/viewer/battle.html:819` — Repairing a fire-control critical hit does not start the D19.26 reactivation delay, so active FC returns with no 4-impulse penalty.
 - [ ] 🟠 **D14.13** `ssd-pipeline/viewer/battle.html:827` — The DC rating that sets EDR success probability and cap is never captured in verified.json, so a hardcoded min(4, intact-DC-boxes) proxy is always used.
-- [ ] 🟠 **D14.26** `ssd-pipeline/viewer/battle.html:862` — A ship can perform both D9.7 continuous system repair and D14 emergency damage repair in the same turn; the rules make them mutually exclusive.
+- [x] 🟠 **D14.26** `ssd-pipeline/viewer/battle.html:862` — A ship can perform both D9.7 continuous system repair and D14 emergency damage repair in the same turn; the rules make them mutually exclusive.
 - [x] 🟠 **D19.26** `ssd-pipeline/viewer/battle.html:1822` — During the 4-impulse fire-control reactivation window the ship is barred from firing entirely, but D19.26 allows it to keep firing on passive fire control.
 - [x] 🟠 **D19.25** `ssd-pipeline/viewer/battle.html:1841` — A ship on passive fire control that is also using erratic maneuvers can still fire; D19.25 forbids any firing/launching in that state.
 - [ ] 🟡 **D8.2 (#3)** `ssd-pipeline/viewer/battle.html:1037` — A battery critical hit only masks stored battery charge to 0 while active; the stored energy is silently preserved and restored when the crit is repaired.
