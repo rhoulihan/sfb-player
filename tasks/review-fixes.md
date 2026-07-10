@@ -59,8 +59,8 @@ Source: `docs/adversarial-review.md` (96 confirmed findings). Strict TDD, one cl
 
 ## Wild weasel / shuttles (J3/C6)
 
-- [ ] 🔴 **J3.12** `ssd-pipeline/viewer/battle.html:418` — Wild weasel launches instantly and free; the rule requires charging 1 energy on each of two consecutive turns before launch.
-- [ ] 🔴 **J3.13/J3.131/J3.132/J3.12** `ssd-pipeline/viewer/battle.html:418` — Wild weasel launch enforces none of the J3.13 launching-ship restrictions and costs no energy, so a ship gets a free no-downside decoy.
+- [x] 🔴 **J3.12** `ssd-pipeline/viewer/battle.html:418` — Wild weasel launches instantly and free; the rule requires charging 1 energy on each of two consecutive turns before launch.
+- [x] 🔴 **J3.13/J3.131/J3.132/J3.12** `ssd-pipeline/viewer/battle.html:418` — Wild weasel launch enforces none of the J3.13 launching-ship restrictions and costs no energy, so a ship gets a free no-downside decoy.
 
 ## Remaining — sequence
 

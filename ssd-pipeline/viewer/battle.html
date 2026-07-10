@@ -320,7 +320,7 @@ import { movesOnImpulse, neighbor, turnMode, turnModeFor, accelCap, pseudoSpeed 
 const SHIP_TURN_CATEGORY = { 'FED-CA': 'D', 'FED-CL': 'C', 'FED-NCL': 'C', 'GOR-CA': 'D', 'KLI-D7': 'B', 'ROM-KR': 'B', 'KZIN-CS': 'C' };
 const turnCategoryOf = code => SHIP_TURN_CATEGORY[code] || 'C';
 const turnModeOf = s => turnModeFor(s.turnCat || turnCategoryOf(s.code), s.speed) + (hasCrit(s.criticals, 'maneuver') ? 1 : 0);   // D8.2 maneuver crit: turn mode +1 at all speeds
-import { shipPower, newEafColumn, validateEaf, foldEaf, sinkMax, specReinfMax, plasmaClsOf, ewFieldMax } from './energy-model.js';   // ewFieldMax: D6.310 combined ECM+ECCM cap
+import { shipPower, newEafColumn, validateEaf, foldEaf, sinkMax, specReinfMax, plasmaClsOf, ewFieldMax, WW_COST } from './energy-model.js';   // ewFieldMax: D6.310 combined ECM+ECCM cap; WW_COST: J3.12 wild-weasel charge
 import { armLabel, isArmed, canHold, canRoll, armTurns, rollCost, reserveCompletionCost, firedThisTurn, refireReady, impulsesSince } from './weapon-arming.js';   // multi-turn arming: label, fire-gate, holdability, rolling delay (E4.21/E3.24/FP1.311/FP1.221); E2.23 frequency; E1.52 refire cadence
 import { ctl, stepPair, stackCtl, barCtl, sysCtl, batteryCtl, ewCtl, toggleCtl, shieldCtl, weaponCtl, capCtl, segCtl } from './eaf-controls.js';   // shared EA control renderers (also used by the verify.html EAF layout editor)
 import { reservePool as reservePoolOf, spendReserve, reserveCost } from './reserve-power.js';   // reactive power (H5/H7)
@@ -360,6 +360,7 @@ const canControlMore = s => controlledCount(seekers, s.id) < controlLimitOf(s); 
 const hasLock = (firer, target) => { ensureLocks(); return hasLockOn(lockOn, firer.id, target.id); };   // D6.1 lock-on to the target this turn
 function launchGate(firer, target) {   // D6.121: a unit that failed its lock-on may not launch seeking weapons (also D19.22 passive FC)
   if (firer && firer.cloaked) { alert('A cloaked ship cannot launch seeking weapons (G13.51/G13.133).'); return false; }
+  if (hasActiveWeasel(firer)) { alert('A ship protected by an active wild weasel cannot launch/guide seeking weapons (J3.132).'); return false; }
   if (fcReactivating(firer)) { alert('Fire control is still reactivating — cannot launch/guide a seeking weapon yet (D19.26/G13.15).'); return false; }
   if (passiveFcOf(firer)) { alert('Cannot launch seeking weapons under passive fire control (D19.22).'); return false; }
   if (!hasLock(firer, target)) { alert('No sensor lock-on to that target — cannot launch a seeking weapon (D6.121).'); return false; }
@@ -424,9 +425,14 @@ function launchAdminShuttle(ship) {   // C6: a non-combat shuttle (0 warhead) se
   seekers.push({ ...launchSeeker({ id: `as${++seekerSeq}`, owner: ship.id, q: ship.q, r: ship.r, facing: ship.facing, targetId: tgt ? tgt.id : ship.id, ...ADMIN_SHUTTLE }), hp: asHp, maxHp: asHp });
   saveSoon(ship.id); render();
 }
-function launchWeasel(ship) {   // wild weasel (J): a stationary decoy that diverts incoming seekers away from the ship
-  if (!ship || shuttlesLeftOf(ship) <= 0 || seekers.some(s => s.type === 'weasel' && s.owner === ship.id)) return;
+const hasActiveWeasel = s => !!s && seekers.some(w => w.type === 'weasel' && w.owner === s.id);   // J3.13: while its WW is on the map, the launching ship is under fire/maneuver restrictions
+function launchWeasel(ship) {   // wild weasel (J3): a stationary decoy that diverts incoming seekers away from the ship
+  if (!ship || shuttlesLeftOf(ship) <= 0 || hasActiveWeasel(ship)) return;
+  const cost = 2 * WW_COST;   // J3.12: a WW is charged with one point of energy on each of two consecutive turns before launch (here paid at once from reserve/battery, H7.2)
+  if (reservePoolS(ship) < cost) { alert(`Charging a wild weasel needs ${cost} reserve/battery power (J3.12); ${reservePoolS(ship)} available.`); return; }
+  const np = spendReserve(ship.reserveWarp || 0, batteryOf(ship), cost, (ship.reserveWarp || 0) >= batteryOf(ship) ? 'warp' : 'battery'); ship.reserveWarp = np.reserveWarp; ship.batteryCharge = np.battery;
   ship.shuttlesLeft = shuttlesLeftOf(ship) - 1;
+  ship.fcReactAt = { turn: clock.turn, impulse: clock.impulse };   // J3.132: the launching ship deactivates fire control on launch
   seekers.push({ id: `ww${++seekerSeq}`, owner: ship.id, type: 'weasel', q: ship.q, r: ship.r, facing: ship.facing, speed: 0, warhead: 0, fade: 0, endurance: 8, travelled: 0 });
   saveSoon(ship.id); render();
 }
@@ -1861,6 +1867,7 @@ fetch('weapons.html', { method: 'HEAD' }).then(r => { if (!r.ok) throw 0; }).cat
 // resolve one fleet's plan into shared models/log/affected (cached models keep pre-fire shields for simultaneity)
 async function resolvePlanInto(p, models, log, affected) {
   ensureLocks(); p = applyLockGate(p, lockOn); p = applyCloakFireGate(p, byId); p = applyLoSGate(p, byId, terrain);   // D6.1 lock; G13 cloak holds fire; P3 asteroids block LoS
+  p = { groups: (p.groups || []).map(g => ({ ...g, members: (g.members || []).filter(m => !hasActiveWeasel(byId(m.shipId))) })).filter(g => g.members.length) };   // J3.132: a ship protected by an active wild weasel may not fire
   const mk = t => t.model || (t.model = buildShipModel(t._ver, t._det));
   for (const g of (p.groups || [])) { const t = byId(g.targetShipId); if (t) models[t.id] = mk(t); for (const m of (g.members || [])) { const f = byId(m.shipId); if (f) models[f.id] = mk(f); } }   // firer models too, for overload feedback (E4.431)
   const capLeft = {}; for (const s of ships) capLeft[s.id] = Math.floor(s.capacitor || 0);   // phaser budget for this resolution
