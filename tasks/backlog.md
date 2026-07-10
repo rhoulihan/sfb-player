@@ -12,7 +12,7 @@ Lower-priority polish deferred from completed features. None block normal cruise
 
 ## Reserve energy — done + refinement
 - [x] **Proactive reserve-power allocation during impulse play** — an "⚡ Reserve" button on the impulse-phase EA view opens a modal to spend reserve warp / battery on ECCM (H7.33), the phaser capacitor (E2.33), and general/specific reinforcement (D3.341/342), with a warp/battery source toggle; always confirmed, applied on confirm. Verified: 2 ECCM → battery 3/3→1/3.
-- [ ] **Queue reserve allocations to their applicable segment** — Rick's original spec had adjustments *queued* and applied at the next applicable impulse segment (immediately only if it's the current segment), with the on-hit modal showing pending queued allocations. Today it applies immediately on confirm; segment-timed queuing + the pending-allocation display are the remaining nuance.
+- [x] **Queue reserve allocations to their applicable segment** — the reserve modal now queues (`s.reserveQueue`) rather than applying immediately; the queue applies at its next applicable segment (before the impulse's fire resolution, or at the impulse boundary). A "⚡ Reserve •" badge marks a pending queue; reopening the modal loads it for adjustment; the on-hit reinforcement modal shows the queued allocation. Verified: queue held the battery at 3/3, stepping applied it → 1/3.
 
 ## EAF layout editor — done (`9df9566` + `c3a19b8`)
 Data-driven per-race layouts (`data/eaf-layouts/*.json`) + drag-drop editor & control-placement validation in verify.html. Remaining polish: add-race art upload, marker labels legend, snap-to-grid.

@@ -716,7 +716,7 @@ function applyRemote(data) {
     s.firedAt = {}; for (const [mid, w] of Object.entries(sd.weapons || {})) if (w && w.firedAt) s.firedAt[mid] = w.firedAt;
     if (sd.criticals !== undefined) s.criticals = sd.criticals; if (sd.critRolledTurn !== undefined) s._critRolledTurn = sd.critRolledTurn;   // D8 crit state
     if (sd.tractorPower !== undefined) s.tractorPower = sd.tractorPower; if (sd.edr !== undefined) s.edr = sd.edr;   // G7 tractor + D14 EDR allocation
-    if (sd.armed !== undefined) s.armed = sd.armed; if (sd.armProgress !== undefined) s.armProgress = sd.armProgress; if (sd.capacitor !== undefined) s.capacitor = sd.capacitor; if (sd.batteryCharge !== undefined) s.batteryCharge = sd.batteryCharge; if (sd.reserveWarp !== undefined) s.reserveWarp = sd.reserveWarp; if (sd.addAmmo !== undefined) s.addAmmo = sd.addAmmo; if (sd.addMag !== undefined) s.addMag = sd.addMag; if (sd.reinforce !== undefined) { s.reinforce = sd.reinforce; s.reinfLeft = null; }
+    if (sd.armed !== undefined) s.armed = sd.armed; if (sd.armProgress !== undefined) s.armProgress = sd.armProgress; if (sd.capacitor !== undefined) s.capacitor = sd.capacitor; if (sd.batteryCharge !== undefined) s.batteryCharge = sd.batteryCharge; if (sd.reserveWarp !== undefined) s.reserveWarp = sd.reserveWarp; if (sd.reserveQueue !== undefined) s.reserveQueue = sd.reserveQueue; if (sd.addAmmo !== undefined) s.addAmmo = sd.addAmmo; if (sd.addMag !== undefined) s.addMag = sd.addMag; if (sd.reinforce !== undefined) { s.reinforce = sd.reinforce; s.reinfLeft = null; }
     if (sd.course !== undefined) s.course = sd.course; if (sd.speedPlot !== undefined) s.speedPlot = sd.speedPlot; if (sd.autopilot !== undefined) s.autopilot = sd.autopilot;
     s.model = null;
   }
@@ -749,6 +749,7 @@ function stepImpulse() {
   let wrapped = false;
   if (clock.impulse > 32) { clock.impulse = 1; clock.turn++; wrapped = true; }   // new turn → back to energy allocation
   ships.forEach(s => s._shieldDmg = {});   // D8.1: shield-damage tally is per-impulse (direct fire + seekers combine within an impulse)
+  ships.forEach(applyReserveQueue);        // H7.1: queued reserve allocations take effect at the impulse boundary (their applicable segment)
   for (const s of ships) {
     s.speed = hasCrit(s.criticals, 'warp') ? 0 : speedAt(s.speedPlot || { base: s.speed, changes: [] }, clock.impulse);   // plotted speed changes fire on their locked impulses (C12.36); warp crit halts the ship (D8.23)
     if (isDead(s) || heldBy(s) || tractorLinksFrom(s).length || !movesOnImpulse(s.speed, clock.impulse)) continue;   // G7.21: a tractor link locks both ships in place (simplified towing)
@@ -968,17 +969,34 @@ const carriedOf = s => Math.floor(s.capacitor || 0);   // phaser charge carried 
 const batteryOf = s => hasCrit(s.criticals, 'battery') ? 0 : (s.batteryCharge ?? powerOf(s).batteries);   // current battery charge (starts full); D8.2 #3 battery failure → no power, can't hold
 const reservePoolS = s => reservePoolOf(s.reserveWarp || 0, batteryOf(s));   // reactive power available this turn (H7.4 + H5)
 const ensureReinfLeft = t => { if (!t.reinfLeft) t.reinfLeft = t.reinforce ? { gen: t.reinforce.gen || 0, spec: { ...t.reinforce.spec } } : { gen: 0, spec: {} }; return t.reinfLeft; };
+const reserveQueueSummary = q => { if (!q) return ''; const p = []; if (q.eccm) p.push(`ECCM ${q.eccm}`); if (q.cap) p.push(`cap ${q.cap}`); if (q.gen) p.push(`gen-reinf ${q.gen}`); for (const [n, v] of Object.entries(q.spec || {})) p.push(`shield ${n} +${v}`); return p.join(', '); };
 // Proactive reserve/battery spend during impulse play (H7.1): open the EA panel mid-turn and pour reserve into
 // reinforcement (D3.341/342), ECCM (H7.33), or the phaser capacitor (E2.33). Always confirmed before it applies.
+// Apply a ship's queued reserve allocation at its applicable segment (before direct fire, or at the impulse
+// boundary). Spends the pool then and adds the effects; a no-op if there's no queue or the pool no longer covers it.
+function reserveQueueCost(q) { return q ? reserveCost('eccm', q.eccm || 0) + reserveCost('capacitor', q.cap || 0) + reserveCost('genReinf', q.gen || 0) + Object.values(q.spec || {}).reduce((a, v) => a + reserveCost('specReinf', v), 0) : 0; }
+function applyReserveQueue(s) {
+  const q = s.reserveQueue; if (!q) return; const c = reserveQueueCost(q);
+  if (c > 0 && reservePoolS(s) >= c) {
+    const np = spendReserve(s.reserveWarp || 0, batteryOf(s), c, q.source || 'warp'); s.reserveWarp = np.reserveWarp; s.batteryCharge = np.battery;
+    if (q.eccm) s.eccmLevel = (s.eccmLevel || 0) + q.eccm;
+    if (q.cap) s.capacitor = Math.min(powerOf(s).capacitorCap, (s.capacitor || 0) + q.cap);
+    const rl = ensureReinfLeft(s); rl.gen = (rl.gen || 0) + (q.gen || 0); for (const [n, v] of Object.entries(q.spec || {})) rl.spec[n] = (rl.spec[n] || 0) + v;
+    s.model = null;
+  }
+  s.reserveQueue = null; saveSoon(s.id);
+}
 function promptReserveAllocate(s) {
   let source = (s.reserveWarp || 0) >= batteryOf(s) ? 'warp' : 'battery', eccm = 0, cap = 0, gen = 0, spec = 0, specShield = 1;
+  if (s.reserveQueue) { const q = s.reserveQueue; eccm = q.eccm || 0; cap = q.cap || 0; gen = q.gen || 0; source = q.source || source; const e = Object.entries(q.spec || {})[0]; if (e) { specShield = +e[0]; spec = e[1]; } }   // load the pending queue for adjustment
   const modal = document.getElementById('reserveModal'), body = document.getElementById('reserveBody'), pool = reservePoolS(s);
   const capRoom = () => Math.max(0, powerOf(s).capacitorCap - (s.capacitor || 0));
   const cost = () => reserveCost('eccm', eccm) + reserveCost('capacitor', cap) + reserveCost('genReinf', gen) + reserveCost('specReinf', spec);
   const row = (label, kind, val, note) => `<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span style="flex:1">${label} <span style="color:#64748b">(${note})</span></span><button class="btn" data-radj="${kind}" data-d="-1">−</button><b style="min-width:22px;text-align:center">${val}</b><button class="btn" data-radj="${kind}" data-d="1">+</button></div>`;
   const draw = () => {
     document.getElementById('reserveTitle').textContent = `⚡ Reserve Power — ${s.id}`;
-    body.innerHTML = `<div style="color:#94a3b8;margin-bottom:10px">reserve warp ${s.reserveWarp || 0} · battery ${batteryOf(s)} · pool <b>${pool}</b> · spending <b style="color:#fbbf24">${cost()}</b></div>
+    body.innerHTML = `<div style="color:#94a3b8;margin-bottom:4px">reserve warp ${s.reserveWarp || 0} · battery ${batteryOf(s)} · pool <b>${pool}</b> · queue <b style="color:#fbbf24">${cost()}</b></div>
+      <div style="color:#64748b;font-size:11px;margin-bottom:10px">Queued — applied at the next applicable segment (before this turn's fire, or the impulse boundary).</div>
       <div style="display:flex;gap:6px;margin-bottom:12px"><button class="btn ${source === 'warp' ? 'primary' : ''}" data-rsrc="warp" style="flex:1">Warp first</button><button class="btn ${source === 'battery' ? 'primary' : ''}" data-rsrc="battery" style="flex:1">Battery first</button></div>
       ${row('ECCM', 'eccm', eccm, '1/pt · H7.33')}${row('Phaser capacitor', 'cap', cap, `1/pt · E2.33 · room ${capRoom()}`)}${row('General reinforce', 'gen', gen, '2/pt · D3.341')}
       <div style="display:flex;align-items:center;gap:8px"><span style="flex:1">Reinforce shield <select data-rsel style="background:#1e293b;color:#e2e8f0;border:1px solid #334155;border-radius:4px;padding:2px">${[1, 2, 3, 4, 5, 6].map(n => `<option ${n === specShield ? 'selected' : ''}>${n}</option>`).join('')}</select> <span style="color:#64748b">(1/pt)</span></span><button class="btn" data-radj="spec" data-d="-1">−</button><b style="min-width:22px;text-align:center">${spec}</b><button class="btn" data-radj="spec" data-d="1">+</button></div>`;
@@ -995,14 +1013,9 @@ function promptReserveAllocate(s) {
   };
   const close = () => { body.removeEventListener('click', onBody); modal.style.display = 'none'; document.getElementById('reserveConfirm').onclick = null; document.getElementById('reserveSkip').onclick = null; };
   body.addEventListener('click', onBody);
-  document.getElementById('reserveConfirm').onclick = () => {
-    const c = cost();
-    if (c > 0) { const np = spendReserve(s.reserveWarp || 0, batteryOf(s), c, source); s.reserveWarp = np.reserveWarp; s.batteryCharge = np.battery;
-      if (eccm) s.eccmLevel = (s.eccmLevel || 0) + eccm;
-      if (cap) s.capacitor = Math.min(powerOf(s).capacitorCap, (s.capacitor || 0) + cap);
-      if (gen || spec) { const rl = ensureReinfLeft(s); rl.gen = (rl.gen || 0) + gen; if (spec) rl.spec[specShield] = (rl.spec[specShield] || 0) + spec; }
-      s.model = null; saveSoon(s.id); }
-    close(); render();
+  document.getElementById('reserveConfirm').onclick = () => {   // queue it — applies at the next applicable segment (before this turn's fire, or the impulse boundary)
+    s.reserveQueue = cost() > 0 ? { eccm, cap, gen, spec: (spec ? { [specShield]: spec } : {}), source } : null;
+    saveSoon(s.id); close(); render();
   };
   document.getElementById('reserveSkip').onclick = () => { close(); };
   draw(); modal.style.display = 'flex';
@@ -1024,6 +1037,7 @@ function promptReserveReinforce(t, sh, incoming, preAbsorb) {
       body.innerHTML = `
         <div style="margin-bottom:8px">Shield <b>${sh}</b> struck for <b>${incoming}</b>${preAbsorb ? ` · ${preAbsorb} already reinforced` : ''} — <b style="color:#f59e0b">${through}</b> would get through.</div>
         <div style="color:#94a3b8;margin-bottom:10px">reserve warp ${t.reserveWarp || 0} · battery ${batteryOf(t)} · pool <b>${pool}</b> · spending <b>${cost()}</b></div>
+        ${t.reserveQueue ? `<div style="color:#fbbf24;font-size:11px;margin-bottom:8px">⚡ Queued (applies this segment): ${reserveQueueSummary(t.reserveQueue)}</div>` : ''}
         <div style="display:flex;gap:6px;margin-bottom:12px">
           <button class="btn ${source === 'warp' ? 'primary' : ''}" data-rsrc="warp" style="flex:1">Warp first</button>
           <button class="btn ${source === 'battery' ? 'primary' : ''}" data-rsrc="battery" style="flex:1">Battery first</button></div>
@@ -1146,7 +1160,9 @@ function renderEnergy() {
   const lock = document.getElementById('epLock');
   lock.disabled = ui.viewEA ? false : (myLockedEnergy || anyOver);
   lock.textContent = ui.viewEA ? '✕ Close (read-only)' : (myLockedEnergy ? '🔒 LOCKED' : '🔒 LOCK');
-  document.getElementById('epReserve').style.display = (ui.viewEA && s && reservePoolS(s) > 0) ? '' : 'none';   // proactive reserve spend during impulse play (H7.1)
+  const rb = document.getElementById('epReserve');   // proactive reserve spend during impulse play (H7.1); • marks a pending queued allocation
+  rb.style.display = (ui.viewEA && s && (reservePoolS(s) > 0 || s.reserveQueue)) ? '' : 'none';
+  rb.textContent = (s && s.reserveQueue) ? '⚡ Reserve •' : '⚡ Reserve';
   let h = '';
   const genPts = Math.floor((col.genReinf || 0) / 2);   // D3.341 points; general reinforcement lights all 6 shields (Rick)
   // Movement (SPEED) + reserve + D9.21-designator HTML, reused by both the named and legacy layout paths.
@@ -1503,7 +1519,7 @@ const serializeShip = s => ({
   status: { destroyed: Object.keys(s.status), shields: shieldsNow(s) },
   criticals: s.criticals || [], critRolledTurn: s._critRolledTurn ?? -1,   // D8 active critical hits + one-roll-per-turn guard
   tractorPower: s.tractorPower || 0, edr: s.edr || 0,   // G7.15 tractor points + D14 EDR labs allocated this turn
-  armed: s.armed || {}, armProgress: s.armProgress || {}, capacitor: s.capacitor ?? 0, batteryCharge: s.batteryCharge, reserveWarp: s.reserveWarp || 0, addAmmo: s.addAmmo, addMag: s.addMag, reinforce: s.reinforce || null,   // folded energy-allocation + ammo state
+  armed: s.armed || {}, armProgress: s.armProgress || {}, capacitor: s.capacitor ?? 0, batteryCharge: s.batteryCharge, reserveWarp: s.reserveWarp || 0, reserveQueue: s.reserveQueue || null, addAmmo: s.addAmmo, addMag: s.addMag, reinforce: s.reinforce || null,   // folded energy-allocation + ammo state
   course: s.course || null, speedPlot: s.speedPlot || null, autopilot: !!s.autopilot,   // tactical course plot
   weapons: Object.fromEntries(s.mounts.map(m => [m.id, { cls: m.cls, arc: (m.arc.arcs || []), charged: isCharged(s, m.id, m.cls), firedAt: s.firedAt[m.id] || null }])),
 });
@@ -1735,6 +1751,7 @@ async function resolvePlanInto(p, models, log, affected) {
     let u = used; const fromGen = Math.min(u, rl.gen || 0); rl.gen = (rl.gen || 0) - fromGen; u -= fromGen; rl.spec[sh] = Math.max(0, (rl.spec[sh] || 0) - u);   // D3.3411: general reinforcement is spent before specific
     return used;
   };
+  ships.forEach(applyReserveQueue);   // H7.33/E2.33: queued reserve ECCM / reinforcement / capacitor take effect for this impulse's fire (their applicable segment)
   const rng = makeRng(seed, rngCursor);   // deterministic shared dice — both clients agree, replayable
   const res = await resolveAttackPlan(clean, ships, shipMountsMap(), models, rng.next, modeFn, reinforceOf, netEcmOf, settings.criticals, passiveFcOf);   // DAC-1 secondary explosions per settings; passive FC per fire-control crit / toggle (D19)
   rngCursor = rng.cursor();
