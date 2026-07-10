@@ -120,16 +120,33 @@ export function newEafColumn(power, prevSpeed = 0, carried = 0, progress = {}) {
 // is reinforcement (genReinf/specReinf, variable). Fire control cost is the value itself (0/0.5/1).
 export const SHIELD_COST = 0, HET_COST = 5, WW_COST = 1, SUICIDE_COST = 1, CLOAK_COST = 0;   // HET = 5 hexes of warp energy (C6.21)
 
-// the balance referee. carried = phaser-capacitor charge left from last turn (H6 carry-over).
-export function validateEaf(power, column, carried = 0, batteryCharge = power.batteries) {
+// the balance referee. carried = phaser-capacitor charge left from last turn (H6 carry-over). prevOverload[id] = the
+// weapon was already committed to overload coming into this turn (from last turn's fold) — used to price the E4.412
+// transition turn correctly (overloading a held torpedo THIS turn ≠ merely holding one that was overloaded already).
+export function validateEaf(power, column, carried = 0, batteryCharge = power.batteries, prevOverload = {}) {
   let weaponCost = 0;                                     // JOIN column state onto power.weapons (which carries cls + costs)
+  let weaponWarpCost = 0;                                 // E4.23: photon arming + overload energy MUST be warp; hold energy may be any source
   for (const w of power.weapons) {
     const st = column.weapons[w.id];
-    if (st && st.armed) {   // overload doubles the arming energy (E4.411) but NOT the hold (E4.22)
-      const prog = st.progress || 0, n = armTurns(w.cls), arming = prog < n;
-      const rolling = st.roll && canRoll(w.cls) && prog >= n - 1;   // FP1.221 rolling delay: pay the reduced roll cost, not the full final step
+    if (!(st && st.armed)) continue;
+    const prog = st.progress || 0, n = armTurns(w.cls), arming = prog < n;
+    const rolling = st.roll && canRoll(w.cls) && prog >= n - 1;   // FP1.221 rolling delay: pay the reduced roll cost, not the full final step
+    const isPhoton = w.cls === 'PHOTON';                          // E4.23 warp-source restriction is photon-specific
+    if (!arming && !rolling) {                                    // fully armed, holding in the tube (E4.44)
+      if (st.overload && !prevOverload[w.id]) {                   // E4.411/E4.412: overloading a HELD torpedo this turn
+        const overloadEnergy = ((w.overload ?? 0) - (w.arm ?? 0)) * n;   // the full overload charge, applied in one turn
+        weaponCost += armStepCost(w.cls, prog) + overloadEnergy;  // pay the STANDARD hold this turn plus the overload energy (E4.412)
+        if (isPhoton) weaponWarpCost += overloadEnergy;           // E4.23: overload energy is warp (the hold is any source)
+      } else if (st.overload) {                                   // already committed overloaded → the overload hold price (E4.44/E4.413)
+        weaponCost += w.holdOverload ?? armStepCost(w.cls, prog);
+      } else {
+        weaponCost += armStepCost(w.cls, prog);                   // standard hold (any source)
+      }
+    } else {
       const step = rolling ? rollCost(w.cls) : armStepCost(w.cls, prog);
-      weaponCost += (st.overload && arming && !rolling ? 2 : 1) * step;
+      const cost = (st.overload && arming && !rolling ? 2 : 1) * step;   // E4.411: overload doubles the arming step
+      weaponCost += cost;
+      if (isPhoton) weaponWarpCost += cost;                       // E4.23: photon arming + overload energy is warp
     }
   }
   const spec = Object.values(column.specReinf || {}).reduce((a, v) => a + (v || 0), 0);
@@ -154,10 +171,10 @@ export function validateEaf(power, column, carried = 0, batteryCharge = power.ba
   // gating that warp share against warp output below.
   const warpMove = Math.min(column.movement || 0, 30 * power.moveCost);
   if ((column.movement || 0) > 31 * power.moveCost) errors.push('movement exceeds the 31-point practical-speed maximum (C2.411)');
-  // H7.41/H7.42: warp output cannot be double-committed. Warp-specific allocations (warp movement + reserve warp + HET,
-  // all drawn from the warp engines) together may not exceed the warp engine output.
-  const warpDemand = warpMove + (column.reserveWarp || 0) + (column.het ? HET_COST : 0);
-  if (warpDemand > power.warp) errors.push('warp allocations exceed warp engine output (C2.11/H7.41)');
+  // H7.41/H7.42: warp output cannot be double-committed. Warp-specific allocations (warp movement + reserve warp + HET +
+  // photon arming/overload per E4.23, all drawn from the warp engines) together may not exceed the warp engine output.
+  const warpDemand = warpMove + (column.reserveWarp || 0) + (column.het ? HET_COST : 0) + weaponWarpCost;
+  if (warpDemand > power.warp) errors.push('warp allocations exceed warp engine output (C2.11/H7.41/E4.23)');
   if (batteryUsed > batteryCharge) errors.push('battery draw exceeds available battery power');
   if ((column.recharge || 0) > power.batteries - batteryCharge) errors.push('recharge exceeds empty batteries');
   const status = used > produced ? 'over' : free > 0 ? 'under' : 'balanced';

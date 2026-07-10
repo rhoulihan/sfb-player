@@ -136,9 +136,12 @@ test('D9.21: damage-control energy ceiling is the DC track rating, not the intac
   assert.equal(sinkMax(noRating, 'damageControl'), 5, 'rating not captured yet → fall back to intact DC box count');
 });
 
+// disarm every heavy weapon so a column exercises movement/reserve warp accounting without photon arming (warp) confounding it
+const disarmed = c => ({ ...c, weapons: Object.fromEntries(Object.keys(c.weapons).map(id => [id, { armed: false }])) });
+
 test('C2.411/C2.112: practical speed reaches 31 (30 warp + the 1 impulse point), no warp violation', () => {
   const fed = load('FED-CA');   // moveCost 1, warp 30
-  const col = { ...newEafColumn(fed, 0), movement: 31 };
+  const col = { ...disarmed(newEafColumn(fed, 0)), movement: 31 };
   assert.equal(foldEaf(fed, col, 0, {}).speed, 31, 'movement 31 folds to practical speed 31 (C2.411)');
   assert.ok(!validateEaf(fed, col).errors.some(e => /warp allocations exceed/i.test(e)), 'the warp share caps at 30, the 31st is the impulse point → legal');
   assert.ok(validateEaf(fed, { ...col, movement: 32 }).errors.some(e => /31-point/i.test(e)), 'movement 32 exceeds the practical-speed maximum');
@@ -146,10 +149,39 @@ test('C2.411/C2.112: practical speed reaches 31 (30 warp + the 1 impulse point),
 
 test('C2.112 / H7.41: warp funds ≤30 movement points and cannot be double-committed to reserve', () => {
   const fed = load('FED-CA');   // warp 30, moveCost 1
-  const col = newEafColumn(fed, 0);
+  const col = disarmed(newEafColumn(fed, 0));
   assert.ok(!validateEaf(fed, { ...col, movement: 20, reserveWarp: 10 }).errors.some(e => /warp allocations exceed/i.test(e)), '20 warp move + 10 reserve = 30 ≤ warp: legal');
   assert.ok(validateEaf(fed, { ...col, movement: 30, reserveWarp: 1 }).errors.some(e => /warp allocations exceed/i.test(e)), '30 warp move consumes all warp — no output left for 1 reserve');
   assert.ok(validateEaf(fed, { ...col, movement: 25, reserveWarp: 10 }).errors.some(e => /warp allocations exceed/i.test(e)), '25 + 10 = 35 > 30 warp: over-committed');
+});
+
+test('E4.44/E4.413: a photon already committed to overload holds at the overload price (2), one over the standard hold (1)', () => {
+  const p = load('FED-CA');
+  const photon = p.weapons.find(w => w.cls === 'PHOTON');
+  const armed = armTurns('PHOTON');
+  const heldPlain = validateEaf(p, newEafColumn(p, 0, 0, { [photon.id]: armed })).used;
+  const col = newEafColumn(p, 0, 0, { [photon.id]: armed });
+  col.weapons[photon.id].overload = true;
+  const heldOver = validateEaf(p, col, 0, p.batteries, { [photon.id]: true }).used;   // prevOverload: already committed last turn
+  assert.equal(heldOver - heldPlain, 1, 'overloaded hold (2) costs 1 more than the standard hold (1)');
+});
+
+test('E4.411/E4.412: overloading a HELD photon this turn pays the full overload energy plus the standard hold', () => {
+  const p = load('FED-CA');
+  const photon = p.weapons.find(w => w.cls === 'PHOTON');
+  const armed = armTurns('PHOTON');
+  const heldPlain = validateEaf(p, newEafColumn(p, 0, 0, { [photon.id]: armed })).used;
+  const col = newEafColumn(p, 0, 0, { [photon.id]: armed });
+  col.weapons[photon.id].overload = true;
+  const transition = validateEaf(p, col, 0, p.batteries, {}).used;   // prevOverload empty → transition turn
+  assert.equal(transition - heldPlain, 4, 'the transition turn adds the full 4-point overload energy on top of the standard hold (E4.412)');
+});
+
+test('E4.23: photon arming + overload energy is warp-sourced and counts against warp output', () => {
+  const p = load('FED-CA');   // warp 30, 4 photons arming at 2 = 8 warp
+  const col = newEafColumn(p, 0, 0);
+  assert.ok(validateEaf(p, { ...col, movement: 24 }).errors.some(e => /warp allocations exceed/i.test(e)), '24 warp move + 8 warp photon-arm = 32 > 30 warp');
+  assert.ok(!validateEaf(p, { ...col, movement: 20 }).errors.some(e => /warp allocations exceed/i.test(e)), '20 move + 8 arm = 28 ≤ 30 warp: legal');
 });
 
 test('shipPower detects a cloaking device from the SSD (ROSTER-1: Romulan cloaks, Federation does not)', () => {
@@ -171,14 +203,9 @@ test('multi-turn arming: validateEaf charges the schedule by progress; a fully-a
   assert.equal(armStepCost('PHOTON', 0) - armStepCost('PHOTON', armTurns('PHOTON')), 1, 'photon: 2 (arming) → 1 (hold)');
 });
 
-test('overload doubles the arming energy but NOT the hold (E4.22 / E4.412)', () => {
+test('overload doubles the arming energy while arming (E4.411)', () => {
   const p = load('FED-CA');
   const photon = p.weapons.find(w => w.cls === 'PHOTON');
-  // held (fully armed): an overloaded photon still holds at 1/turn, same as non-overloaded
-  const heldPlain = validateEaf(p, newEafColumn(p, 0, 0, { [photon.id]: armTurns('PHOTON') })).used;
-  const heldCol = newEafColumn(p, 0, 0, { [photon.id]: armTurns('PHOTON') });
-  heldCol.weapons[photon.id].overload = true;
-  assert.equal(validateEaf(p, heldCol).used, heldPlain, 'holding an overloaded photon still costs 1/turn');
   // while ARMING (progress 0): overload doubles this turn's step (+arm)
   const armPlain = validateEaf(p, newEafColumn(p, 0, 0, { [photon.id]: 0 })).used;
   const armCol = newEafColumn(p, 0, 0, { [photon.id]: 0 });

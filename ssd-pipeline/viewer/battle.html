@@ -1128,6 +1128,7 @@ function applyPhaseUI() {
 }
 // ---------- energy allocation panel ----------
 const carriedOf = s => Math.floor(s.capacitor || 0);   // phaser charge carried over from last turn (H6.21)
+const prevOverloadOf = s => { const o = {}; const a = s.armed || {}; for (const k in a) if (a[k] && a[k].overload) o[k] = true; return o; };   // E4.412: weapons already committed to overload last turn (drives held-overload pricing)
 const batteryOf = s => hasCrit(s.criticals, 'battery') ? 0 : (s.batteryCharge ?? powerOf(s).batteries);   // current battery charge (starts full); D8.2 #3 battery failure → no power, can't hold
 const reservePoolS = s => reservePoolOf(s.reserveWarp || 0, batteryOf(s));   // reactive power available this turn (H7.4 + H5)
 const ensureReinfLeft = t => { if (!t.reinfLeft) t.reinfLeft = t.reinforce ? { gen: t.reinforce.gen || 0, spec: { ...t.reinforce.spec } } : { gen: 0, spec: {} }; return t.reinfLeft; };
@@ -1235,7 +1236,7 @@ function eaColOf(s) {
 }
 const validateShip = s => { let p = powerOf(s);
   if (hasCrit(s.criticals, 'warp')) p = { ...p, warp: Math.floor(p.warp / 2), total: p.total - Math.ceil(p.warp / 2) };   // D8.23: a warp crit leaves only half the warp output usable (the other half is lost)
-  return validateEaf(p, eaColOf(s), carriedOf(s), batteryOf(s)); };
+  return validateEaf(p, eaColOf(s), carriedOf(s), batteryOf(s), prevOverloadOf(s)); };
 // zone maps (% of the art) — both consoles share the region layout, styled per theme
 const CONSOLE = {
   fed: { art: 'FedBatt_EAF', cls: 'con-fed',
@@ -1662,7 +1663,7 @@ async function resolveEnergy(allEaf) {                        // fold each locke
   for (const s of ships) {
     const col = allEaf[s.id]; if (!col) continue;
     const ts = foldEaf(powerOf(s), col, s.capacitor || 0, s.armProgress || {});   // carried capacitor + arming progress fold in
-    const pw = powerOf(s), bv = validateEaf(pw, col, s.capacitor || 0, batteryOf(s));   // battery charge: refill by recharge, deplete by draw
+    const pw = powerOf(s), bv = validateEaf(pw, col, s.capacitor || 0, batteryOf(s), prevOverloadOf(s));   // battery charge: refill by recharge, deplete by draw (prevOverload = last turn's fold, read before it is overwritten below)
     s.batteryCharge = Math.max(0, Math.min(pw.batteries, batteryOf(s) - bv.batteryUsed + (col.recharge || 0)));
     s.armed = ts.armed; s.armProgress = ts.armProgress; s.capacitor = ts.capacitor; s.reinforce = ts.reinforce; s.reinfLeft = null; s.reserveWarp = ts.reserveWarp || 0;   // held reserve warp, spendable reactively this turn (H7.4)
     s.ecmLevel = ts.ecmLevel; s.eccmLevel = ts.eccmLevel; s.queuedTurn = 0;
