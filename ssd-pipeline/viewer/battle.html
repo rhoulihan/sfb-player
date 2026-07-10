@@ -325,7 +325,7 @@ import { armLabel, isArmed, canHold, canRoll, armTurns, rollCost, reserveComplet
 import { ctl, stepPair, stackCtl, barCtl, sysCtl, batteryCtl, ewCtl, toggleCtl, shieldCtl, weaponCtl, capCtl, segCtl } from './eaf-controls.js';   // shared EA control renderers (also used by the verify.html EAF layout editor)
 import { reservePool as reservePoolOf, spendReserve, reserveCost } from './reserve-power.js';   // reactive power (H5/H7)
 import { legalNextHexes, tryStep, impulseTimeline, hexesInPlot, setSpeedChange, speedAt, legalSideslips, trySideslip } from './course-plan.js';
-import { family, segmentName, advance } from './battle-phase.js';   // SFB Sequence-of-Play segment cursor + driver
+import { family, segmentName, advance, hasLockOn } from './battle-phase.js';   // SFB Sequence-of-Play segment cursor + driver; D6.1 lock predicate
 import { hexPath, rad, plotOverlaySvg, createBattleMap } from './battle-map.js';
 import { SCENARIO } from './scenario.js';
 
@@ -357,9 +357,15 @@ const dronesLaunchableOf = s => dronesOf(s).racks.filter((r, i) => r.loaded.leng
 const seekingArmedOf = s => dronesOf(s).racks.length > 0 || plasmaGroupsOf(s).length > 0;   // armed with drones or plasma (F3.211)
 const controlLimitOf = s => controlLimit(sensorRating(s), seekingArmedOf(s));                 // F3.21 control channels (sensor rating, or half)
 const canControlMore = s => controlledCount(seekers, s.id) < controlLimitOf(s);               // room to guide another seeker
+const hasLock = (firer, target) => { ensureLocks(); return hasLockOn(lockOn, firer.id, target.id); };   // D6.1 lock-on to the target this turn
+function launchGate(firer, target) {   // D6.121: a unit that failed its lock-on may not launch seeking weapons (also D19.22 passive FC)
+  if (passiveFcOf(firer)) { alert('Cannot launch seeking weapons under passive fire control (D19.22).'); return false; }
+  if (!hasLock(firer, target)) { alert('No sensor lock-on to that target — cannot launch a seeking weapon (D6.121).'); return false; }
+  return true;
+}
 function launchDrone(firer, target) {   // 6B: an armed rack puts a drone on the map, homing at the target
-  if (passiveFcOf(firer)) { alert('Cannot launch seeking weapons under passive fire control (D19.22).'); return; }
   if (!firer || !target || !canControlMore(firer)) return;   // F3.21: cannot guide more seekers than the control limit
+  if (!launchGate(firer, target)) return;   // D6.121 lock-on + D19.22 passive-FC gate
   const rack = dronesOf(firer).racks.find((r, i) => r.loaded.length && r.firedTurn !== clock.turn && !rackInJammedBay(firer, i));   // a loaded rack that hasn't fired this turn and isn't in a jammed bay (D8.24)
   if (!rack) return;
   const dtype = rack.loaded.shift();   // consume the loaded drone; its type sets the warhead delivered (FD2.1)
@@ -403,6 +409,7 @@ function launchShuttle(firer, target) {   // suicide shuttle (C6): a slow homing
 }
 function launchScatterPack(firer, target) {   // C6: a shuttle releases a burst of drones at the target
   if (!firer || !target || shuttlesLeftOf(firer) <= 0 || !canControlMore(firer)) return;
+  if (!launchGate(firer, target)) return;   // D6.121 lock-on + D19.22 passive-FC gate (the released drones are seeking weapons)
   firer.shuttlesLeft = shuttlesLeftOf(firer) - 1;
   for (let i = 0; i < SCATTER_PACK && canControlMore(firer); i++) seekers.push(launchSeeker({ id: `dr${++seekerSeq}`, owner: firer.id, q: firer.q, r: firer.r, facing: firer.facing, targetId: target.id, ...droneSpec() }));   // release drones up to the control limit (F3.21)
   saveSoon(firer.id); render();
@@ -497,8 +504,8 @@ function pruneTractors() {   // G7.125: a link is broken the moment the units ar
   tractors = tractors.filter(t => { const a = byId(t.from), b = byId(t.to); return a && b && !isDead(a) && !isDead(b) && !hasCrit(a.criticals, 'tractor') && canTractor(hexDistance(a, b)); });
 }
 function launchPlasma(firer, target) {   // 6B: fire a plasma torpedo — a fading seeker (FP)
-  if (passiveFcOf(firer)) { alert('Cannot launch seeking weapons under passive fire control (D19.22).'); return; }
   const g = firer && target && canControlMore(firer) && plasmaReadyOf(firer)[0]; if (!g) return;   // fully-armed launcher, within the control limit (F3.21)
+  if (!launchGate(firer, target)) return;   // D6.121 lock-on + D19.22 passive-FC gate
   if (firer.armProgress) firer.armProgress[g.id] = 0;                     // launched → re-arm from scratch (3-turn cycle)
   seekers.push(launchSeeker({ id: `pl${++seekerSeq}`, owner: firer.id, q: firer.q, r: firer.r, facing: firer.facing, targetId: target.id, ...plasmaSpec(g.type) }));
   saveSoon(firer.id); render();

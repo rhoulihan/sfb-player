@@ -13,7 +13,7 @@ Source: `docs/adversarial-review.md` (96 confirmed findings). Strict TDD, one cl
 
 ## Seeker-launch lock-on gate (D6.121)
 
-- [ ] 🟠 **D6.121** `ssd-pipeline/viewer/battle.html:362` — Seeking-weapon launch is gated on passive-FC and control channels but NOT on lock-on; a ship that failed its general lock-on may still launch drones/plasma.
+- [x] 🟠 **D6.121** `ssd-pipeline/viewer/battle.html:362` — Seeking-weapon launch is gated on passive-FC and control channels but NOT on lock-on; a ship that failed its general lock-on may still launch drones/plasma.
 
 ## Overload true-range cutoff (E3.53/E4.42)
 
