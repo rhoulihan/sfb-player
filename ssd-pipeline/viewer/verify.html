@@ -62,6 +62,30 @@
   .foot{display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border-top:1px solid var(--border)}
   .legend{font-size:11px;color:var(--muted);margin-top:8px;line-height:1.6}
   .sw2{display:inline-block;width:12px;height:12px;border-radius:2px;vertical-align:-1px;margin-right:3px}
+  /* EA control renderers (shared with the battle panel) — used to render real controls in the EAF editor */
+  #eafArtWrap .ctl{position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:1px;text-align:center;text-shadow:0 1px 3px #000,0 0 5px #000;white-space:nowrap;z-index:2;cursor:grab}
+  #eafArtWrap .ctl .lab{font-size:8.5px;letter-spacing:.3px;opacity:.92}
+  #eafArtWrap .ctl .val{font-weight:800;font-size:13px;line-height:1}
+  #eafArtWrap .ctl.reinf .lab,#eafArtWrap .ctl.reinf .val{color:#fde047;text-shadow:0 0 6px #facc15,0 0 12px #f59e0b,0 1px 3px #000}
+  #eafArtWrap .ctl.pwr{gap:6px}
+  #eafArtWrap .ctl.pwr .val{font-size:18px}
+  #eafArtWrap .ctl .row{display:flex;align-items:center;gap:3px}
+  #eafArtWrap .ctl button{font:inherit;font-size:9px;font-weight:700;cursor:grab;border:1px solid;border-radius:4px;padding:1px 5px;line-height:1.5}
+  #eafArtWrap .ctl button.stepbtn{width:16px;padding:0;font-size:12px}
+  #eafArtWrap .ctl .gap{height:6px}
+  #eafArtWrap .ctl.syscell{width:118px;flex-direction:row;justify-content:center}
+  #eafArtWrap .ctl.syscell .val{font-size:16px}
+  #eafArtWrap .ctl.syscell .vstep{position:absolute;right:3px;top:50%;transform:translate(30px, calc(-50% - 8px));display:flex;gap:2px}
+  #eafArtWrap .ctl.syscell .vstep .stepbtn{height:13px;line-height:1;font-size:11px;padding:0}
+  #eafArtWrap{--ac:#4ade80;--bg:rgba(6,20,8,.82);--tx:#bbf7d0}
+  #eafArtWrap.con-fed{--ac:#f8b74d;--bg:rgba(20,12,4,.82);--tx:#fde3a7}
+  #eafArtWrap .ctl{color:var(--tx)}
+  #eafArtWrap .ctl button{background:var(--bg);border-color:var(--ac);color:var(--ac)}
+  #eafArtWrap .ctl button.on{background:var(--ac);color:#0a0a0a}
+  #eafPalette{display:flex;flex-wrap:wrap;gap:5px;max-height:120px;overflow:auto;padding:4px;background:#0b1220;border-radius:8px}
+  .pal{font:600 11px/1 sans-serif;padding:4px 8px;border-radius:6px;border:1px solid #334155;background:#1e293b;color:#cbd5e1;cursor:grab;user-select:none}
+  .pal.placed{background:#14321a;border-color:#16a34a;color:#86efac}
+  .pal.placed::before{content:"✓ "}
 </style>
 </head>
 <body>
@@ -112,13 +136,13 @@
 <div class="modal" id="eafModal">
   <div class="sheet" style="max-width:1120px;width:96vw">
     <h2>⬛ EAF Layout — <span id="eafTitle"></span> <span class="sp" style="flex:1"></span>
-      <label style="margin:0;font-size:12px">Art <select id="eafArtSel" style="padding:3px;border:1px solid var(--border);border-radius:6px"></select></label>
-      <button class="btn" id="eafAddBay">＋ Bay slot</button>
-      <button class="btn" id="eafDelBay">− Bay slot</button></h2>
+      <label style="margin:0;font-size:12px">Art <select id="eafArtSel" style="padding:3px;border:1px solid var(--border);border-radius:6px"></select></label></h2>
     <div class="body" style="flex-direction:column;gap:8px;align-items:stretch">
       <div id="eafValid" style="font-size:12px;line-height:1.5"></div>
+      <div style="font-size:11px;color:#94a3b8">Palette — drag a control onto the form (✓ = already placed):</div>
+      <div id="eafPalette"></div>
       <div id="eafArtWrap" style="position:relative;width:100%;background:#0b1220;border-radius:8px;overflow:hidden;user-select:none">
-        <img id="eafArtImg" style="width:100%;display:block" alt="EAF"/>
+        <img id="eafArtImg" style="width:100%;display:block;pointer-events:none" alt="EAF"/>
       </div>
     </div>
     <div class="foot">
@@ -162,6 +186,8 @@
 
 <script type="module">
 import * as E from "./ssd-engine.js";
+import { shipPower } from "./energy-model.js";   // build the ship's power model → real control set for the EAF editor
+import { ctl, capCtl, weaponCtl, segCtl, stackCtl, toggleCtl, shieldCtl, sysCtl, batteryCtl, ewCtl } from "./eaf-controls.js";   // render the exact in-game controls
 const SVGNS="http://www.w3.org/2000/svg";
 const el=(t,a)=>{const e=document.createElementNS(SVGNS,t);for(const k in a)e.setAttribute(k,a[k]);return e;};
 let overlayOpacity=1;                 // 1 = fully opaque (uniform recolor); slider can lower to peek at labels
@@ -518,49 +544,61 @@ eafSel.onchange=async()=>{ if(eafSel.value==="__new"){ const nm=prompt("New EAF 
     const id=nm.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,""); const seed=eafLayouts.find(l=>l.id===(stats.eafLayout||"fed"))||eafLayouts[0];
     editLayout=JSON.parse(JSON.stringify(seed||{shields:{},bays:[],systems:{}})); editLayout.id=id; editLayout.name=nm; await saveEafLayout(); await loadEafLayouts(); stats.eafLayout=id; eafSel.value=id; return; }
   stats.eafLayout=eafSel.value||undefined; };
-const eafGet=(L,p)=>{const a=p.split(".");let o=L;for(let i=0;i<a.length-1;i++)o=o&&o[a[i]];return o?o[a[a.length-1]]:undefined;};
-const eafSet=(L,p,v)=>{const a=p.split(".");let o=L;for(let i=0;i<a.length-1;i++)o=o[a[i]]||(o[a[i]]={});o[a[a.length-1]]=v;};
-function eafMarkers(L){ const m=[]; for(let n=1;n<=6;n++)m.push({label:"S"+n,path:"shields."+n}); m.push({label:"ACT",path:"activate"});
-  (L.bays||[]).forEach((_,i)=>m.push({label:"B"+(i+1),path:"bays."+i}));
-  m.push({label:"SPD",path:"move"},{label:"RES",path:"reserve"},{label:"EM",path:"em"},{label:"FC",path:"fcMode"},{label:"EDR",path:"edr"},
-    {label:"BATT",path:"systems.labs"},{label:"TRAC",path:"systems.tractor"},{label:"TRNS",path:"systems.transporter"},{label:"DC",path:"systems.damageControl"},{label:"EW",path:"systems.ew"}); return m; }
+function eafPowerModel(){ try{ return shipPower(ship, {groups, stats, labels:labelOv}, DET); }catch(e){ console.warn("EAF power model:",e); return {shields:[4,4,4,4,4,4],weapons:[],capacitorCap:10,batteries:0,systems:{}}; } }
+// The ship's control set (named, per its power model) — each entry renders the exact in-game control.
+function eafControlList(p){ const L=[];
+  for(let n=1;n<=6;n++){ const mx=p.shields[n-1]||4; L.push({id:"shield-"+n,label:"Shield "+n,render:(x,y)=>shieldCtl(n,x,y,mx,0,mx)}); }
+  L.push({id:"shields-toggle",label:"Shields toggle",render:(x,y)=>toggleCtl(x,y,"SHIELDS","shieldsActive",true)});
+  L.push({id:"phaser-cap",label:"Phaser Capacitor",render:(x,y)=>capCtl(x,y,0,0,p.capacitorCap||10)});
+  for(const w of p.weapons){ const nm=(w.cls==="DISR"?"Disruptor":w.cls==="PHOTON"?"Photon":w.cls)+" "+(w.label||""); L.push({id:"weapon-"+(w.label||""),label:nm,render:(x,y)=>weaponCtl(x,y,w,{armed:true,progress:0})}); }
+  if(p.systems.fireControl!==false) L.push({id:"fire-control",label:"Fire Control",render:(x,y)=>segCtl(x,y,"FIRE CTL","fireControl",1)});
+  L.push({id:"gen-reinf",label:"Gen Reinf",render:(x,y)=>stackCtl(x,y,"GEN REINF","genReinf",0,10)});
+  L.push({id:"movement",label:"Movement",render:(x,y)=>ctl(x,y,`<div class="lab">SPEED</div><div class="val">0</div><div class="row"><button class="stepbtn">−</button><button class="stepbtn">+</button></div><div class="gap"></div><div class="val">0h</div>`,"pwr")});
+  L.push({id:"reserve",label:"Reserve Power",render:(x,y)=>ctl(x,y,`<div class="lab">RESERVE</div><div class="val">0</div><div class="row"><button class="stepbtn">−</button><button class="stepbtn">+</button></div>`,"pwr")});
+  L.push({id:"batteries",label:"Batteries",render:(x,y)=>batteryCtl(x,y,p.batteries||0,0,p.batteries||0)});
+  if(p.systems.tractor) L.push({id:"tractor",label:"Tractor",render:(x,y)=>sysCtl(x,y,"tractor",0,p.systems.tractor)});
+  if(p.systems.transporter) L.push({id:"transporter",label:"Transporter",render:(x,y)=>sysCtl(x,y,"transporter",0,p.systems.transporter)});
+  L.push({id:"damage-control",label:"Damage Control",render:(x,y)=>sysCtl(x,y,"damageControl",0,p.systems.damageControl||0)});
+  L.push({id:"ew",label:"EW (ECM/ECCM)",render:(x,y)=>ewCtl(x,y,0,0,6)});
+  L.push({id:"erratic",label:"Erratic (EM)",render:(x,y)=>toggleCtl(x,y,"ERRATIC","em",false)});
+  L.push({id:"fc-passive",label:"FC Passive",render:(x,y)=>toggleCtl(x,y,"FC PASSIVE","fcPassive",false)});
+  if(p.systems.labs) L.push({id:"edr",label:"EDR (labs)",render:(x,y)=>stackCtl(x,y,"EDR (labs)","edr",0,p.systems.labs)});
+  L.push({id:"repair-target",label:"Repair Target",render:(x,y)=>ctl(x,y,`<button data-ea="dctarget">🛠 SYS</button>`)});
+  return L; }
 async function openEafEditor(){ if(!stats.eafLayout){ alert("Assign an EAF layout for this ship first (the EAF selector), or pick ＋ New layout…"); return; }
   let L=eafLayouts.find(l=>l.id===stats.eafLayout); if(!L){ try{ L=await(await fetch(`/api/eaf-layout/${stats.eafLayout}`)).json(); }catch{} }
   if(!L||L.error){ alert("Layout not found."); return; }
-  editLayout=JSON.parse(JSON.stringify(L)); if(!editLayout.bays)editLayout.bays=[]; if(!editLayout.systems)editLayout.systems={}; if(!editLayout.shields)editLayout.shields={};
+  editLayout=JSON.parse(JSON.stringify(L)); editLayout.controls=editLayout.controls||{};
   document.getElementById("eafTitle").textContent=`${editLayout.name||editLayout.id} · ${ship}`;
   document.getElementById("eafModal").classList.add("open"); renderEafEditor(); }
-function renderEafEditor(){ const wrap=document.getElementById("eafArtWrap"); [...wrap.querySelectorAll(".eafmk")].forEach(e=>e.remove());
-  const L=editLayout; document.getElementById("eafArtImg").src=`assets/${L.art}.png`; eafArtSel.value=L.art;
-  for(const mk of eafMarkers(L)){ const xy=eafGet(L,mk.path); if(!xy)continue; const d=document.createElement("div"); d.className="eafmk"; d.textContent=mk.label;
-    d.style.cssText=`position:absolute;left:${xy[0]}%;top:${xy[1]}%;transform:translate(-50%,-50%);background:rgba(37,99,235,.88);color:#fff;font:700 10px/1 sans-serif;padding:3px 5px;border-radius:4px;cursor:grab;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,.5);z-index:2`;
-    d.onmousedown=e=>eafDrag(e,mk,d); wrap.appendChild(d); }
+function renderEafEditor(){ const wrap=document.getElementById("eafArtWrap"); [...wrap.querySelectorAll(".ctl")].forEach(e=>e.remove());
+  const L=editLayout; L.controls=L.controls||{}; document.getElementById("eafArtImg").src=`assets/${L.art}.png`; eafArtSel.value=L.art;
+  wrap.className=(/fed/i.test(L.id||"")||/Fed/.test(L.art||""))?"con-fed":"";   // theme → button colours
+  const list=eafControlList(eafPowerModel());
+  for(const c of list){ const pos=L.controls[c.id]; if(!pos)continue; const tmp=document.createElement("div"); tmp.innerHTML=c.render(pos[0],pos[1]); const node=tmp.firstElementChild; if(!node)continue;
+    node.dataset.cid=c.id; node.addEventListener("mousedown",e=>eafDragCtl(e,c.id,node)); wrap.appendChild(node); }
+  document.getElementById("eafPalette").innerHTML=list.map(c=>`<div class="pal ${L.controls[c.id]?"placed":""}" data-cid="${c.id}" draggable="true">${c.label}</div>`).join("");
   renderEafValid(); }
-function eafDrag(e,mk,d){ e.preventDefault(); const wrap=document.getElementById("eafArtWrap"),rect=wrap.getBoundingClientRect(); d.style.cursor="grabbing";
+function eafDragCtl(e,cid,node){ e.preventDefault(); const wrap=document.getElementById("eafArtWrap"),rect=wrap.getBoundingClientRect();
   const move=ev=>{ const x=Math.max(0,Math.min(100,(ev.clientX-rect.left)/rect.width*100)), y=Math.max(0,Math.min(100,(ev.clientY-rect.top)/rect.height*100));
-    eafSet(editLayout,mk.path,[+x.toFixed(1),+y.toFixed(1)]); d.style.left=x+"%"; d.style.top=y+"%"; };
-  const up=()=>{ d.style.cursor="grab"; document.removeEventListener("mousemove",move); document.removeEventListener("mouseup",up); };
+    editLayout.controls[cid]=[+x.toFixed(1),+y.toFixed(1)]; node.style.left=x+"%"; node.style.top=y+"%"; };
+  const up=()=>{ document.removeEventListener("mousemove",move); document.removeEventListener("mouseup",up); renderEafValid(); };
   document.addEventListener("mousemove",move); document.addEventListener("mouseup",up); }
-function renderEafValid(){ const L=editLayout, fams={}; for(const g of groups)fams[g.family]=(fams[g.family]||0)+1;
-  const heavyW=groups.filter(g=>g.family==="heavy-weapon").reduce((n,g)=>n+(g.boxIds||[]).length,0), needBays=1+heavyW+2;   // phaser capacitor + one bay per heavy weapon + fire control + gen reinf
-  const has=p=>!!eafGet(L,p), req=[];
-  for(let n=1;n<=6;n++)req.push({name:"Shield "+n,ok:has("shields."+n)});
-  req.push({name:"SHIELDS toggle",ok:has("activate")},{name:"SPEED",ok:has("move")},{name:"RESERVE",ok:has("reserve")},
-    {name:`Bay slots ≥ ${needBays}`,ok:(L.bays||[]).length>=needBays},
-    {name:"Batteries",ok:has("systems.labs")},{name:"Damage Control",ok:has("systems.damageControl")},{name:"EW",ok:has("systems.ew")},
-    {name:"ERRATIC",ok:has("em")},{name:"FC PASSIVE",ok:has("fcMode")});
-  if(fams["tractor"])req.push({name:"Tractor",ok:has("systems.tractor")});
-  if(fams["transporter"])req.push({name:"Transporter",ok:has("systems.transporter")});
-  if(fams["lab"])req.push({name:"EDR",ok:has("edr")});
-  const missing=req.filter(r=>!r.ok);
+// palette → drop a control onto the form to place it
+document.getElementById("eafPalette").addEventListener("dragstart",e=>{ const pal=e.target.closest(".pal"); if(pal)e.dataTransfer.setData("text/cid",pal.dataset.cid); });
+(()=>{ const wrap=document.getElementById("eafArtWrap");
+  wrap.addEventListener("dragover",e=>e.preventDefault());
+  wrap.addEventListener("drop",e=>{ e.preventDefault(); const cid=e.dataTransfer.getData("text/cid"); if(!cid||!editLayout)return;
+    const rect=wrap.getBoundingClientRect(), x=(e.clientX-rect.left)/rect.width*100, y=(e.clientY-rect.top)/rect.height*100;
+    editLayout.controls[cid]=[+x.toFixed(1),+y.toFixed(1)]; renderEafEditor(); }); })();
+function renderEafValid(){ const L=editLayout, list=eafControlList(eafPowerModel());
+  const missing=list.filter(c=>!(L.controls&&L.controls[c.id]));
   document.getElementById("eafValid").innerHTML=missing.length
-    ? `<b style="color:#dc2626">⚠ ${missing.length} required control(s) not placed:</b> ${missing.map(r=>r.name).join(", ")}`
-    : `<b style="color:#16a34a">✓ All required controls placed for ${ship}.</b>`; }
+    ? `<b style="color:#dc2626">⚠ ${missing.length} control(s) not placed:</b> ${missing.map(c=>c.label).join(", ")}`
+    : `<b style="color:#16a34a">✓ All controls placed for ${ship}.</b>`; }
 async function saveEafLayout(){ if(!editLayout)return; try{ await fetch(`/api/eaf-layout/${editLayout.id}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(editLayout)}); }catch{} }
 document.getElementById("eafEditBtn").onclick=openEafEditor;
 document.getElementById("eafCancel").onclick=()=>document.getElementById("eafModal").classList.remove("open");
-document.getElementById("eafAddBay").onclick=()=>{ editLayout.bays=editLayout.bays||[]; editLayout.bays.push([50,50]); renderEafEditor(); };
-document.getElementById("eafDelBay").onclick=()=>{ if((editLayout.bays||[]).length){ editLayout.bays.pop(); renderEafEditor(); } };
 eafArtSel.onchange=()=>{ editLayout.art=eafArtSel.value; renderEafEditor(); };
 document.getElementById("eafSaveBtn").onclick=async()=>{ await saveEafLayout(); const l=eafLayouts.find(x=>x.id===editLayout.id); if(l)Object.assign(l,editLayout); else eafLayouts.push(editLayout);
   const b=document.getElementById("eafSaveBtn"); b.textContent="Saved ✓"; setTimeout(()=>b.textContent="Save layout",1400); };

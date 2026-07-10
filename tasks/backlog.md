@@ -2,6 +2,11 @@
 
 Lower-priority polish deferred from completed features. None block normal cruiser play.
 
+## EAF editor refinements
+- [ ] **Group-drag** — Rick: "drag the controls for the label as a group OR a specific control in the label set." Today each control drags individually. Add a way to move a related set together (e.g. all 6 shields, or a weapon + its arming controls) — most "labels" are single controls, but grouped drag is the missing half.
+- [ ] Extract the EA control CSS to a shared `eaf-panel.css` (currently duplicated: inline in battle.html + copied into verify.html for the editor).
+- [ ] Editor polish: snap-to-grid, remove-a-placed-control (drag off the form), new-race art upload.
+
 ## Shield overlays
 - [ ] **Craft the Klingon (and future-race) shield overlays to match the art's hex shapes/positions precisely.** A basic `kliShieldSvg` is wired (green→red hex by strength + yellow reinforcement glow, like the Fed CA), but the hexagons are approximate — tune the shape/size/orientation to sit exactly on the SSD shield boxes. Ideally derive the shape from the layout, not hardcoded px.
 
