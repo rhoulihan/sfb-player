@@ -65,6 +65,10 @@ export function shipPower(code, verified, detection) {
 }
 
 // rule-based ceiling on the power a slider may allocate to each system (calibration-flagged).
+// D6.310: total ECM + ECCM allocated during Energy Allocation cannot exceed the sensor rating (highest unchecked
+// sensor-track box, usually 6). Returns the max one EW field may hold given the other field's current allocation.
+export function ewFieldMax(rating, otherAlloc, perFieldMax = 6) { return Math.max(0, Math.min(perFieldMax, rating - Math.max(0, otherAlloc | 0))); }
+
 export function sinkMax(p, key) {
   switch (key) {
     case 'movement': return (30 + (p.impulse > 0 ? 1 : 0)) * p.moveCost;   // 30-hex cap; +1 (31st) if impulse engines (C2.112)

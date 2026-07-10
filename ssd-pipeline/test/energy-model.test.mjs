@@ -1,7 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { shipPower, lifeSupportCost, newEafColumn, validateEaf, foldEaf, sinkMax, specReinfMax, plasmaClsOf, HET_COST } from '../viewer/energy-model.js';
+import { shipPower, lifeSupportCost, newEafColumn, validateEaf, foldEaf, sinkMax, specReinfMax, plasmaClsOf, HET_COST, ewFieldMax } from '../viewer/energy-model.js';
+
+test('D6.310: ECM + ECCM combined cannot exceed the sensor rating (ewFieldMax = rating − other, capped per-field)', () => {
+  assert.equal(ewFieldMax(6, 0), 6, 'nothing in the other field → full 6');
+  assert.equal(ewFieldMax(6, 4), 2, 'other field holds 4 → only 2 room left (combined ≤ 6)');
+  assert.equal(ewFieldMax(6, 6), 0, 'other field already at 6 → no room');
+  assert.equal(ewFieldMax(4, 3), 1, 'damaged sensor track (rating 4) → tighter combined cap');
+  assert.equal(ewFieldMax(6, 0, 6), 6, 'per-field cap still applies');
+});
 import { armStepCost, armTurns } from '../viewer/weapon-arming.js';
 
 const load = c => shipPower(

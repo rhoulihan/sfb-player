@@ -320,7 +320,7 @@ import { movesOnImpulse, neighbor, turnMode, turnModeFor, accelCap, pseudoSpeed 
 const SHIP_TURN_CATEGORY = { 'FED-CA': 'D', 'FED-CL': 'C', 'FED-NCL': 'C', 'GOR-CA': 'D', 'KLI-D7': 'B', 'ROM-KR': 'B', 'KZIN-CS': 'C' };
 const turnCategoryOf = code => SHIP_TURN_CATEGORY[code] || 'C';
 const turnModeOf = s => turnModeFor(s.turnCat || turnCategoryOf(s.code), s.speed) + (hasCrit(s.criticals, 'maneuver') ? 1 : 0);   // D8.2 maneuver crit: turn mode +1 at all speeds
-import { shipPower, newEafColumn, validateEaf, foldEaf, sinkMax, specReinfMax, plasmaClsOf } from './energy-model.js';
+import { shipPower, newEafColumn, validateEaf, foldEaf, sinkMax, specReinfMax, plasmaClsOf, ewFieldMax } from './energy-model.js';   // ewFieldMax: D6.310 combined ECM+ECCM cap
 import { armLabel, isArmed, canHold, canRoll, armTurns, rollCost, reserveCompletionCost, firedThisTurn, refireReady } from './weapon-arming.js';   // multi-turn arming: label, fire-gate, holdability, rolling delay (E4.21/E3.24/FP1.311/FP1.221); E2.23 frequency; E1.52 refire cadence
 import { ctl, stepPair, stackCtl, barCtl, sysCtl, batteryCtl, ewCtl, toggleCtl, shieldCtl, weaponCtl, capCtl, segCtl } from './eaf-controls.js';   // shared EA control renderers (also used by the verify.html EAF layout editor)
 import { reservePool as reservePoolOf, spendReserve, reserveCost } from './reserve-power.js';   // reactive power (H5/H7)
@@ -1080,7 +1080,7 @@ function promptReserveAllocate(s) {
     const src = e.target.closest('[data-rsrc]'); if (src) { source = src.dataset.rsrc; draw(); return; }
     const sel = e.target.closest('[data-rsel]'); if (sel) { specShield = +sel.value; return; }
     const adj = e.target.closest('[data-radj]'); if (!adj) return; const d = +adj.dataset.d, k = adj.dataset.radj;
-    if (k === 'eccm') { const o = eccm; eccm = Math.max(0, Math.min(6, eccm + d)); if (cost() > pool) eccm = o; }
+    if (k === 'eccm') { const o = eccm; eccm = Math.max(0, Math.min(ewFieldMax(sensorRating(s), (s.ecmLevel || 0) + (s.eccmLevel || 0)), eccm + d)); if (cost() > pool) eccm = o; }   // D6.312: reserve ECM/ECCM additions still bounded by the D6.310 combined cap
     else if (k === 'cap') { const o = cap; cap = Math.max(0, Math.min(capRoom(), cap + d)); if (cost() > pool) cap = o; }
     else if (k === 'gen') { const o = gen; gen = Math.max(0, gen + d); if (cost() > pool) gen = o; }
     else if (k === 'spec') { const o = spec; spec = Math.max(0, spec + d); if (cost() > pool) spec = o; }
@@ -1538,12 +1538,12 @@ epanel.addEventListener('click', e => {
   const seg = e.target.closest('[data-ea="seg"]'); if (seg) { col[seg.dataset.key] = +seg.dataset.val; render(); return; }
   const tg = e.target.closest('[data-ea="toggle"]'); if (tg) { col[tg.dataset.key] = tg.dataset.num ? (col[tg.dataset.key] ? 0 : 1) : !col[tg.dataset.key]; render(); return; }
   const dct = e.target.closest('[data-ea="dctarget"]'); if (dct) { col.repairShield = ((col.repairShield || 0) + 1) % 7; render(); return; }   // D9.21: cycle the damage-control repair target (SYS / SH 1-6)
-  const stp = e.target.closest('[data-ea="step"]'); if (stp) { const k = stp.dataset.key, max = k === 'phaserCap' ? p.capacitorCap - carriedOf(s) : k === 'recharge' ? p.batteries - batteryOf(s) : sinkMax(p, k); col[k] = Math.max(0, Math.min(max, (col[k] || 0) + (+stp.dataset.d))); render(); return; }
+  const stp = e.target.closest('[data-ea="step"]'); if (stp) { const k = stp.dataset.key, max = k === 'phaserCap' ? p.capacitorCap - carriedOf(s) : k === 'recharge' ? p.batteries - batteryOf(s) : (k === 'ecm' || k === 'eccm') ? ewFieldMax(sensorRating(s), col[k === 'ecm' ? 'eccm' : 'ecm'] || 0) : sinkMax(p, k); col[k] = Math.max(0, Math.min(max, (col[k] || 0) + (+stp.dataset.d))); render(); return; }   // D6.310: ECM+ECCM combined ≤ sensor rating
   const sp = e.target.closest('[data-ea="specstep"]'); if (sp) { const n = +sp.dataset.shield, max = specReinfMax(p, n); col.specReinf[n] = Math.max(0, Math.min(max, (col.specReinf[n] || 0) + (+sp.dataset.d))); render(); return; }
 });
 function onEaInput(e) {   // range sliders: live-update value + header meter without rebuilding (would kill the drag)
   if (myLockedEnergy || ui.viewEA) return; const t = e.target, s = ui.eaSelected ? byId(ui.eaSelected) : null; if (!s || t.dataset.ea !== 'num') return;
-  eaColOf(s)[t.dataset.key] = Math.min(sinkMax(powerOf(s), t.dataset.key), Math.max(0, +t.value || 0));
+  { const k = t.dataset.key, col = eaColOf(s), cap = (k === 'ecm' || k === 'eccm') ? ewFieldMax(sensorRating(s), col[k === 'ecm' ? 'eccm' : 'ecm'] || 0) : sinkMax(powerOf(s), k); col[k] = Math.min(cap, Math.max(0, +t.value || 0)); }   // D6.310: ECM+ECCM combined ≤ sensor rating
   const val = t.closest('.ctl')?.querySelector('.val'); if (val) val.firstChild && (val.firstChild.textContent = t.value);
   updateMeter();
 }
