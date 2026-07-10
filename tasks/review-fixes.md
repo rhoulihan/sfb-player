@@ -52,8 +52,8 @@ Source: `docs/adversarial-review.md` (96 confirmed findings). Strict TDD, one cl
 - [ ] 🟠 **D5.12** `ssd-pipeline/viewer/battle.html:792` — A ship destroyed in combat never explodes; only the plotted self-destruct path ever calls selfDestruct().
 - [x] 🟠 **D5.5 / D5.51** `ssd-pipeline/viewer/battle.html:843` — resolvePlottedSelfDestruct detonates any ship flagged self-destruct with no crew-unit / last-friendly-ship precondition.
 - [x] 🟠 **D5.2 / D5.12 / D5.41** `ssd-pipeline/viewer/mines.js:36` — Self-destruct explosion strength is a hardcoded 30 for every ship instead of the per-ship Basic Explosion Strength from the Master Ship Chart.
-- [ ] 🟠 **D5.41** `ssd-pipeline/viewer/mines.js:36` — Self-destruct blast radius is hardcoded to 2 hexes; the rule caps the zone at radius 1 (or radius 0 for a small explosion).
-- [ ] 🟠 **D5.2** `ssd-pipeline/viewer/mines.js:36` — Self-destruction force is a hardcoded 30 for all ships instead of the per-ship value from the Master Ship Chart.
+- [x] 🟠 **D5.41** `ssd-pipeline/viewer/mines.js:36` — Self-destruct blast radius is hardcoded to 2 hexes; the rule caps the zone at radius 1 (or radius 0 for a small explosion).
+- [x] 🟠 **D5.2** `ssd-pipeline/viewer/mines.js:36` — Self-destruction force is a hardcoded 30 for all ships instead of the per-ship value from the Master Ship Chart.
 - [x] 🟠 **D5.41** `ssd-pipeline/viewer/mines.js:37` — Self-destruct blast uses radius 2 with a 1/distance damage falloff; D5.41 is radius 1 (BES>=10) or same-hex-only (BES<=9), with the FULL BES applied to every unit in the zone.
 - [ ] 🟡 **D5.0 / D7.8 / M3.0** `ssd-pipeline/viewer/mines.js:34` — Several rule-number citations in the comments point to the wrong rules for this edition.
 
@@ -121,15 +121,15 @@ Source: `docs/adversarial-review.md` (96 confirmed findings). Strict TDD, one cl
 
 ## Remaining — tractor
 
-- [ ] 🟠 **G7.41A / G7.412** `ssd-pipeline/viewer/battle.html:473` — establishTractor never checks that the tractoring ship has a lock-on to the target.
+- [x] 🟠 **G7.41A / G7.412** `ssd-pipeline/viewer/battle.html:473` — establishTractor never checks that the tractoring ship has a lock-on to the target.
 - [ ] 🟠 **G7.13** `ssd-pipeline/viewer/battle.html:485` — No once-per-turn / 8-impulse lockout after a beam is released or broken.
 - [ ] 🟠 **G7.352 / G7.63 / G7.41C** `ssd-pipeline/viewer/battle.html:488` — breakTractor demands raw allocated power (2 at R2, 3 at R3) of negative tractor instead of the 1 point that cancels one EFFECTIVE point.
 - [ ] 🟠 **G7.351 / G7.15** `ssd-pipeline/viewer/battle.html:489` — Negative tractor can only be paid from reserve/battery; EA-allocated tractor power designated as negative is unusable.
 - [ ] 🟠 **G7.124 / G7.42** `ssd-pipeline/viewer/battle.html:496` — A tractor link persists across turn boundaries for free; no new-power re-establishment / auction at start of turn.
-- [ ] 🟠 **G7.92 / G7.922** `ssd-pipeline/viewer/battle.html:574` — A tractored ship still receives its full +4 Erratic-Maneuver ECM benefit, which the rules say stops while it is held.
-- [ ] 🟠 **G7.941** `ssd-pipeline/viewer/battle.html:1650` — A ship held in a tractor beam can still launch shuttles, wild weasels, admin shuttles, scatter-packs and boarding raids.
+- [x] 🟠 **G7.92 / G7.922** `ssd-pipeline/viewer/battle.html:574` — A tractored ship still receives its full +4 Erratic-Maneuver ECM benefit, which the rules say stops while it is held.
+- [x] 🟠 **G7.941** `ssd-pipeline/viewer/battle.html:1650` — A ship held in a tractor beam can still launch shuttles, wild weasels, admin shuttles, scatter-packs and boarding raids.
 - [ ] 🟡 **G7.41B / G7.411** `ssd-pipeline/viewer/battle.html:481` — Reserve power cannot initiate or reinforce a positive tractor link; only EA-allocated tractorPower counts.
-- [ ] 🟡 **G7.91** `ssd-pipeline/viewer/fire-plan.js:15` — A tractored ship is never restricted from firing direct-fire/plasma at (or tractoring) ships other than the unit holding it.
+- [x] 🟡 **G7.91** `ssd-pipeline/viewer/fire-plan.js:15` — A tractored ship is never restricted from firing direct-fire/plasma at (or tractoring) ships other than the unit holding it.
 
 ## Remaining — ew
 

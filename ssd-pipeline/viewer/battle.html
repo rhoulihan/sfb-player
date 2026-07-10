@@ -361,6 +361,7 @@ const hasLock = (firer, target) => { ensureLocks(); return hasLockOn(lockOn, fir
 function launchGate(firer, target) {   // D6.121: a unit that failed its lock-on may not launch seeking weapons (also D19.22 passive FC)
   if (firer && firer.cloaked) { alert('A cloaked ship cannot launch seeking weapons (G13.51/G13.133).'); return false; }
   if (hasActiveWeasel(firer)) { alert('A ship protected by an active wild weasel cannot launch/guide seeking weapons (J3.132).'); return false; }
+  if (heldBy(firer)) { alert('A ship held in a tractor beam cannot launch seeking weapons (G7.941).'); return false; }
   if (fcReactivating(firer)) { alert('Fire control is still reactivating — cannot launch/guide a seeking weapon yet (D19.26/G13.15).'); return false; }
   if (passiveFcOf(firer)) { alert('Cannot launch seeking weapons under passive fire control (D19.22).'); return false; }
   if (!hasLock(firer, target)) { alert('No sensor lock-on to that target — cannot launch a seeking weapon (D6.121).'); return false; }
@@ -405,6 +406,7 @@ const shuttleBaysOf = s => Math.max(0, baseShuttleBays(s) - (s.criticals || []).
 const shuttlesLeftOf = s => Math.min(shuttleBaysOf(s), s.shuttlesLeft == null ? (s.shuttlesLeft = shuttleBaysOf(s)) : s.shuttlesLeft);   // a mid-turn bay crit immediately caps the launches still available
 function launchShuttle(firer, target) {   // suicide shuttle (C6): a slow homing seeker at the target
   if (!firer || !target || shuttlesLeftOf(firer) <= 0 || !canControlMore(firer)) return;   // F3.21 control limit
+  if (heldBy(firer)) { alert('A ship held in a tractor beam cannot launch a shuttle (G7.941).'); return; }
   firer.shuttlesLeft = shuttlesLeftOf(firer) - 1;
   const shHp = shuttleMaxHp('admin', settings.advancedShuttles);
   seekers.push({ ...launchSeeker({ id: `sh${++seekerSeq}`, owner: firer.id, q: firer.q, r: firer.r, facing: firer.facing, targetId: target.id, ...SUICIDE_SHUTTLE }), hp: shHp, maxHp: shHp });
@@ -419,6 +421,7 @@ function launchScatterPack(firer, target) {   // C6: a shuttle releases a burst 
 }
 function launchAdminShuttle(ship) {   // C6: a non-combat shuttle (0 warhead) sent toward the nearest enemy as a scout/decoy
   if (!ship || shuttlesLeftOf(ship) <= 0) return;
+  if (heldBy(ship)) { alert('A ship held in a tractor beam cannot launch a shuttle (G7.941).'); return; }
   const tgt = ships.filter(s => s.side !== ship.side && !isDead(s)).sort((a, b) => hexDistance(ship, a) - hexDistance(ship, b))[0];
   ship.shuttlesLeft = shuttlesLeftOf(ship) - 1;
   const asHp = shuttleMaxHp('admin', settings.advancedShuttles);
@@ -428,6 +431,7 @@ function launchAdminShuttle(ship) {   // C6: a non-combat shuttle (0 warhead) se
 const hasActiveWeasel = s => !!s && seekers.some(w => w.type === 'weasel' && w.owner === s.id);   // J3.13: while its WW is on the map, the launching ship is under fire/maneuver restrictions
 function launchWeasel(ship) {   // wild weasel (J3): a stationary decoy that diverts incoming seekers away from the ship
   if (!ship || shuttlesLeftOf(ship) <= 0 || hasActiveWeasel(ship)) return;
+  if (heldBy(ship)) { alert('A ship held in a tractor beam cannot launch a shuttle (G7.941).'); return; }
   const cost = 2 * WW_COST;   // J3.12: a WW is charged with one point of energy on each of two consecutive turns before launch (here paid at once from reserve/battery, H7.2)
   if (reservePoolS(ship) < cost) { alert(`Charging a wild weasel needs ${cost} reserve/battery power (J3.12); ${reservePoolS(ship)} available.`); return; }
   const np = spendReserve(ship.reserveWarp || 0, batteryOf(ship), cost, (ship.reserveWarp || 0) >= batteryOf(ship) ? 'warp' : 'battery'); ship.reserveWarp = np.reserveWarp; ship.batteryCharge = np.battery;
@@ -491,6 +495,7 @@ const heldBy = s => tractors.find(t => t.to === s.id);                          
 function establishTractor(from, target) {   // Operate Tractors Step: attach a beam to an adjacent/≤3-hex unit
   if (!from || !target || from.id === target.id) return;
   if (from.cloaked) { alert('A cloaked ship cannot operate tractor beams (G13.51).'); return; }
+  if (target.side !== from.side && !hasLock(from, target)) { alert('No sensor lock-on to the target — cannot establish a tractor (G7.41A).'); return; }
   if (hasCrit(from.criticals, 'tractor')) { alert('Tractor beams disabled by a critical hit (D8.2).'); return; }
   if (tractorLinksFrom(from).length >= tractorBeamsOf(from)) { alert('No free tractor beam (one per TRAC box, G7.11).'); return; }
   const range = hexDistance(from, target);
@@ -595,7 +600,7 @@ const cloakEffective = s => !!(s && s.cloaked) && (!s.cloakAt || impulsesSince(s
 const netEcmOf = (fr, t) => {
   if (!fr || !t) return 0;
   if (cloakEffective(t)) return CLOAK_ECM;                          // G13.303: firing at a cloaked ship uses the cloak shift ALONE — ECM/ECCM are ignored, so ECCM cannot erode it
-  return Math.max(0, (t.ecmLevel || 0) + (t.em ? 4 : 0)            // target ECM + its erratic maneuvers (C10.413), offset by firer ECCM
+  return Math.max(0, (t.ecmLevel || 0) + (t.em && !heldBy(t) ? 4 : 0)   // target ECM + its erratic maneuvers (C10.413); G7.92/G7.922: EM gives no benefit while the target is held in a tractor beam
     - (passiveFcOf(fr) ? 0 : (fr.eccmLevel || 0))                   // passive FC can't use ECCM (D19.12)
     + (fr.em ? 4 : 0));                                             // the firer's OWN EM degrades its fire too (C10.414), not offset by ECCM
 };
@@ -1868,6 +1873,7 @@ fetch('weapons.html', { method: 'HEAD' }).then(r => { if (!r.ok) throw 0; }).cat
 async function resolvePlanInto(p, models, log, affected) {
   ensureLocks(); p = applyLockGate(p, lockOn); p = applyCloakFireGate(p, byId); p = applyLoSGate(p, byId, terrain);   // D6.1 lock; G13 cloak holds fire; P3 asteroids block LoS
   p = { groups: (p.groups || []).map(g => ({ ...g, members: (g.members || []).filter(m => !hasActiveWeasel(byId(m.shipId))) })).filter(g => g.members.length) };   // J3.132: a ship protected by an active wild weasel may not fire
+  p = { groups: (p.groups || []).map(g => ({ ...g, members: (g.members || []).filter(m => { const held = heldBy(byId(m.shipId)); return !held || g.targetShipId === held.from; }) })).filter(g => g.members.length) };   // G7.91: a ship held in a tractor beam may fire only at the unit holding it
   const mk = t => t.model || (t.model = buildShipModel(t._ver, t._det));
   for (const g of (p.groups || [])) { const t = byId(g.targetShipId); if (t) models[t.id] = mk(t); for (const m of (g.members || [])) { const f = byId(m.shipId); if (f) models[f.id] = mk(f); } }   // firer models too, for overload feedback (E4.431)
   const capLeft = {}; for (const s of ships) capLeft[s.id] = Math.floor(s.capacitor || 0);   // phaser budget for this resolution
