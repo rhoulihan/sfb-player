@@ -496,6 +496,8 @@ function selfDestruct(ship) {   // D19 (SOP phase-3): the ship explodes, hitting
 }
 // ---- G7 tractor beams ----
 const tractorBeamsOf = s => powerOf(s).systems.tractor || 0;                     // one beam per TRAC box (G7.11)
+const beamsInLockout = s => (s._tractorFreedAt || []).filter(t => impulsesSince(t, clock.turn, clock.impulse) < 8).length;   // G7.13: a beam can't be reused within 8 impulses of being released/broken
+const noteBeamFreed = s => { if (s) { s._tractorFreedAt = (s._tractorFreedAt || []).filter(t => impulsesSince(t, clock.turn, clock.impulse) < 8); s._tractorFreedAt.push({ turn: clock.turn, impulse: clock.impulse }); } };
 const tractorLinksFrom = s => tractors.filter(t => t.from === s.id);
 const tractorPowerUsed = s => tractorLinksFrom(s).reduce((n, t) => n + t.power, 0);
 const heldBy = s => tractors.find(t => t.to === s.id);                           // the link holding this ship, if any
@@ -504,7 +506,7 @@ function establishTractor(from, target) {   // Operate Tractors Step: attach a b
   if (from.cloaked) { alert('A cloaked ship cannot operate tractor beams (G13.51).'); return; }
   if (target.side !== from.side && !hasLock(from, target)) { alert('No sensor lock-on to the target — cannot establish a tractor (G7.41A).'); return; }
   if (hasCrit(from.criticals, 'tractor')) { alert('Tractor beams disabled by a critical hit (D8.2).'); return; }
-  if (tractorLinksFrom(from).length >= tractorBeamsOf(from)) { alert('No free tractor beam (one per TRAC box, G7.11).'); return; }
+  if (tractorLinksFrom(from).length + beamsInLockout(from) >= tractorBeamsOf(from)) { alert('No free tractor beam — one per TRAC box (G7.11), and a released/broken beam is locked out for 8 impulses (G7.13).'); return; }
   const range = hexDistance(from, target);
   if (!canTractor(range)) { alert(`Target beyond tractor range (${TRACTOR_MAX_RANGE} hexes max, G7.6).`); return; }
   if (tractors.some(t => t.from === from.id && t.to === target.id)) return;      // already linked
@@ -513,7 +515,7 @@ function establishTractor(from, target) {   // Operate Tractors Step: attach a b
   tractors.push({ from: from.id, to: target.id, power: cost, effective: 1 });   // power = raw operating cost (tower's budget, G7.15); effective = holding strength (1 for a basic beam, G7.63)
   saveSoon(from.id); saveSoon(target.id); render();
 }
-function releaseTractor(from) { tractors = tractors.filter(t => t.from !== from.id); saveSoon(from.id); render(); }   // G7.33: release all this ship's beams
+function releaseTractor(from) { for (let i = tractorLinksFrom(from).length; i > 0; i--) noteBeamFreed(from); tractors = tractors.filter(t => t.from !== from.id); saveSoon(from.id); render(); }   // G7.33: release all this ship's beams (G7.13: each locked out 8 impulses)
 function breakTractor(held) {   // G7.35: the held ship spends negative-tractor power to cancel the beam's effective holding points (G7.352/G7.63)
   const link = heldBy(held); if (!link) return;
   const need = link.effective || 1;   // G7.352/G7.63: a basic beam is 1 effective point regardless of range — one negative point breaks it
@@ -522,7 +524,7 @@ function breakTractor(held) {   // G7.35: the held ship spends negative-tractor 
   const fromEa = Math.min(eaNeg, need); held.negTractorUsed = (held.negTractorUsed || 0) + fromEa;
   const fromReserve = need - fromEa;
   if (fromReserve > 0) { const np = spendReserve(held.reserveWarp || 0, batteryOf(held), fromReserve, (held.reserveWarp || 0) >= batteryOf(held) ? 'warp' : 'battery'); held.reserveWarp = np.reserveWarp; held.batteryCharge = np.battery; }
-  if (tractorBroken(need, need)) tractors = tractors.filter(t => t !== link);
+  if (tractorBroken(need, need)) { noteBeamFreed(byId(link.from)); tractors = tractors.filter(t => t !== link); }   // G7.13: the freed beam is locked out 8 impulses
   saveSoon(held.id); render();
 }
 function dropTractorsInvolving(id) { tractors = tractors.filter(t => t.from !== id && t.to !== id); }               // crit (D8.2 #9), destruction, or out-of-range invalidation
