@@ -2,6 +2,13 @@
 
 Lower-priority polish deferred from completed features. None block normal cruiser play.
 
+## Pending feature (paused mid-request)
+- [ ] **Proactive reserve-power allocation during impulse play** (H7 / audit "proactive impulse allocation + queued-at-segment"). The EA panel is read-only during impulse (`if (ui.viewEA) return`). On-hit reactive reinforcement + cloak/plasma reserve use already work; what's missing is: open the EA panel during impulse → allocate reserve/battery to reserve-eligible controls (ECCM H7.33, reinforcement, capacitor E2.33), queued and applied at the appropriate segment (or immediately if current), always confirmed. `reserve-power.js` already lists the eligible systems + costs; reuse the `promptReserveReinforce` modal pattern. Paused to build the EAF layout editor.
+
+## EAF layout editor — done (`9df9566` + `c3a19b8`)
+Data-driven per-race layouts (`data/eaf-layouts/*.json`) + drag-drop editor & control-placement validation in verify.html. Remaining polish: add-race art upload, marker labels legend, snap-to-grid.
+
+
 ## D8 critical hits — refinements
 - [ ] **Full D22 energy-balance engine** (Rick-flagged) — incremental/instantaneous/continuous power-loss reallocation (D22.1–D22.6). The warp crit currently uses D8.23's own allowance (cancel movement energy) + halts the ship; the "½ warp output usable for other systems" loss is not yet applied.
 - [ ] **Exact DC-track rating from verified.json** — D14 EDR and the D14.11 DC-box sacrifice use a `min(4, intact-DC-boxes)` proxy. Capture the real per-ship DC-track rating in verify.html (verification-owns-ship-data) and read it here.
