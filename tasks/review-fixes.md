@@ -45,7 +45,7 @@ Source: `docs/adversarial-review.md` (96 confirmed findings). Strict TDD, one cl
 - [x] 🔴 **D9.711 / D9.72 / D9.741 / D9.76** `ssd-pipeline/viewer/battle.html:806` — Continuous Damage Repair (D9.7) repairs one system box per leftover damage-control energy point, ignoring the per-system Cost-of-Repair chart, the free-points model, the one-box-at-a-time limit, and the scenario cap.
 - [x] 🟠 **D9.22** `ssd-pipeline/viewer/battle.html:800` — End-of-turn shield repair erases boxes knocked down THIS turn, but D9.22 forbids repairing the current turn's hits.
 - [x] 🟠 **D9.22 / D9.73** `ssd-pipeline/viewer/battle.html:802` — Damage-control repair erases damage inflicted on the SAME turn; both shield (D9.22) and system (D9.73) repair may only touch prior-turn damage.
-- [ ] 🟠 **D9.21** `ssd-pipeline/viewer/energy-model.js:79` — The damage-control energy ceiling is the count of DC boxes, not the DC rating (highest number on the track).
+- [x] 🟠 **D9.21** `ssd-pipeline/viewer/energy-model.js:79` — The damage-control energy ceiling is the count of DC boxes, not the DC rating (highest number on the track).
 
 ## Self-destruct (D5)
 
@@ -73,8 +73,8 @@ Source: `docs/adversarial-review.md` (96 confirmed findings). Strict TDD, one cl
 - [ ] 🟠 **H7.41 / H7.42** `ssd-pipeline/viewer/energy-model.js:74` — Reserve warp power is capped in quantity but not gated to warp-engine source, letting warp output be double-committed to movement and reserve simultaneously.
 - [x] 🟠 **D3.343** `ssd-pipeline/viewer/energy-model.js:84` — A down (0-strength) shield can still receive specific reinforcement, which D3.343 forbids.
 - [ ] 🟠 **C2.11 / C2.112** `ssd-pipeline/viewer/energy-model.js:128` — validateEaf never gates movement energy to the warp+impulse sources, so movement can be funded from APR/batteries and can exceed the 30-from-warp cap.
-- [ ] 🟡 **D3.342** `ssd-pipeline/viewer/energy-model.js:84` — Specific reinforcement is capped at the shield's printed box value, but D3.342 places no such cap.
-- [ ] 🟡 **C2.411 / C2.112** `ssd-pipeline/viewer/energy-model.js:163` — foldEaf caps folded speed at 30 though maximum practical speed is 31 (30 warp + 1 impulse).
+- [x] 🟡 **D3.342** `ssd-pipeline/viewer/energy-model.js:84` — Specific reinforcement is capped at the shield's printed box value, but D3.342 places no such cap.
+- [x] 🟡 **C2.411 / C2.112** `ssd-pipeline/viewer/energy-model.js:163` — foldEaf caps folded speed at 30 though maximum practical speed is 31 (30 warp + 1 impulse).
 
 ## Remaining — arming
 

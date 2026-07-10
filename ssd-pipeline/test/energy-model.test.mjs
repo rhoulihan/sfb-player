@@ -124,9 +124,22 @@ test('sinkMax enforces rule-based slider ceilings', () => {
   assert.equal(sinkMax(fed, 'recharge'), 4, 'no more than battery capacity');
   assert.equal(sinkMax(fed, 'tractor'), fed.systems.tractor);
   assert.equal(sinkMax(fed, 'transporter'), fed.systems.transporter);
-  assert.equal(specReinfMax(fed, 1), fed.shields[0], 'reinforce a shield up to its box value');
-  assert.equal(specReinfMax(fed, 1, 5), fed.shields[0], 'a standing shield reinforces up to its box value (D3.342)');
+  assert.equal(specReinfMax(fed, 1), fed.total + fed.batteries, 'D3.342: specific reinforcement is limited only by available power, NOT the printed box value');
+  assert.equal(specReinfMax(fed, 1, 5), fed.total + fed.batteries, 'a standing shield reinforces as far as power allows (no printed cap)');
   assert.equal(specReinfMax(fed, 1, 0), 0, 'D3.343: a shield that is down cannot be specific-reinforced');
+});
+
+test('D9.21: damage-control energy ceiling is the DC track rating, not the intact-box count', () => {
+  const withRating = { dcRating: 4, systems: { damageControl: 6 } };
+  assert.equal(sinkMax(withRating, 'damageControl'), 4, 'ceiling = the highest number on the DC track (the rating)');
+  const noRating = { dcRating: 0, systems: { damageControl: 5 } };
+  assert.equal(sinkMax(noRating, 'damageControl'), 5, 'rating not captured yet → fall back to intact DC box count');
+});
+
+test('C2.411/C2.112: practical speed can reach 31 (30 warp + 1 impulse), not just 30', () => {
+  const fed = load('FED-CA');   // moveCost 1
+  const col = { ...newEafColumn(fed, 0), movement: 31 };
+  assert.equal(foldEaf(fed, col, 0, {}).speed, 31, 'folded speed reaches the 31 practical-speed maximum (C2.411)');
 });
 
 test('shipPower detects a cloaking device from the SSD (ROSTER-1: Romulan cloaks, Federation does not)', () => {

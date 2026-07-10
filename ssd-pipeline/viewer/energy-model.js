@@ -81,14 +81,15 @@ export function sinkMax(p, key) {
     case 'transporter': return p.systems.transporter || 0;    // per transporter (G8)
     case 'labs': return p.systems.labs || 0;                  // per lab
     case 'edr': return p.systems.labs || 0;                   // D14: one EDR attempt per powered lab box
-    case 'damageControl': return p.systems.damageControl || 0;// damage-control rating (D9)
+    case 'damageControl': return p.dcRating || (p.systems.damageControl || 0);// D9.21: ceiling = highest number on the DC track (the rating); fall back to intact-box count until captured (D14.13)
     case 'genReinf': return p.total + p.batteries;            // limited only by available power (D3.341)
     default: return p.total + p.batteries;
   }
 }
-// D3.342: reinforce a shield up to its printed box value. D3.343: a shield that is down (current strength 0) cannot
+// D3.342: specific reinforcement adds "extra" boxes equal to the energy applied — there is NO cap at the shield's
+// printed box value; it is limited only by available power. D3.343: a shield that is down (current strength 0) cannot
 // be specific-reinforced — only general reinforcement blocks fire from that facing. Pass the current strength to enforce it.
-export const specReinfMax = (p, shieldN, currentStrength) => (currentStrength != null && currentStrength <= 0) ? 0 : (p.shields[shieldN - 1] || 0);
+export const specReinfMax = (p, shieldN, currentStrength) => (currentStrength != null && currentStrength <= 0) ? 0 : (p.total + p.batteries);
 
 export function lifeSupportCost(power) { return LIFE_SUPPORT[power.sizeClass] ?? 0; }
 
@@ -167,7 +168,7 @@ export function foldEaf(power, column, carried = 0, progress = {}) {
     } else armProgress[w.id] = 0;                                                  // skipped a turn → discharged (E4.21 consecutive)
   }
   return {
-    speed: Math.min(30, Math.floor(column.movement / power.moveCost)),
+    speed: Math.min(31, Math.floor(column.movement / power.moveCost)),   // C2.411: practical speed can reach 31 (30 warp + 1 impulse)
     armed, armProgress,
     capacitor: carried + column.phaserCap,
     reinforce: { gen: Math.floor((column.genReinf || 0) / 2), spec: { ...column.specReinf } },   // D3.341: general reinforcement energy ÷2 = points (2 energy = 1 point)
