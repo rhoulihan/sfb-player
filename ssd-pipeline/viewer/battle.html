@@ -625,7 +625,7 @@ async function startBattle(defs, clk, restore, ph) {
   ui.ghosts = {}; ui.selectedGhost = null; ui.ghostDrag = null; ui.navPreview = null; ui.plotShipId = null; modelFleet = myFleet; stashedPlan = null; lockOn = {}; lockOnTurn = -1; seekers = []; seekerSeq = 0; tractors = []; terrain = { barrier: null, asteroids: [] }; settings = { criticals: true, d8crits: false, advancedShuttles: false, droneSpeed: 20, solo: false };   // fresh battle → no carried-over what-if / plot / perspective / lock state
   for (const d of defs) {
     const s = await hydrate(d), r = restore && restore[d.id];
-    if (r) { (r.destroyed || []).forEach(id => (s.status[id] = 'destroyed')); s.firedAt = r.firedAt || {}; if (r.hexesSinceTurn != null) s.hexesSinceTurn = r.hexesSinceTurn; s.queuedTurn = r.queuedTurn || 0; s.criticals = r.criticals || []; s._critRolledTurn = r.critRolledTurn ?? -1; s.tractorPower = r.tractorPower || 0; }   // D8 crit + G7 tractor state carry across resume
+    if (r) { (r.destroyed || []).forEach(id => (s.status[id] = 'destroyed')); s.firedAt = r.firedAt || {}; if (r.hexesSinceTurn != null) s.hexesSinceTurn = r.hexesSinceTurn; s.queuedTurn = r.queuedTurn || 0; s.criticals = r.criticals || []; s._critRolledTurn = r.critRolledTurn ?? -1; s.tractorPower = r.tractorPower || 0; s.edr = r.edr || 0; }   // D8 crit + G7 tractor + D14 EDR state carry across resume
     ships.push(s);
   }
   document.getElementById('log').innerHTML = '';
@@ -634,7 +634,7 @@ async function startBattle(defs, clk, restore, ph) {
 async function resumeSaved(saved) {
   const defs = saved.ships.map(s => ({ id: s.id, code: s.code, name: s.name, side: s.side, q: s.map.q, r: s.map.r, facing: s.map.facing, speed: s.map.speed }));
   const restore = {};
-  for (const s of saved.ships) restore[s.id] = { destroyed: s.status?.destroyed || [], firedAt: Object.fromEntries(Object.entries(s.weapons || {}).filter(([, w]) => w && w.firedAt).map(([k, w]) => [k, w.firedAt])), hexesSinceTurn: s.map.hexesSinceTurn, queuedTurn: s.map.queuedTurn, criticals: s.criticals || [], critRolledTurn: s.critRolledTurn ?? -1, tractorPower: s.tractorPower || 0 };   // D8 crit + G7 tractor state
+  for (const s of saved.ships) restore[s.id] = { destroyed: s.status?.destroyed || [], firedAt: Object.fromEntries(Object.entries(s.weapons || {}).filter(([, w]) => w && w.firedAt).map(([k, w]) => [k, w.firedAt])), hexesSinceTurn: s.map.hexesSinceTurn, queuedTurn: s.map.queuedTurn, criticals: s.criticals || [], critRolledTurn: s.critRolledTurn ?? -1, tractorPower: s.tractorPower || 0, edr: s.edr || 0 };   // D8 crit + G7 tractor + D14 EDR state
   await startBattle(defs, { turn: saved.turn, impulse: saved.impulse }, restore, saved.phase || 'energy');
   fleets = saved.fleets ? { friendly: { ...fleets.friendly, name: saved.fleets.friendly?.name }, enemy: { ...fleets.enemy, name: saved.fleets.enemy?.name } } : fleets;
   plan = saved.plans?.[myFleet] || newPlan();
@@ -714,7 +714,7 @@ function applyRemote(data) {
     s.status = {}; (sd.status?.destroyed || []).forEach(id => (s.status[id] = 'destroyed'));
     s.firedAt = {}; for (const [mid, w] of Object.entries(sd.weapons || {})) if (w && w.firedAt) s.firedAt[mid] = w.firedAt;
     if (sd.criticals !== undefined) s.criticals = sd.criticals; if (sd.critRolledTurn !== undefined) s._critRolledTurn = sd.critRolledTurn;   // D8 crit state
-    if (sd.tractorPower !== undefined) s.tractorPower = sd.tractorPower;   // G7 tractor allocation
+    if (sd.tractorPower !== undefined) s.tractorPower = sd.tractorPower; if (sd.edr !== undefined) s.edr = sd.edr;   // G7 tractor + D14 EDR allocation
     if (sd.armed !== undefined) s.armed = sd.armed; if (sd.armProgress !== undefined) s.armProgress = sd.armProgress; if (sd.capacitor !== undefined) s.capacitor = sd.capacitor; if (sd.batteryCharge !== undefined) s.batteryCharge = sd.batteryCharge; if (sd.reserveWarp !== undefined) s.reserveWarp = sd.reserveWarp; if (sd.addAmmo !== undefined) s.addAmmo = sd.addAmmo; if (sd.addMag !== undefined) s.addMag = sd.addMag; if (sd.reinforce !== undefined) { s.reinforce = sd.reinforce; s.reinfLeft = null; }
     if (sd.course !== undefined) s.course = sd.course; if (sd.speedPlot !== undefined) s.speedPlot = sd.speedPlot; if (sd.autopilot !== undefined) s.autopilot = sd.autopilot;
     s.model = null;
@@ -783,6 +783,21 @@ function stepImpulse() {
       const crit = s.criticals[0], rr = makeRng((seed ^ 0x5EE9A12 ^ Math.imul(clock.turn, 0x85ebca6b) ^ hashId(s.id)) >>> 0), d = rr.d6();
       if (critRepairs(d, crit.repairAttempts)) { s.criticals = s.criticals.slice(1); s.model = null; skLog.push({ kind: 'critRepair', ship: s.id, type: crit.type, roll: d, repaired: true }); }
       else { crit.repairAttempts = (crit.repairAttempts || 0) + 1; skLog.push({ kind: 'critRepair', ship: s.id, type: crit.type, roll: d, repaired: false }); }
+    }
+    if (s.edr > 0 && !hasCrit(s.criticals, 'labs')) {   // D14 emergency damage repair (Final Activity Phase): one 1d6 per powered lab, ≤ DC rating repairs a box, up to the rating (D14.13/24)
+      const famOf = id => { for (const g of (s._ver.groups || [])) if ((g.boxIds || []).includes(id)) return g.family; return null; };
+      const dcBoxes = (s._ver.groups || []).filter(g => g.family === 'damage-control').flatMap(g => g.boxIds || []);
+      const dead = Object.keys(s.status).filter(id => !dcBoxes.includes(id) && famOf(id) !== 'excess-damage');   // repairable system boxes
+      const markable = dcBoxes.find(id => !s.status[id]);                                        // D14.11: sacrifice one DC box to power EDR
+      const rating = Math.min(4, dcBoxes.filter(id => !s.status[id]).length);                    // DC rating (proxy; exact per-ship rating from verified.json = refinement)
+      if (dead.length && markable && rating > 0) {
+        s.status[markable] = 'destroyed';
+        const er = makeRng((seed ^ 0x0ED12A4 ^ Math.imul(clock.turn, 0x27d4eb2f) ^ hashId(s.id)) >>> 0);
+        let fixed = 0;
+        for (let i = 0; i < s.edr && fixed < rating && dead.length; i++) if (er.d6() <= rating) { delete s.status[dead.shift()]; fixed++; }
+        if (fixed) s.model = null;
+        skLog.push({ kind: 'edr', ship: s.id, repaired: fixed, rating });
+      }
     }
   }
   pruneUnavailable(); render(); if (skLog.length) renderLog({ log: skLog }, true); save(null, wrapped ? { step: true, phase: 'energy' } : { step: true });   // movement syncs to all commanders
@@ -1395,6 +1410,7 @@ async function resolveEnergy(allEaf) {                        // fold each locke
     s.ecmLevel = ts.ecmLevel; s.eccmLevel = ts.eccmLevel; s.queuedTurn = 0; s.fcPassive = !!col.fcPassive;   // D19: voluntary passive-fire-control choice for the turn
     s.em = !!col.em && !hasCrit(s.criticals, 'maneuver');   // C10: erratic maneuvers for the turn; a maneuver crit forbids EM (D8.2 #11)
     s.tractorPower = Math.floor(col.tractor || 0);   // G7.15: whole points allocated to tractor beams this turn
+    s.edr = hasCrit(s.criticals, 'labs') ? 0 : Math.floor(col.edr || 0);   // D14: powered labs for emergency damage repair (labs crit → none)
     // movement: the plotted speed schedule (base + mid-turn changes) drives execution; no plot → constant speed
     s.speedPlot = s.speedPlot ? { base: s.speedPlot.base, changes: s.speedPlot.changes } : { base: ts.speed, changes: [] };
     s.speed = speedAt(s.speedPlot, 1); s.hexesSinceTurn = turnModeOf(s); s._autoIdx = 0;   // autopilot restarts each turn
@@ -1419,7 +1435,7 @@ const serializeShip = s => ({
   map: { q: s.q, r: s.r, facing: s.facing, speed: s.speed, hexesSinceTurn: s.hexesSinceTurn, queuedTurn: s.queuedTurn, turnMode: turnModeOf(s) },
   status: { destroyed: Object.keys(s.status), shields: shieldsNow(s) },
   criticals: s.criticals || [], critRolledTurn: s._critRolledTurn ?? -1,   // D8 active critical hits + one-roll-per-turn guard
-  tractorPower: s.tractorPower || 0,   // G7.15: tractor points allocated this turn
+  tractorPower: s.tractorPower || 0, edr: s.edr || 0,   // G7.15 tractor points + D14 EDR labs allocated this turn
   armed: s.armed || {}, armProgress: s.armProgress || {}, capacitor: s.capacitor ?? 0, batteryCharge: s.batteryCharge, reserveWarp: s.reserveWarp || 0, addAmmo: s.addAmmo, addMag: s.addMag, reinforce: s.reinforce || null,   // folded energy-allocation + ammo state
   course: s.course || null, speedPlot: s.speedPlot || null, autopilot: !!s.autopilot,   // tactical course plot
   weapons: Object.fromEntries(s.mounts.map(m => [m.id, { cls: m.cls, arc: (m.arc.arcs || []), charged: isCharged(s, m.id, m.cls), firedAt: s.firedAt[m.id] || null }])),
@@ -1697,6 +1713,8 @@ function renderLog(res, append) {
     ? `<div class="vol"><span style="color:#dc2626;font-weight:700">💥 CRITICAL</span> ${l.ship} shield #${l.shield}: 2d6=${l.roll} → ${l.type ? CRIT_INFO[l.type].label + ' disabled' : 'no critical hit'}</div>`
     : l.kind === 'critRepair'
     ? `<div class="vol">🔧 ${l.ship} repair ${CRIT_INFO[l.type].label}: d6=${l.roll} → ${l.repaired ? '<span style="color:#16a34a;font-weight:700">repaired</span>' : 'still disabled'}</div>`
+    : l.kind === 'edr'
+    ? `<div class="vol">🛠 ${l.ship} emergency damage repair (D14): <span style="color:#16a34a;font-weight:700">${l.repaired}</span> box${l.repaired !== 1 ? 'es' : ''} restored (rating ${l.rating})</div>`
     : l.kind === 'death'
     ? `<div class="vol"><span class="kill">☠ ${l.ship} destroyed</span></div>`
     : `<div class="vol">${l.target} shield #${l.shield}: ${l.points} pts → ${l.effects.filter(e => e.type === 'destroy').length} internal${l.effects.some(e => e.type === 'critical') ? ` <span style="color:#dc2626;font-weight:700">💥 ${l.effects.filter(e => e.type === 'critical').length} crit</span>` : ''}${l.effects.some(e => e.type === 'shipDestroyed') ? ' <span class="kill">◈ DESTROYED</span>' : ''}</div>`);
