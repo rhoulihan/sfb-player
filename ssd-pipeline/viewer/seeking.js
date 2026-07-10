@@ -75,18 +75,27 @@ export function seekerExpired(seeker) {
 export const PD_RANGE = 3;   // point-defense only engages seekers this close
 
 // F3.21 control channels: a ship guides seeking weapons up to its sensor rating; one NOT armed with drones or
-// plasma controls only half (rounded up, F3.211). Drones, plasma, pseudo-plasma, scatter-packs, and suicide
-// shuttles all count against the limit.
+// plasma controls only half (rounded up, F3.211). Drones, plasma, pseudo-plasma, scatter-packs (released as drones),
+// and suicide shuttles all count against the limit. CONTROLLED_TYPES lists the seeker types that ride a control
+// channel (used for the ballistic-when-uncontrolled check); the finer count is isControlledSeeker below.
 export const CONTROLLED_TYPES = new Set(['drone', 'plasma', 'shuttle']);
 export function controlLimit(sensorRating, seekingArmed) {
   return seekingArmed ? sensorRating : Math.ceil(sensorRating / 2);
 }
+// F3.224: administrative, minesweeping, and other non-combat shuttles do NOT count against the control limit — only
+// combat (suicide) shuttles do. A shuttle seeker is a suicide shuttle when it carries sub:'suicide' (or a warhead).
+export function isControlledSeeker(sk) {
+  if (!sk) return false;
+  if (sk.type === 'drone' || sk.type === 'plasma') return true;
+  if (sk.type === 'shuttle') return sk.sub === 'suicide' || (sk.warhead || 0) > 0;
+  return false;
+}
 export function controlledCount(seekers, ownerId) {
-  return (seekers || []).filter(sk => sk.owner === ownerId && CONTROLLED_TYPES.has(sk.type)).length;
+  return (seekers || []).filter(sk => sk.owner === ownerId && isControlledSeeker(sk)).length;
 }
 
 // A suicide shuttle (C6/J) — a slow, cheap homing seeker a ship launches at a target.
-export const SUICIDE_SHUTTLE = { type: 'shuttle', speed: 8, warhead: 12, fade: 0, endurance: 40 };
+export const SUICIDE_SHUTTLE = { type: 'shuttle', sub: 'suicide', speed: 8, warhead: 12, fade: 0, endurance: 40 };   // sub:'suicide' marks it a controlled combat seeker (F3.21), distinct from an admin shuttle (F3.224)
 // An admin shuttle (C6) — a non-combat shuttle: it moves like a shuttle but carries no warhead.
 export const ADMIN_SHUTTLE = { type: 'shuttle', speed: 8, warhead: 0, fade: 0, endurance: 40 };
 // A scatter-pack (C6) is a shuttle that releases a burst of drones.

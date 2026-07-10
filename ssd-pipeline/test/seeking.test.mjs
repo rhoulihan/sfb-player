@@ -114,10 +114,18 @@ test('control channels: seeking-armed ships guide their sensor rating; others ha
   assert.equal(controlLimit(5, false), 3, 'half of 5 rounds up to 3');
   assert.equal(controlLimit(8, true), 8);
 });
-test('controlledCount tallies a ship\'s guided seekers — drones/plasma/shuttles, not mines', () => {
+test('controlledCount tallies a ship\'s guided seekers — drones/plasma/suicide shuttles, not mines', () => {
   const sk = [{ owner: 'F1', type: 'drone' }, { owner: 'F1', type: 'plasma' }, { owner: 'F1', type: 'mine' }, { owner: 'E1', type: 'drone' }];
   assert.equal(controlledCount(sk, 'F1'), 2);
   assert.equal(controlledCount(sk, 'E1'), 1);
+});
+test('F3.224: an administrative (non-combat) shuttle does NOT count against the control-channel limit, but a suicide shuttle does', () => {
+  const sk = [
+    { owner: 'F1', type: 'drone' },
+    { owner: 'F1', type: 'shuttle', sub: 'suicide' },   // combat seeking weapon → counts (F3.21)
+    { owner: 'F1', type: 'shuttle' },                    // admin shuttle (no sub) → does NOT count (F3.224)
+  ];
+  assert.equal(controlledCount(sk, 'F1'), 2, 'drone + suicide shuttle count; the admin shuttle does not');
 });
 
 import { pointDefense, PD_RANGE } from '../viewer/seeking.js';

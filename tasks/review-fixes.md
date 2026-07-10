@@ -103,7 +103,7 @@ Source: `docs/adversarial-review.md` (96 confirmed findings). Strict TDD, one cl
 - [x] 🟠 **F2.121 / F2.14** `ssd-pipeline/viewer/seeking.js:10` — Homing snaps the seeker's facing to any of six directions in a single impulse, ignoring its Turn Mode of 1 and the no-reverse rule.
 - [x] 🟠 **F3.31 / F3.32** `ssd-pipeline/viewer/seeking.js:70` — Only control-channel count (condition 6) is enforced; the fire-control, lock-on, and 35-hex range conditions for guiding seekers, and their loss effects, are absent.
 - [x] 🟡 **FD2.1** `ssd-pipeline/viewer/drone-inventory.js:8` — Type-VI drone warhead is coded as 6 but the Drone Type Chart gives 8.
-- [ ] 🟡 **F3.21 / F3.224** `ssd-pipeline/viewer/seeking.js:69` — controlledCount treats every 'shuttle' token as a controlled seeking weapon, counting admin shuttles against the control-channel limit.
+- [x] 🟡 **F3.21 / F3.224** `ssd-pipeline/viewer/seeking.js:69` — controlledCount treats every 'shuttle' token as a controlled seeking weapon, counting admin shuttles against the control-channel limit.
 
 ## Remaining — damage
 
