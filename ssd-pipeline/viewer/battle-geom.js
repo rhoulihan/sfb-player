@@ -14,7 +14,7 @@ function offsetToCube(q, r) {
 
 export function hexDistance(a, b) {
   const A = offsetToCube(a.q, a.r), B = offsetToCube(b.q, b.r);
-  return Math.max(1, Math.max(Math.abs(A.x - B.x), Math.abs(A.y - B.y), Math.abs(A.z - B.z)));
+  return Math.max(Math.abs(A.x - B.x), Math.abs(A.y - B.y), Math.abs(A.z - B.z));   // C1.43: true hex range — co-located units are at range 0 (the range-0 weapon-chart column)
 }
 
 export function bearingDeg(a, b) {

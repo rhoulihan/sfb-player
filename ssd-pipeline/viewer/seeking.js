@@ -6,7 +6,7 @@ import { hexDistance } from './battle-geom.js';
 import { movesOnImpulse, neighbor } from './movement.js';
 
 // the hex facing (0..5) whose neighbor most reduces the distance to the target — free homing (seekers are nimble).
-// hexDistance floors at 1 (min weapon range), so treat the target hex itself as distance 0 to home INTO it.
+// step the seeker one hex toward the target, choosing the neighbour that minimises true hex range (0 when it reaches the target hex).
 export function bearingToward(from, to) {
   const cur = from.facing ?? 0;
   let best = cur, bestD = Infinity;
@@ -56,7 +56,7 @@ export function stepSeekerBallistic(seeker, impulse) {
 }
 
 export function seekerImpacts(seeker, target) {
-  return seeker.q === target.q && seeker.r === target.r;   // co-located = impact (hexDistance floors at 1, so compare hexes)
+  return seeker.q === target.q && seeker.r === target.r;   // co-located = impact (compare hexes directly)
 }
 
 // impact damage: a plasma torpedo delivers its aged warhead from the FP1.53 table, reduced 1 per 2 points of

@@ -8,8 +8,8 @@ test('hexCenter places odd columns half a row lower (flat-top, odd-q)', () => {
   assert.ok(hexCenter(1, 0).y > a.y, 'odd column is offset downward');
 });
 
-test('hexDistance is symmetric and at least 1', () => {
-  assert.equal(hexDistance({q:0,r:0},{q:0,r:0}), 1, 'same hex clamps to 1');
+test('hexDistance is symmetric and true (same hex = range 0, C1.43)', () => {
+  assert.equal(hexDistance({q:0,r:0},{q:0,r:0}), 0, 'co-located units are at true range 0 — the range-0 chart column is reachable');
   assert.equal(hexDistance({q:0,r:0},{q:3,r:0}), hexDistance({q:3,r:0},{q:0,r:0}));
   assert.ok(hexDistance({q:0,r:0},{q:3,r:0}) >= 3);
 });
