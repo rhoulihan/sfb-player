@@ -581,12 +581,15 @@ const netEcmOf = (fr, t) => (fr && t) ? Math.max(0,
   (t.ecmLevel || 0) + cloakEcm(t) + (t.em ? 4 : 0)                   // target ECM + cloak + its erratic maneuvers (C10.413), all offset by firer ECCM
   - (passiveFcOf(fr) ? 0 : (fr.eccmLevel || 0))                     // passive FC can't use ECCM (D19.12)
   + (fr.em ? 4 : 0)) : 0;                                           // the firer's OWN EM degrades its fire too (C10.414), not offset by ECCM
-function ensureLocks() {   // roll phase-4 locks lazily for this turn (deterministic from seed+turn so clients agree; net ECM can deny a lock)
+// D6.112: ECM/ECCM only degrade weapon EFFECT (the fire-time die shift, netEcmOf) — they cannot break a lock.
+// Only cloak (G13.301) breaks it, and ECCM cannot erode that (G13.303). Terrain would add here too (P0.0).
+const lockDenyOf = (fr, t) => (fr && t) ? cloakEcm(t) : 0;
+function ensureLocks() {   // roll phase-4 locks lazily for this turn (deterministic from seed+turn so clients agree; only cloak can deny a lock, D6.112)
   if (lockOnTurn === clock.turn) return;
   lockOn = {}; const lockRng = makeRng((seed ^ (clock.turn * 0x9e3779b9)) >>> 0);
   for (const side of ['friendly', 'enemy']) {
     const firers = ships.filter(s => s.side === side && !isDead(s)), targets = ships.filter(s => s.side !== side && !isDead(s));
-    Object.assign(lockOn, resolveLocks(firers, targets, lockRng, netEcmOf));
+    Object.assign(lockOn, resolveLocks(firers, targets, lockRng, lockDenyOf));
   }
   lockOnTurn = clock.turn;
 }

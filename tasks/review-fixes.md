@@ -23,7 +23,7 @@ Source: `docs/adversarial-review.md` (96 confirmed findings). Strict TDD, one cl
 
 - [x] 🔴 **D6.34 / D6.35** `ssd-pipeline/viewer/direct-fire.js:17` — Net ECM points are added linearly to effective range instead of being converted to the D6.34 square-root shift; EW is grossly over-scaled.
 - [x] 🔴 **D6.310 / D6.312** `ssd-pipeline/viewer/energy-model.js:72` — No combined ECM+ECCM cap — the two are each capped at 6 independently, so a ship can allocate 12 total EW instead of its sensor rating.
-- [ ] 🔴 **D6.112** `ssd-pipeline/viewer/lock-on.js:3` — ECM is used to BREAK lock-on, but the rules say EW only degrades weapon effect quality and cannot break a lock.
+- [x] 🔴 **D6.112** `ssd-pipeline/viewer/lock-on.js:3` — ECM is used to BREAK lock-on, but the rules say EW only degrades weapon effect quality and cannot break a lock.
 - [ ] 🟠 **FP1.611/D6.36** `ssd-pipeline/viewer/battle.html:1429` — Seeking weapons cannot be selected as fire targets, so the player can never direct PH-1/PH-2 at a drone or weaken an approaching plasma torpedo.
 - [ ] 🟠 **D6.35/E1.821/E1.822/D6.34** `ssd-pipeline/viewer/direct-fire.js:17` — Electronic warfare is added to the chart-reading range instead of being applied as a die-roll shift, and uses raw net-ECM strength rather than the D6.34 sqrt shift.
 - [ ] 🟠 **D6.310** `ssd-pipeline/viewer/eaf-controls.js:24` — ECM and ECCM are each capped at a hardcoded 6 independently, so combined EW can reach 12 and is not tied to the ship's actual sensor rating.

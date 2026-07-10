@@ -13,6 +13,16 @@ test('net ECM raises the bar; a high roll can miss the lock', () => {
   assert.equal(attemptLock(4, 3), false);    // 4 + 3 > 6
 });
 
+test('D6.112: ECM does not break a lock — only cloak/terrain do (lockDeny is cloak-only)', () => {
+  const firers = [{ id: 'F1' }];
+  const targets = [{ id: 'E1', cloak: 0 }, { id: 'E2', cloak: 5 }];
+  const rng = { d6: () => 6 };                       // worst possible roll
+  const lockDeny = (f, t) => t.cloak || 0;           // cloak breaks the lock; ECM must NOT (D6.112)
+  const locks = resolveLocks(firers, targets, rng, lockDeny);
+  assert.ok(locks.F1.has('E1'), 'heavily-jammed but uncloaked target is still locked (EW only degrades effect)');
+  assert.ok(!locks.F1.has('E2'), 'cloaked target denies the lock');
+});
+
 test('negative net ECM is treated as zero', () => {
   assert.equal(attemptLock(6, -4), true);
 });
