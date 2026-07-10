@@ -37,7 +37,7 @@ Source: `docs/adversarial-review.md` (96 confirmed findings). Strict TDD, one cl
 - [x] 🟠 **G13.23 / G13.232** `ssd-pipeline/viewer/battle.html:1655` — Cloak energy cost is deducted on every uncloak->cloak toggle, so decloaking and re-cloaking in the same turn charges the cost twice.
 - [x] 🟠 **G13.21 / G13.116 / G13.117 / G13.23** `ssd-pipeline/viewer/battle.html:1655` — Cloak energy is charged only once when the player manually toggles it on; there is no mandatory per-turn upkeep at Energy Allocation.
 - [x] 🟠 **G13.301 / G13.331** `ssd-pipeline/viewer/lock-on.js:7` — A fully cloaked ship can still be locked on a die roll of 1 (roll+5<=6); the rules make lock-on of a cloaked ship impossible for a non-scout ship.
-- [ ] 🟡 **G13.14 / G13.302 / G13.31** `ssd-pipeline/viewer/cloak.js:5` — Cloak is a binary flag granting the full +5 benefit instantly; the 5-impulse fade-out/fade-in phase-in is not modeled.
+- [x] 🟡 **G13.14 / G13.302 / G13.31** `ssd-pipeline/viewer/cloak.js:5` — Cloak is a binary flag granting the full +5 benefit instantly; the 5-impulse fade-out/fade-in phase-in is not modeled.
 
 ## Damage-control repair (D9)
 

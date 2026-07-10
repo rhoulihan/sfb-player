@@ -582,9 +582,12 @@ function stepSeekers(out) {   // 6A: move every seeker one impulse toward its ta
 }
 const passiveFcOf = s => !!s && (hasCrit(s.criticals, 'fireControl') || !!s.fcPassive);   // D19: a fire-control crit or the voluntary toggle puts the ship on passive fire control
 const fcReactivating = s => !!(s && s.fcReactAt) && impulsesSince(s.fcReactAt, clock.turn, clock.impulse) < 4;   // D19.26/G13.15: active FC restored (from passive OR decloak) can't fire/guide for 4 impulses, counting from when it restarted (spans the turn boundary)
+// G13.14: a just-activated cloak fades out over ~4 impulses; the no-lock / fire-penalty benefit is not in effect
+// until the fade completes, so the ship is still targetable during fade-out (a simplified phase-in of G13.31/G13.37).
+const cloakEffective = s => !!(s && s.cloaked) && (!s.cloakAt || impulsesSince(s.cloakAt, clock.turn, clock.impulse) >= 4);
 const netEcmOf = (fr, t) => {
   if (!fr || !t) return 0;
-  if (t.cloaked) return CLOAK_ECM;                                  // G13.303: firing at a cloaked ship uses the cloak shift ALONE — ECM/ECCM are ignored, so ECCM cannot erode it
+  if (cloakEffective(t)) return CLOAK_ECM;                          // G13.303: firing at a cloaked ship uses the cloak shift ALONE — ECM/ECCM are ignored, so ECCM cannot erode it
   return Math.max(0, (t.ecmLevel || 0) + (t.em ? 4 : 0)            // target ECM + its erratic maneuvers (C10.413), offset by firer ECCM
     - (passiveFcOf(fr) ? 0 : (fr.eccmLevel || 0))                   // passive FC can't use ECCM (D19.12)
     + (fr.em ? 4 : 0));                                             // the firer's OWN EM degrades its fire too (C10.414), not offset by ECCM
@@ -592,7 +595,7 @@ const netEcmOf = (fr, t) => {
 // D6.112: ECM/ECCM only degrade weapon EFFECT (the fire-time die shift, netEcmOf) — they cannot break a lock.
 // G13.301: a cloaked ship cannot be locked at all by a non-scout (no scouts in the cruiser roster) → absolute deny.
 // Terrain (P0.0) would add here too. ECCM is deliberately NOT subtracted (G13.303).
-const lockDenyOf = (fr, t) => (fr && t && t.cloaked) ? 9 : 0;
+const lockDenyOf = (fr, t) => (fr && t && cloakEffective(t)) ? 9 : 0;
 function ensureLocks() {   // roll phase-4 locks lazily for this turn (deterministic from seed+turn so clients agree; only cloak can deny a lock, D6.112)
   if (lockOnTurn === clock.turn) return;
   lockOn = {}; const lockRng = makeRng((seed ^ (clock.turn * 0x9e3779b9)) >>> 0);
@@ -1683,7 +1686,9 @@ document.getElementById('ctxMenu').addEventListener('click', e => { const it = e
         if (cost > 0 && reservePoolS(s) < cost) { alert(`Activating the cloak needs ${cost} reserve/battery power (G13.21); ${reservePoolS(s)} available.`); return; }
         if (cost > 0) { const np = spendReserve(s.reserveWarp || 0, batteryOf(s), cost, (s.reserveWarp || 0) >= batteryOf(s) ? 'warp' : 'battery'); s.reserveWarp = np.reserveWarp; s.batteryCharge = np.battery; }
         s.cloakPaidTurn = clock.turn; }
-      const wasCloaked = s.cloaked; s.cloaked = !s.cloaked; if (wasCloaked) s.fcReactAt = { turn: clock.turn, impulse: clock.impulse };   // G13.13/G13.15: decloak → fire control must reactivate (4 impulses) before firing/launching
+      const wasCloaked = s.cloaked; s.cloaked = !s.cloaked;
+      if (wasCloaked) s.fcReactAt = { turn: clock.turn, impulse: clock.impulse };   // G13.13/G13.15: decloak → fire control must reactivate (4 impulses) before firing/launching
+      else s.cloakAt = { turn: clock.turn, impulse: clock.impulse };   // G13.14: activation starts a fade-out — the targeting benefit is not yet in effect
       saveSoon(s.id); render(); } } else if (it.dataset.act === 'weasel') launchWeasel(byId(ctxShip)); else if (it.dataset.act === 'mine') layMine(byId(ctxShip), MINE); else if (it.dataset.act === 'nukemine') layMine(byId(ctxShip), NUCLEAR_MINE); else if (it.dataset.act === 'tbomb') transporterBomb(byId(ctxShip)); else if (it.dataset.act === 'admin') launchAdminShuttle(byId(ctxShip)); else if (it.dataset.act === 'raid') boardingRaid(byId(ctxShip)); else if (it.dataset.act === 'tractor') { const from = byId(ctxShip); const tgt = ships.filter(s => s.id !== ctxShip && !isDead(s)).map(s => ({ s, d: hexDistance(from, s) })).filter(x => canTractor(x.d)).sort((a, b) => a.d - b.d)[0]; if (tgt) establishTractor(from, tgt.s); else alert(`No unit within tractor range (${TRACTOR_MAX_RANGE} hexes).`); } else if (it.dataset.act === 'release') releaseTractor(byId(ctxShip)); else if (it.dataset.act === 'breaktractor') breakTractor(byId(ctxShip)); else if (it.dataset.act === 'selfdestruct') { const s = byId(ctxShip); if (s) { s.selfDestructPlot = !s.selfDestructPlot; render(); } } });
 let navSpeed = null;   // nav-hex speed-change target { shipId, idx }
 document.addEventListener('click', () => { document.getElementById('speedMenu').style.display = 'none'; });
