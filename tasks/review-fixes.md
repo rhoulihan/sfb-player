@@ -39,12 +39,12 @@ Source: `docs/adversarial-review.md` (96 confirmed findings). Strict TDD, one cl
 - [x] 🟠 **G13.301 / G13.331** `ssd-pipeline/viewer/lock-on.js:7` — A fully cloaked ship can still be locked on a die roll of 1 (roll+5<=6); the rules make lock-on of a cloaked ship impossible for a non-scout ship.
 - [x] 🟡 **G13.14 / G13.302 / G13.31** `ssd-pipeline/viewer/cloak.js:5` — Cloak is a binary flag granting the full +5 benefit instantly; the 5-impulse fade-out/fade-in phase-in is not modeled.
 
-## Damage-control repair (D9) — ⏸ DEFERRED: needs the Annex #9 Cost-of-Repair chart (ask Rick)
+## Damage-control repair (D9) — ✅ un-deferred (Annex #9 provided via SFBModuleG3)
 
-- [ ] 🔴 **D9.7 / D9.74 / D9.711** `ssd-pipeline/viewer/battle.html:804` — Continuous system-box repair uses leftover D9.2 shield energy, repairs multiple boxes/turn at flat cost 1, ignoring D9.7's separate free points, one-box-per-turn limit, and the Cost-of-Repair chart.
-- [ ] 🔴 **D9.711 / D9.72 / D9.741 / D9.76** `ssd-pipeline/viewer/battle.html:806` — Continuous Damage Repair (D9.7) repairs one system box per leftover damage-control energy point, ignoring the per-system Cost-of-Repair chart, the free-points model, the one-box-at-a-time limit, and the scenario cap.
-- [ ] 🟠 **D9.22** `ssd-pipeline/viewer/battle.html:800` — End-of-turn shield repair erases boxes knocked down THIS turn, but D9.22 forbids repairing the current turn's hits.
-- [ ] 🟠 **D9.22 / D9.73** `ssd-pipeline/viewer/battle.html:802` — Damage-control repair erases damage inflicted on the SAME turn; both shield (D9.22) and system (D9.73) repair may only touch prior-turn damage.
+- [x] 🔴 **D9.7 / D9.74 / D9.711** `ssd-pipeline/viewer/battle.html:804` — Continuous system-box repair uses leftover D9.2 shield energy, repairs multiple boxes/turn at flat cost 1, ignoring D9.7's separate free points, one-box-per-turn limit, and the Cost-of-Repair chart.
+- [x] 🔴 **D9.711 / D9.72 / D9.741 / D9.76** `ssd-pipeline/viewer/battle.html:806` — Continuous Damage Repair (D9.7) repairs one system box per leftover damage-control energy point, ignoring the per-system Cost-of-Repair chart, the free-points model, the one-box-at-a-time limit, and the scenario cap.
+- [x] 🟠 **D9.22** `ssd-pipeline/viewer/battle.html:800` — End-of-turn shield repair erases boxes knocked down THIS turn, but D9.22 forbids repairing the current turn's hits.
+- [x] 🟠 **D9.22 / D9.73** `ssd-pipeline/viewer/battle.html:802` — Damage-control repair erases damage inflicted on the SAME turn; both shield (D9.22) and system (D9.73) repair may only touch prior-turn damage.
 - [ ] 🟠 **D9.21** `ssd-pipeline/viewer/energy-model.js:79` — The damage-control energy ceiling is the count of DC boxes, not the DC rating (highest number on the track).
 
 ## Self-destruct (D5)

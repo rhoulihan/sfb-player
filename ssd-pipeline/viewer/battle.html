@@ -302,7 +302,7 @@ import { buildShipModel } from './ship-model.js';
 import { newPlan, newGroup, assignMount, unassignMount, planEligibility, mountEligibility, combinedPreview } from './fire-plan.js';
 import { resolveAttackPlan } from './direct-fire.js';
 import { makeRng } from './rng.js';
-import { repairBoxes } from './repair.js';
+import { repairBoxes, repairSystemStep, canRepairFamily } from './repair.js';   // D9.7 continuous damage repair (free points, Annex #9 costs, one box/turn)
 import { resolveLocks, applyLockGate } from './lock-on.js';
 import { launchSeeker, stepSeeker, seekerImpacts, seekerDamage, seekerExpired, plasmaSpec, pointDefense, pointDefenseHits, PD_PLASMA_DMG, PD_RANGE, controlLimit, controlledCount, SUICIDE_SHUTTLE, weaselFor, ADMIN_SHUTTLE, SCATTER_PACK } from './seeking.js';
 import { makeRack, reloadStep, loadoutSpaces, droneWarhead } from './drone-inventory.js';
@@ -828,20 +828,28 @@ function resolveSeekingImpact() { const skLog = []; stepSeekers(skLog); return s
 function resolvePostCombat(aliveBefore, skLog) {   // 6E Post-Combat Segment: announce ships lost this impulse
   for (const s of ships) if (aliveBefore.has(s.id) && isDead(s)) skLog.push({ kind: 'death', ship: s.id });
 }
-function resolveRepairStage() {   // Record Keeping (D9.21/D9.7): damage control repairs a designated shield first, then destroyed systems with any leftover
+function resolveRepairStage() {   // Record Keeping: D9.2 shield repair (allocated energy) + D9.7 continuous system repair (free points)
   for (const s of ships) {
-    let pts = Math.floor(eafDraft[s.id]?.damageControl || 0);
-    if (pts <= 0) continue;
-    const rShield = eafDraft[s.id]?.repairShield || 0;
-    if (rShield >= 1 && rShield <= 6) {   // D9.21: two units of damage-control energy erase one box of shield damage; leftover spills to system repair
-      const m = s.model || (s.model = buildShipModel(s._ver, s._det)), sh = m.shields[rShield];
-      if (sh && sh.down > 0) { const boxes = Math.min(sh.down, Math.floor(pts / 2)); sh.down -= boxes; pts -= boxes * 2; }
-    }
-    const dead = Object.keys(s.status || {}); if (pts <= 0 || !dead.length) continue;   // D9.7: repair destroyed system boxes with the remaining energy
     const famOf = id => { for (const g of (s._ver.groups || [])) if ((g.boxIds || []).includes(id)) return g.family; return null; };
-    const { repaired } = repairBoxes(dead, pts, { repairable: id => !['excess-damage', 'damage-control'].includes(famOf(id)) });
-    repaired.forEach(id => delete s.status[id]);
-    if (repaired.length) s.model = null;   // rebuild the working model so it reflects the repair (matches applyRemote)
+    // D9.2/D9.21: allocated damage-control ENERGY erases a designated shield's boxes (2 energy per box)
+    let pts = Math.floor(eafDraft[s.id]?.damageControl || 0);
+    const rShield = eafDraft[s.id]?.repairShield || 0;
+    if (pts > 0 && rShield >= 1 && rShield <= 6) {
+      const m = s.model || (s.model = buildShipModel(s._ver, s._det)), sh = m.shields[rShield];
+      const priorDown = (s._priorShieldDown && s._priorShieldDown[rShield]) || (sh ? sh.down : 0);   // D9.22: only shield boxes knocked down in a PRIOR turn are repairable
+      if (sh && sh.down > 0 && priorDown > 0) { const boxes = Math.min(sh.down, priorDown, Math.floor(pts / 2)); sh.down -= boxes; }
+    }
+    // D9.7: FREE repair points = DC rating each turn (D9.711); accumulate toward ONE destroyed box at a time
+    // (D9.74 carryover) at its Annex #9 cost; only boxes destroyed in a PRIOR turn (D9.73); a ship never repairs
+    // more boxes over a scenario than its original DC rating (D9.76).
+    const dc = powerOf(s).dcRating || 0; if (dc <= 0) continue;
+    const prior = s._priorDamage || new Set(Object.keys(s.status || {}));   // snapshot at turn start; fallback treats existing damage as prior (resume)
+    const repairable = Object.keys(s.status || {}).filter(id => prior.has(id) && canRepairFamily(famOf(id)));
+    if (!repairable.length && !(s.repairState && s.repairState.target)) continue;
+    const st = repairSystemStep(repairable, famOf, dc, s.repairState || {}, dc);   // free points = DC rating; scenario cap = DC rating
+    st.repaired.forEach(id => delete s.status[id]);
+    s.repairState = { target: st.target, progress: st.progress, repairedTotal: st.repairedTotal };
+    if (st.repaired.length) s.model = null;   // rebuild the working model so it reflects the repair
   }
 }
 function resolveFinalActivity(skLog) {   // Final Activity Phase (7): reload, non-holdable discharge, reserve→battery, D8 crit repair, D14 emergency damage repair
@@ -1630,6 +1638,8 @@ async function resolveEnergy(allEaf) {                        // fold each locke
     if (wasPassiveFC && !passiveFcOf(s)) s.fcReactAt = { turn: clock.turn, impulse: clock.impulse };   // D19.26: FC restored from passive can't fire/guide for 4 impulses
     s.em = !!col.em && !hasCrit(s.criticals, 'maneuver');   // C10: erratic maneuvers for the turn; a maneuver crit forbids EM (D8.2 #11)
     s.tractorPower = Math.floor(col.tractor || 0); s.negTractorUsed = 0;   // G7.15: whole points allocated to tractor beams this turn (negative-tractor spend resets)
+    s._priorDamage = new Set(Object.keys(s.status || {}));   // D9.73: snapshot damage present at turn start — only these boxes are repairable this turn (not damage taken during it)
+    { const m = s.model || (s.model = buildShipModel(s._ver, s._det)); s._priorShieldDown = {}; for (const n of [1, 2, 3, 4, 5, 6]) s._priorShieldDown[n] = (m.shields[n] && m.shields[n].down) || 0; }   // D9.22: shield boxes down at turn start (only these are repairable this turn)
     s.edr = hasCrit(s.criticals, 'labs') ? 0 : Math.floor(col.edr || 0);   // D14: powered labs for emergency damage repair (labs crit → none)
     // movement: the plotted speed schedule (base + mid-turn changes) drives execution; no plot → constant speed
     s.speedPlot = s.speedPlot ? { base: s.speedPlot.base, changes: s.speedPlot.changes } : { base: ts.speed, changes: [] };
