@@ -7,9 +7,11 @@ import { movesOnImpulse, neighbor } from './movement.js';
 
 // the hex facing (0..5) whose neighbor most reduces the distance to the target — free homing (seekers are nimble).
 // hexDistance floors at 1 (min weapon range), so treat the target hex itself as distance 0 to home INTO it.
-function bearingToward(from, to) {
-  let best = from.facing ?? 0, bestD = Infinity;
-  for (let f = 0; f < 6; f++) {
+export function bearingToward(from, to) {
+  const cur = from.facing ?? 0;
+  let best = cur, bestD = Infinity;
+  for (const df of [0, 1, 5]) {   // F2.121: a seeker has Turn Mode 1 — at most ONE hexside of turn per hex moved; F2.14: no reverse (df never 3)
+    const f = (cur + df) % 6;
     const n = neighbor(from.q, from.r, f);
     const d = (n.q === to.q && n.r === to.r) ? 0 : hexDistance(n, to);
     if (d < bestD) { bestD = d; best = f; }

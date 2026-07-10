@@ -1,6 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { launchSeeker, stepSeeker, seekerImpacts, seekerDamage, seekerExpired } from '../viewer/seeking.js';
+import { launchSeeker, stepSeeker, seekerImpacts, seekerDamage, seekerExpired, bearingToward } from '../viewer/seeking.js';
+import { neighbor } from '../viewer/movement.js';
+
+test('F2.121/F2.14: a seeker turns at most one hexside per hex and never reverses (Turn Mode 1)', () => {
+  const from = { q: 10, r: 10, facing: 0 };
+  // target directly behind (in the facing-3 direction): unconstrained homing would snap to facing 3
+  let behind = { q: 10, r: 10 }; for (let i = 0; i < 4; i++) behind = neighbor(behind.q, behind.r, 3);
+  const f = bearingToward(from, behind);
+  assert.ok([0, 1, 5].includes(f), `must stay within ±1 of facing 0 (got ${f}) — no 2/3/4 snap and no reverse`);
+});
 import { hexDistance } from '../viewer/battle-geom.js';
 import { movesOnImpulse } from '../viewer/movement.js';
 
