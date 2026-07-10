@@ -84,6 +84,8 @@
     <label style="font-size:12px;color:#64748b;display:flex;align-items:center;gap:4px" title="Turn-mode category from the Master Ship Chart (C3.3) — saved into verified.json">Turn cat <select id="turnCatSel" style="padding:3px;border:1px solid #cbd5e1;border-radius:6px"><option value="">–</option><option>AA</option><option>A</option><option>B</option><option>C</option><option>D</option><option>E</option></select></label>
     <label style="font-size:12px;color:#64748b;display:flex;align-items:center;gap:4px" title="Size class from the Master Ship Chart (B3.3) — saved into verified.json">Size <input id="sizeClassInp" type="number" min="1" max="6" style="width:44px;padding:3px;border:1px solid #cbd5e1;border-radius:6px"></label>
     <label style="font-size:12px;color:#64748b;display:flex;align-items:center;gap:4px" title="Cloak energy cost/turn from the SSD (G13.21), 0 if none — saved into verified.json">Cloak <input id="cloakCostInp" type="number" min="0" style="width:44px;padding:3px;border:1px solid #cbd5e1;border-radius:6px"></label>
+    <label style="font-size:12px;color:#64748b;display:flex;align-items:center;gap:4px" title="EAF layout this ship uses (shared per race) — its control positions drive the battle Energy Allocation panel">EAF <select id="eafSel" style="padding:3px;border:1px solid #cbd5e1;border-radius:6px"><option value="">–</option></select></label>
+    <button class="btn" id="eafEditBtn" title="Drag the control positions for this EAF layout">Edit EAF</button>
     <button class="btn" id="auditBtn">Audit</button>
     <button class="btn primary" id="saveBtn">Save</button>
   </header>
@@ -105,6 +107,26 @@
   </main>
 </div>
 <div class="tip" id="tip"></div>
+
+<!-- EAF layout editor modal -->
+<div class="modal" id="eafModal">
+  <div class="sheet" style="max-width:1120px;width:96vw">
+    <h2>⬛ EAF Layout — <span id="eafTitle"></span> <span class="sp" style="flex:1"></span>
+      <label style="margin:0;font-size:12px">Art <select id="eafArtSel" style="padding:3px;border:1px solid var(--border);border-radius:6px"></select></label>
+      <button class="btn" id="eafAddBay">＋ Bay slot</button>
+      <button class="btn" id="eafDelBay">− Bay slot</button></h2>
+    <div class="body" style="flex-direction:column;gap:8px;align-items:stretch">
+      <div id="eafValid" style="font-size:12px;line-height:1.5"></div>
+      <div id="eafArtWrap" style="position:relative;width:100%;background:#0b1220;border-radius:8px;overflow:hidden;user-select:none">
+        <img id="eafArtImg" style="width:100%;display:block" alt="EAF"/>
+      </div>
+    </div>
+    <div class="foot">
+      <span class="hint" id="eafHint">Drag each control onto its slot. Positions save as % of the art and drive the battle EA panel.</span>
+      <span><button class="btn" id="eafCancel">Close</button> <button class="btn primary" id="eafSaveBtn">Save layout</button></span>
+    </div>
+  </div>
+</div>
 
 <!-- Firing-arc editor modal -->
 <div class="modal" id="arcModal">
@@ -480,7 +502,69 @@ const turnCatSel=document.getElementById("turnCatSel"),sizeClassInp=document.get
 turnCatSel.onchange=()=>{ if(turnCatSel.value) stats.turnCategory=turnCatSel.value; else delete stats.turnCategory; };
 sizeClassInp.onchange=()=>{ const v=+sizeClassInp.value; if(v) stats.sizeClass=v; else delete stats.sizeClass; };
 cloakCostInp.onchange=()=>{ const v=+cloakCostInp.value; if(v) stats.cloakCost=v; else delete stats.cloakCost; };
-function syncStatsUI(){ turnCatSel.value=stats.turnCategory||""; sizeClassInp.value=stats.sizeClass||""; cloakCostInp.value=stats.cloakCost||""; }
+function syncStatsUI(){ turnCatSel.value=stats.turnCategory||""; sizeClassInp.value=stats.sizeClass||""; cloakCostInp.value=stats.cloakCost||""; if(eafSel) eafSel.value=stats.eafLayout||""; }
+
+// ---------- EAF layout editor ----------
+// A ship's verified.json names an EAF layout (stats.eafLayout); layouts are shared per race and hold the
+// control positions (% of the art) that drive the battle Energy Allocation panel. This editor drags them.
+const EAF_ARTS=["FedBatt_EAF","Fed_EAF","Klingon_EAF","newKlingon_EAF"];
+const eafSel=document.getElementById("eafSel"), eafArtSel=document.getElementById("eafArtSel");
+let eafLayouts=[], editLayout=null;
+async function loadEafLayouts(){ try{ const j=await(await fetch("/api/eaf-layouts")).json(); eafLayouts=j.layouts||[]; }catch{ eafLayouts=[]; }
+  eafSel.innerHTML=`<option value="">–</option>`+eafLayouts.map(l=>`<option value="${l.id}">${l.name||l.id}</option>`).join("")+`<option value="__new">＋ New layout…</option>`;
+  eafArtSel.innerHTML=EAF_ARTS.map(a=>`<option>${a}</option>`).join("");
+  eafSel.value=stats.eafLayout||""; }
+eafSel.onchange=async()=>{ if(eafSel.value==="__new"){ const nm=prompt("New EAF layout name (e.g. Romulan):"); if(!nm){ eafSel.value=stats.eafLayout||""; return; }
+    const id=nm.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,""); const seed=eafLayouts.find(l=>l.id===(stats.eafLayout||"fed"))||eafLayouts[0];
+    editLayout=JSON.parse(JSON.stringify(seed||{shields:{},bays:[],systems:{}})); editLayout.id=id; editLayout.name=nm; await saveEafLayout(); await loadEafLayouts(); stats.eafLayout=id; eafSel.value=id; return; }
+  stats.eafLayout=eafSel.value||undefined; };
+const eafGet=(L,p)=>{const a=p.split(".");let o=L;for(let i=0;i<a.length-1;i++)o=o&&o[a[i]];return o?o[a[a.length-1]]:undefined;};
+const eafSet=(L,p,v)=>{const a=p.split(".");let o=L;for(let i=0;i<a.length-1;i++)o=o[a[i]]||(o[a[i]]={});o[a[a.length-1]]=v;};
+function eafMarkers(L){ const m=[]; for(let n=1;n<=6;n++)m.push({label:"S"+n,path:"shields."+n}); m.push({label:"ACT",path:"activate"});
+  (L.bays||[]).forEach((_,i)=>m.push({label:"B"+(i+1),path:"bays."+i}));
+  m.push({label:"SPD",path:"move"},{label:"RES",path:"reserve"},{label:"EM",path:"em"},{label:"FC",path:"fcMode"},{label:"EDR",path:"edr"},
+    {label:"BATT",path:"systems.labs"},{label:"TRAC",path:"systems.tractor"},{label:"TRNS",path:"systems.transporter"},{label:"DC",path:"systems.damageControl"},{label:"EW",path:"systems.ew"}); return m; }
+async function openEafEditor(){ if(!stats.eafLayout){ alert("Assign an EAF layout for this ship first (the EAF selector), or pick ＋ New layout…"); return; }
+  let L=eafLayouts.find(l=>l.id===stats.eafLayout); if(!L){ try{ L=await(await fetch(`/api/eaf-layout/${stats.eafLayout}`)).json(); }catch{} }
+  if(!L||L.error){ alert("Layout not found."); return; }
+  editLayout=JSON.parse(JSON.stringify(L)); if(!editLayout.bays)editLayout.bays=[]; if(!editLayout.systems)editLayout.systems={}; if(!editLayout.shields)editLayout.shields={};
+  document.getElementById("eafTitle").textContent=`${editLayout.name||editLayout.id} · ${ship}`;
+  document.getElementById("eafModal").classList.add("open"); renderEafEditor(); }
+function renderEafEditor(){ const wrap=document.getElementById("eafArtWrap"); [...wrap.querySelectorAll(".eafmk")].forEach(e=>e.remove());
+  const L=editLayout; document.getElementById("eafArtImg").src=`assets/${L.art}.png`; eafArtSel.value=L.art;
+  for(const mk of eafMarkers(L)){ const xy=eafGet(L,mk.path); if(!xy)continue; const d=document.createElement("div"); d.className="eafmk"; d.textContent=mk.label;
+    d.style.cssText=`position:absolute;left:${xy[0]}%;top:${xy[1]}%;transform:translate(-50%,-50%);background:rgba(37,99,235,.88);color:#fff;font:700 10px/1 sans-serif;padding:3px 5px;border-radius:4px;cursor:grab;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,.5);z-index:2`;
+    d.onmousedown=e=>eafDrag(e,mk,d); wrap.appendChild(d); }
+  renderEafValid(); }
+function eafDrag(e,mk,d){ e.preventDefault(); const wrap=document.getElementById("eafArtWrap"),rect=wrap.getBoundingClientRect(); d.style.cursor="grabbing";
+  const move=ev=>{ const x=Math.max(0,Math.min(100,(ev.clientX-rect.left)/rect.width*100)), y=Math.max(0,Math.min(100,(ev.clientY-rect.top)/rect.height*100));
+    eafSet(editLayout,mk.path,[+x.toFixed(1),+y.toFixed(1)]); d.style.left=x+"%"; d.style.top=y+"%"; };
+  const up=()=>{ d.style.cursor="grab"; document.removeEventListener("mousemove",move); document.removeEventListener("mouseup",up); };
+  document.addEventListener("mousemove",move); document.addEventListener("mouseup",up); }
+function renderEafValid(){ const L=editLayout, fams={}; for(const g of groups)fams[g.family]=(fams[g.family]||0)+1;
+  const heavyW=groups.filter(g=>g.family==="heavy-weapon").reduce((n,g)=>n+(g.boxIds||[]).length,0), needBays=1+heavyW+2;   // phaser capacitor + one bay per heavy weapon + fire control + gen reinf
+  const has=p=>!!eafGet(L,p), req=[];
+  for(let n=1;n<=6;n++)req.push({name:"Shield "+n,ok:has("shields."+n)});
+  req.push({name:"SHIELDS toggle",ok:has("activate")},{name:"SPEED",ok:has("move")},{name:"RESERVE",ok:has("reserve")},
+    {name:`Bay slots ≥ ${needBays}`,ok:(L.bays||[]).length>=needBays},
+    {name:"Batteries",ok:has("systems.labs")},{name:"Damage Control",ok:has("systems.damageControl")},{name:"EW",ok:has("systems.ew")},
+    {name:"ERRATIC",ok:has("em")},{name:"FC PASSIVE",ok:has("fcMode")});
+  if(fams["tractor"])req.push({name:"Tractor",ok:has("systems.tractor")});
+  if(fams["transporter"])req.push({name:"Transporter",ok:has("systems.transporter")});
+  if(fams["lab"])req.push({name:"EDR",ok:has("edr")});
+  const missing=req.filter(r=>!r.ok);
+  document.getElementById("eafValid").innerHTML=missing.length
+    ? `<b style="color:#dc2626">⚠ ${missing.length} required control(s) not placed:</b> ${missing.map(r=>r.name).join(", ")}`
+    : `<b style="color:#16a34a">✓ All required controls placed for ${ship}.</b>`; }
+async function saveEafLayout(){ if(!editLayout)return; try{ await fetch(`/api/eaf-layout/${editLayout.id}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(editLayout)}); }catch{} }
+document.getElementById("eafEditBtn").onclick=openEafEditor;
+document.getElementById("eafCancel").onclick=()=>document.getElementById("eafModal").classList.remove("open");
+document.getElementById("eafAddBay").onclick=()=>{ editLayout.bays=editLayout.bays||[]; editLayout.bays.push([50,50]); renderEafEditor(); };
+document.getElementById("eafDelBay").onclick=()=>{ if((editLayout.bays||[]).length){ editLayout.bays.pop(); renderEafEditor(); } };
+eafArtSel.onchange=()=>{ editLayout.art=eafArtSel.value; renderEafEditor(); };
+document.getElementById("eafSaveBtn").onclick=async()=>{ await saveEafLayout(); const l=eafLayouts.find(x=>x.id===editLayout.id); if(l)Object.assign(l,editLayout); else eafLayouts.push(editLayout);
+  const b=document.getElementById("eafSaveBtn"); b.textContent="Saved ✓"; setTimeout(()=>b.textContent="Save layout",1400); };
+loadEafLayouts();
 document.getElementById("modes").querySelectorAll("button").forEach(b=>b.onclick=()=>{mode=b.dataset.m;document.querySelectorAll("#modes button").forEach(x=>x.classList.toggle("on",x===b));sel=new Set();document.getElementById("ovl").style.cursor=mode==="select"?"default":"crosshair";renderAll();});
 document.getElementById("ovlOp").oninput=e=>{overlayOpacity=e.target.value/100;renderOverlay();};
 document.getElementById("uniCells").onchange=e=>{uniformCells=e.target.checked;renderOverlay();};
