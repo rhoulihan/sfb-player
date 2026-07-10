@@ -81,13 +81,13 @@ Source: `docs/adversarial-review.md` (96 confirmed findings). Strict TDD, one cl
 - [ ] 🟠 **E4.44 / E4.413** `ssd-pipeline/viewer/energy-model.js:124` — Holding a fully-armed OVERLOADED photon is charged 1 energy/turn instead of the required 2.
 - [ ] 🟠 **E4.411 / E4.412** `ssd-pipeline/viewer/energy-model.js:124` — A fully-armed photon that is being held cannot be overloaded on a later turn, though the rules explicitly allow it.
 - [ ] 🟠 **E4.23** `ssd-pipeline/viewer/energy-model.js:135` — Photon arming/overload energy is not restricted to warp power sources as E4.23 requires.
-- [ ] 🟠 **E4.431 / E4.413** `ssd-pipeline/viewer/weapon-charts.js:126` — Full-overload photon feedback damage is set to 2, but the code applies the full warhead-16 overload, whose E4.413 feedback is 4.
+- [x] 🟠 **E4.431 / E4.413** `ssd-pipeline/viewer/weapon-charts.js:126` — Full-overload photon feedback damage is set to 2, but the code applies the full warhead-16 overload, whose E4.413 feedback is 4.
 
 ## Remaining — directfire
 
-- [ ] 🟠 **E4.413/E4.431** `ssd-pipeline/viewer/weapon-charts.js:126` — Overloaded-photon feedback is hardcoded to 2, but the 16-point warhead the code fires does 4 feedback per the E4.413 ladder.
-- [ ] 🟠 **E4.32** `ssd-pipeline/viewer/weapon-charts.js:147` — Proximity-photon automatic-miss-under-9 test uses effective range, but E4.32 specifies true range.
-- [ ] 🟠 **E3.33** `ssd-pipeline/viewer/weapon-charts.js:166` — Disruptor damage is read at the effective (EW/passive-adjusted) range instead of the true range.
+- [x] 🟠 **E4.413/E4.431** `ssd-pipeline/viewer/weapon-charts.js:126` — Overloaded-photon feedback is hardcoded to 2, but the 16-point warhead the code fires does 4 feedback per the E4.413 ladder.
+- [x] 🟠 **E4.32** `ssd-pipeline/viewer/weapon-charts.js:147` — Proximity-photon automatic-miss-under-9 test uses effective range, but E4.32 specifies true range.
+- [x] 🟠 **E3.33** `ssd-pipeline/viewer/weapon-charts.js:166` — Disruptor damage is read at the effective (EW/passive-adjusted) range instead of the true range.
 - [ ] 🟡 **E4.43** `ssd-pipeline/viewer/fire-plan.js:13` — mountEligibility blocks a photon at true range 1 (min-range gate, no overload awareness), so the only representable point-blank overload shot can never be assigned.
 
 ## Remaining — movement

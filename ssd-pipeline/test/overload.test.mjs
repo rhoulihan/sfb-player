@@ -24,7 +24,7 @@ test('overloaded photon may fire at range 0-1 on a die of 1-6 (E4.43), with feed
   assert.equal(damageFor(WEAPONS.PHOTON, 1, 1, 'overload'), 16, 'R1 overload hits on 1');
   assert.equal(damageFor(WEAPONS.PHOTON, 1, 6, 'overload'), 16, 'R1 overload hits even on 6 (1-6)');
   assert.equal(damageFor(WEAPONS.PHOTON, 1, HIT), 0, 'a NORMAL photon still cannot fire below min range 2');
-  assert.equal(feedbackFor(WEAPONS.PHOTON, 1, 1, 'overload', true), 2, 'a point-blank overload HIT feeds 2 back to the firer (E4.431)');
+  assert.equal(feedbackFor(WEAPONS.PHOTON, 1, 1, 'overload', true), 4, 'a point-blank overload HIT feeds the warhead-16 photon feedback value back to the firer (E4.413/E4.431)');
   assert.equal(feedbackFor(WEAPONS.PHOTON, 1, 1, 'overload', false), 0, 'a miss produces no feedback (D6.1264)');
   assert.equal(feedbackFor(WEAPONS.PHOTON, 3, 1, 'overload', true), 0, 'no feedback beyond range 1');
 });

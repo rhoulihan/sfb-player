@@ -124,7 +124,7 @@ export const WEAPONS = {
       [1, 1]
     ],
     "fixedDamage": [0, 8, 8, 8, 8, 8],
-    "overload": { "maxRange": 8, "fixedDamage": 16, "feedbackRange": 1, "feedback": 2 },
+    "overload": { "maxRange": 8, "fixedDamage": 16, "feedbackRange": 1, "feedback": 4 },
     "proximity": { "minRange": 9, "maxRange": 30, "fixedDamage": 4, "dieBonus": 2 }
   }
 };
@@ -158,12 +158,12 @@ export function damageFor(def, range, die, mode = false, trueRange = range, dieS
   if (ov) {
     const od = def.overload;
     if (trueRange > od.maxRange) return 0;   // E3.53/E4.42: overload's 8-hex cap is on TRUE range, not effective range
-    if (trueRange <= (od.feedbackRange ?? -1)) return (shiftedDie(die, dieShift) <= 6) ? overloadDmg(def, range) : 0;   // R0-1 overload hits 1-6 (E4.43)
+    if (trueRange <= (od.feedbackRange ?? -1)) return (shiftedDie(die, dieShift) <= 6) ? overloadDmg(def, trueRange) : 0;   // R0-1 overload hits 1-6 (E4.43); E3.33 damage at true range
     if (def.minRange && trueRange < def.minRange) return 0;   // otherwise the normal minimum range still applies
     const bi = bandIndex(def, range); if (bi < 0) return 0;
     const hb = def.hitBand1d[bi]; if (!hb) return 0;
     const sd = shiftedDie(die, dieShift);
-    return (sd >= hb[0] && sd <= hb[1]) ? overloadDmg(def, range) : 0;
+    return (sd >= hb[0] && sd <= hb[1]) ? overloadDmg(def, trueRange) : 0;   // E3.33: overload damage points use true range
   }
   if (def.minRange && trueRange < def.minRange) return 0;
   if (trueRange > def.maxRange) return 0;
@@ -171,7 +171,8 @@ export function damageFor(def, range, die, mode = false, trueRange = range, dieS
   if (def.resolution === 'range-of-effect') { const r = shiftRangeOfEffect(die, bi, dieShift); return def.effectGrid[r.die - 1]?.[r.col] ?? 0; }   // E1.822 phaser: raise die to 6, then one column higher per remaining shift
   const hb = def.hitBand1d[bi]; if (!hb) return 0;
   const sd = shiftedDie(die, dieShift);
-  return (sd >= hb[0] && sd <= hb[1]) ? def.fixedDamage[bi] : 0;
+  const dbi = bandIndex(def, trueRange);   // E3.33: hit probability uses effective range, damage points use true range
+  return (sd >= hb[0] && sd <= hb[1]) ? (def.fixedDamage[dbi >= 0 ? dbi : bi] || 0) : 0;
 }
 
 // Feedback damage (E4.431 photon, E3.54 disruptor): a point-blank overloaded bolt that HITS scores damage on

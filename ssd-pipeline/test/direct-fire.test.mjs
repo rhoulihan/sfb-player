@@ -26,7 +26,7 @@ test('overloaded photon at range 1 that hits feeds 2 points back to the firer (E
   const fb = res.volleys.find(v => v.feedback);
   assert.ok(fb, 'a feedback volley is produced');
   assert.equal(fb.targetShipId, 'F1', 'feedback strikes the firer, not the target');
-  assert.equal(fb.points, 2, 'feedback is 2 points (E4.431)');
+  assert.equal(fb.points, 4, 'feedback is the warhead-16 photon feedback value (E4.413/E4.431)');
 });
 
 test('resolveMount at long range beyond a phaser table returns 0 points', () => {
