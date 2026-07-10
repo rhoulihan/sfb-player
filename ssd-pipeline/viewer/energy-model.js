@@ -148,6 +148,16 @@ export function validateEaf(power, column, carried = 0, batteryCharge = power.ba
   if (column.lifeSupport !== lifeSupportCost(power)) errors.push('life support must equal the mandatory cost');
   if (column.phaserCap + carried > power.capacitorCap) errors.push('phaser capacitor over capacity');
   if (column.impulseMove > 1) errors.push('at most 1 impulse point may go to movement');
+  // C2.112: at most 30 movement points come from the warp engines; C2.111: the 31st (and only the 31st) may come from
+  // the impulse engines. column.movement is the total movement allocation, so the warp share is the first 30 points and
+  // any overflow is the single impulse point. C2.11 (movement is warp/impulse only, never APR/battery) then follows from
+  // gating that warp share against warp output below.
+  const warpMove = Math.min(column.movement || 0, 30 * power.moveCost);
+  if ((column.movement || 0) > 31 * power.moveCost) errors.push('movement exceeds the 31-point practical-speed maximum (C2.411)');
+  // H7.41/H7.42: warp output cannot be double-committed. Warp-specific allocations (warp movement + reserve warp + HET,
+  // all drawn from the warp engines) together may not exceed the warp engine output.
+  const warpDemand = warpMove + (column.reserveWarp || 0) + (column.het ? HET_COST : 0);
+  if (warpDemand > power.warp) errors.push('warp allocations exceed warp engine output (C2.11/H7.41)');
   if (batteryUsed > batteryCharge) errors.push('battery draw exceeds available battery power');
   if ((column.recharge || 0) > power.batteries - batteryCharge) errors.push('recharge exceeds empty batteries');
   const status = used > produced ? 'over' : free > 0 ? 'under' : 'balanced';
@@ -168,7 +178,7 @@ export function foldEaf(power, column, carried = 0, progress = {}) {
     } else armProgress[w.id] = 0;                                                  // skipped a turn → discharged (E4.21 consecutive)
   }
   return {
-    speed: Math.min(31, Math.floor(column.movement / power.moveCost)),   // C2.411: practical speed can reach 31 (30 warp + 1 impulse)
+    speed: Math.min(31, Math.floor(column.movement / power.moveCost)),   // C2.411: practical speed maxes at 31 (30 warp + 1 impulse point)
     armed, armProgress,
     capacitor: carried + column.phaserCap,
     reinforce: { gen: Math.floor((column.genReinf || 0) / 2), spec: { ...column.specReinf } },   // D3.341: general reinforcement energy ÷2 = points (2 energy = 1 point)

@@ -136,10 +136,20 @@ test('D9.21: damage-control energy ceiling is the DC track rating, not the intac
   assert.equal(sinkMax(noRating, 'damageControl'), 5, 'rating not captured yet → fall back to intact DC box count');
 });
 
-test('C2.411/C2.112: practical speed can reach 31 (30 warp + 1 impulse), not just 30', () => {
-  const fed = load('FED-CA');   // moveCost 1
+test('C2.411/C2.112: practical speed reaches 31 (30 warp + the 1 impulse point), no warp violation', () => {
+  const fed = load('FED-CA');   // moveCost 1, warp 30
   const col = { ...newEafColumn(fed, 0), movement: 31 };
-  assert.equal(foldEaf(fed, col, 0, {}).speed, 31, 'folded speed reaches the 31 practical-speed maximum (C2.411)');
+  assert.equal(foldEaf(fed, col, 0, {}).speed, 31, 'movement 31 folds to practical speed 31 (C2.411)');
+  assert.ok(!validateEaf(fed, col).errors.some(e => /warp allocations exceed/i.test(e)), 'the warp share caps at 30, the 31st is the impulse point → legal');
+  assert.ok(validateEaf(fed, { ...col, movement: 32 }).errors.some(e => /31-point/i.test(e)), 'movement 32 exceeds the practical-speed maximum');
+});
+
+test('C2.112 / H7.41: warp funds ≤30 movement points and cannot be double-committed to reserve', () => {
+  const fed = load('FED-CA');   // warp 30, moveCost 1
+  const col = newEafColumn(fed, 0);
+  assert.ok(!validateEaf(fed, { ...col, movement: 20, reserveWarp: 10 }).errors.some(e => /warp allocations exceed/i.test(e)), '20 warp move + 10 reserve = 30 ≤ warp: legal');
+  assert.ok(validateEaf(fed, { ...col, movement: 30, reserveWarp: 1 }).errors.some(e => /warp allocations exceed/i.test(e)), '30 warp move consumes all warp — no output left for 1 reserve');
+  assert.ok(validateEaf(fed, { ...col, movement: 25, reserveWarp: 10 }).errors.some(e => /warp allocations exceed/i.test(e)), '25 + 10 = 35 > 30 warp: over-committed');
 });
 
 test('shipPower detects a cloaking device from the SSD (ROSTER-1: Romulan cloaks, Federation does not)', () => {
