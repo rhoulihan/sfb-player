@@ -2,6 +2,9 @@
 
 Lower-priority polish deferred from completed features. None block normal cruiser play.
 
+## Shield overlays
+- [ ] **Craft the Klingon (and future-race) shield overlays to match the art's hex shapes/positions precisely.** A basic `kliShieldSvg` is wired (green→red hex by strength + yellow reinforcement glow, like the Fed CA), but the hexagons are approximate — tune the shape/size/orientation to sit exactly on the SSD shield boxes. Ideally derive the shape from the layout, not hardcoded px.
+
 ## Pending feature (paused mid-request)
 - [ ] **Proactive reserve-power allocation during impulse play** (H7 / audit "proactive impulse allocation + queued-at-segment"). The EA panel is read-only during impulse (`if (ui.viewEA) return`). On-hit reactive reinforcement + cloak/plasma reserve use already work; what's missing is: open the EA panel during impulse → allocate reserve/battery to reserve-eligible controls (ECCM H7.33, reinforcement, capacitor E2.33), queued and applied at the appropriate segment (or immediately if current), always confirmed. `reserve-power.js` already lists the eligible systems + costs; reuse the `promptReserveReinforce` modal pattern. Paused to build the EAF layout editor.
 
