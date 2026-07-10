@@ -5,6 +5,10 @@ _Generated from a 7-domain parallel review of the implementation against the SFB
 the cruisers actually in the game (Fed CA/CL/NCL, Klingon D7, Gorn CA, Romulan King Eagle, Kzinti CS)._
 
 ## Progress log (landed since the audit)
+- ✅ **Sequence of Play compliance (B2.2)** — `battle-phase.js` `advance()` now genuinely drives the turn (was a
+  labels-only cursor over a coarse energy↔impulse fork). Pre-impulse phases run in order (speed → **self-destruct
+  Phase 3, D5.1 plotted** → **lock-on Phase 4** at its own step → initial), the 32-impulse loop rests at the 6D fire
+  gate, and Final/Record run at the wrap (also fixed a latent wrap bug). `fd88a6c`/`1f4204d`/`6cb4e73`/`e19d125`
 - ✅ **Holdability** — disruptor (E3.24) & plasma-R (FP1.311) non-holdable; discharge-if-not-fired; plasma-F `[1,1,3]`; held overload = 1/turn (E4.22). `839c7be`
 - ✅ **Reactive power foundation** — reserve warp held pool + carry to batteries (H7.36) `9e19880`; async fire resolution `7a1ffcf`; reserve-power spend/cost module `cc13aa2`.
 - ✅ **On-hit reactive shield reinforcement** — H7.134/342/344 modal (spec 1/pt, gen 2/pt, source toggle, reinforce-not-raise). `9bb07bf`
