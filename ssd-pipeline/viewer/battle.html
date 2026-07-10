@@ -499,7 +499,7 @@ const tractorBeamsOf = s => powerOf(s).systems.tractor || 0;                    
 const beamsInLockout = s => (s._tractorFreedAt || []).filter(t => impulsesSince(t, clock.turn, clock.impulse) < 8).length;   // G7.13: a beam can't be reused within 8 impulses of being released/broken
 const noteBeamFreed = s => { if (s) { s._tractorFreedAt = (s._tractorFreedAt || []).filter(t => impulsesSince(t, clock.turn, clock.impulse) < 8); s._tractorFreedAt.push({ turn: clock.turn, impulse: clock.impulse }); } };
 const tractorLinksFrom = s => tractors.filter(t => t.from === s.id);
-const tractorPowerUsed = s => tractorLinksFrom(s).reduce((n, t) => n + t.power, 0);
+const tractorPowerUsed = s => tractorLinksFrom(s).reduce((n, t) => n + (t.eaPower ?? t.power), 0);   // EA-allocated tractor power consumed (a reserve-funded portion, G7.41B, doesn't count against the EA allocation)
 const heldBy = s => tractors.find(t => t.to === s.id);                           // the link holding this ship, if any
 function establishTractor(from, target) {   // Operate Tractors Step: attach a beam to an adjacent/≤3-hex unit
   if (!from || !target || from.id === target.id) return;
@@ -511,8 +511,11 @@ function establishTractor(from, target) {   // Operate Tractors Step: attach a b
   if (!canTractor(range)) { alert(`Target beyond tractor range (${TRACTOR_MAX_RANGE} hexes max, G7.6).`); return; }
   if (tractors.some(t => t.from === from.id && t.to === target.id)) return;      // already linked
   const cost = tractorCost(range);
-  if (tractorPowerUsed(from) + cost > (from.tractorPower || 0)) { alert(`Not enough tractor power — this link needs ${cost} (allocate it in the EA form, G7.15).`); return; }
-  tractors.push({ from: from.id, to: target.id, power: cost, effective: 1 });   // power = raw operating cost (tower's budget, G7.15); effective = holding strength (1 for a basic beam, G7.63)
+  const eaFree = Math.max(0, (from.tractorPower || 0) - tractorPowerUsed(from));   // EA-allocated tractor power still available
+  if (eaFree + reservePoolS(from) < cost) { alert(`Not enough tractor power — this link needs ${cost} (allocate it in the EA form or hold reserve power, G7.15/G7.41B).`); return; }
+  const eaPower = Math.min(cost, eaFree), fromReserve = cost - eaPower;   // G7.41B/G7.411: reserve power (H7.2) may fund the shortfall to initiate the link
+  if (fromReserve > 0) { const np = spendReserve(from.reserveWarp || 0, batteryOf(from), fromReserve, (from.reserveWarp || 0) >= batteryOf(from) ? 'warp' : 'battery'); from.reserveWarp = np.reserveWarp; from.batteryCharge = np.battery; }
+  tractors.push({ from: from.id, to: target.id, power: cost, effective: 1, eaPower });   // power = raw operating cost (tower's budget, G7.15); eaPower = the EA-funded portion; effective = holding strength (1 for a basic beam, G7.63)
   saveSoon(from.id); saveSoon(target.id); render();
 }
 function releaseTractor(from) { for (let i = tractorLinksFrom(from).length; i > 0; i--) noteBeamFreed(from); tractors = tractors.filter(t => t.from !== from.id); saveSoon(from.id); render(); }   // G7.33: release all this ship's beams (G7.13: each locked out 8 impulses)

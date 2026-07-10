@@ -128,7 +128,7 @@ Source: `docs/adversarial-review.md` (96 confirmed findings). Strict TDD, one cl
 - [ ] 🟠 **G7.124 / G7.42** `ssd-pipeline/viewer/battle.html:496` — A tractor link persists across turn boundaries for free; no new-power re-establishment / auction at start of turn.
 - [x] 🟠 **G7.92 / G7.922** `ssd-pipeline/viewer/battle.html:574` — A tractored ship still receives its full +4 Erratic-Maneuver ECM benefit, which the rules say stops while it is held.
 - [x] 🟠 **G7.941** `ssd-pipeline/viewer/battle.html:1650` — A ship held in a tractor beam can still launch shuttles, wild weasels, admin shuttles, scatter-packs and boarding raids.
-- [ ] 🟡 **G7.41B / G7.411** `ssd-pipeline/viewer/battle.html:481` — Reserve power cannot initiate or reinforce a positive tractor link; only EA-allocated tractorPower counts.
+- [x] 🟡 **G7.41B / G7.411** `ssd-pipeline/viewer/battle.html:481` — Reserve power cannot initiate or reinforce a positive tractor link; only EA-allocated tractorPower counts.
 - [x] 🟡 **G7.91** `ssd-pipeline/viewer/fire-plan.js:15` — A tractored ship is never restricted from firing direct-fire/plasma at (or tractoring) ships other than the unit holding it.
 
 ## Remaining — ew
