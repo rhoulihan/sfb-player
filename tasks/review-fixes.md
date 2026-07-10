@@ -123,8 +123,8 @@ Source: `docs/adversarial-review.md` (96 confirmed findings). Strict TDD, one cl
 
 - [x] 🟠 **G7.41A / G7.412** `ssd-pipeline/viewer/battle.html:473` — establishTractor never checks that the tractoring ship has a lock-on to the target.
 - [ ] 🟠 **G7.13** `ssd-pipeline/viewer/battle.html:485` — No once-per-turn / 8-impulse lockout after a beam is released or broken.
-- [ ] 🟠 **G7.352 / G7.63 / G7.41C** `ssd-pipeline/viewer/battle.html:488` — breakTractor demands raw allocated power (2 at R2, 3 at R3) of negative tractor instead of the 1 point that cancels one EFFECTIVE point.
-- [ ] 🟠 **G7.351 / G7.15** `ssd-pipeline/viewer/battle.html:489` — Negative tractor can only be paid from reserve/battery; EA-allocated tractor power designated as negative is unusable.
+- [x] 🟠 **G7.352 / G7.63 / G7.41C** `ssd-pipeline/viewer/battle.html:488` — breakTractor demands raw allocated power (2 at R2, 3 at R3) of negative tractor instead of the 1 point that cancels one EFFECTIVE point.
+- [x] 🟠 **G7.351 / G7.15** `ssd-pipeline/viewer/battle.html:489` — Negative tractor can only be paid from reserve/battery; EA-allocated tractor power designated as negative is unusable.
 - [ ] 🟠 **G7.124 / G7.42** `ssd-pipeline/viewer/battle.html:496` — A tractor link persists across turn boundaries for free; no new-power re-establishment / auction at start of turn.
 - [x] 🟠 **G7.92 / G7.922** `ssd-pipeline/viewer/battle.html:574` — A tractored ship still receives its full +4 Erratic-Maneuver ECM benefit, which the rules say stops while it is held.
 - [x] 🟠 **G7.941** `ssd-pipeline/viewer/battle.html:1650` — A ship held in a tractor beam can still launch shuttles, wild weasels, admin shuttles, scatter-packs and boarding raids.
