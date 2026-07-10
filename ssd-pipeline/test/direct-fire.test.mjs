@@ -29,6 +29,18 @@ test('overloaded photon at range 1 that hits feeds 2 points back to the firer (E
   assert.equal(fb.points, 4, 'feedback is the warhead-16 photon feedback value (E4.413/E4.431)');
 });
 
+test('D6.123: a no-lock shot reads the hit chart at DOUBLE true range, without the passive 5-hex cap', () => {
+  const firer = ship('F1', 0, 0, 0), target = ship('E1', 8, 0, 0);   // true range 8 (beyond the passive 5-hex limit)
+  const mount = { id: 'F1.PH-1.0', cls: 'PH-1', arc: { arcs: ['FH'] } };
+  const locked = resolveMount(firer, mount, target, () => 1, false, 0, false, false);
+  const noLock = resolveMount(firer, mount, target, () => 1, false, 0, false, true);
+  const passive = resolveMount(firer, mount, target, () => 1, false, 0, true, false);
+  assert.equal(locked.effRange, 8, 'a locked shot uses true range');
+  assert.equal(noLock.effRange, 16, 'D6.123: no lock-on reads the chart at double true range');
+  assert.equal(passive.hit, false, 'D19.23: passive FC cannot fire beyond 5 hexes true range');
+  assert.ok(noLock.effRange > passive.effRange, 'no-lock is not subject to the passive 5-hex cap — it can still fire (up to the weapon max)');
+});
+
 test('resolveMount at long range beyond a phaser table returns 0 points', () => {
   const firer = ship('F1', 0, 0, 0), target = ship('E1', 30, 0, 0);   // ~30 hexes, past PH-3 max (15)
   const mount = { id: 'F1.PH-3.0', cls: 'PH-3', arc: { arcs: ['FH'] } };

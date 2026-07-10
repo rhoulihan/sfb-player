@@ -1923,7 +1923,7 @@ fetch('weapons.html', { method: 'HEAD' }).then(r => { if (!r.ok) throw 0; }).cat
 // ---------- direct fire (6D of each impulse) — cached target models so damage accumulates across impulses ----------
 // resolve one fleet's plan into shared models/log/affected (cached models keep pre-fire shields for simultaneity)
 async function resolvePlanInto(p, models, log, affected) {
-  ensureLocks(); p = applyLockGate(p, lockOn); p = applyCloakFireGate(p, byId); p = applyLoSGate(p, byId, terrain);   // D6.1 lock; G13 cloak holds fire; P3 asteroids block LoS
+  ensureLocks(); p = applyLockGate(p, lockOn, tid => cloakEffective(byId(tid))); p = applyCloakFireGate(p, byId); p = applyLoSGate(p, byId, terrain);   // D6.1 lock (D6.123: no-lock fires at double range, but a cloaked target stays hard-blocked); G13 cloak holds fire; P3 asteroids block LoS
   p = { groups: (p.groups || []).map(g => ({ ...g, members: (g.members || []).filter(m => !hasActiveWeasel(byId(m.shipId))) })).filter(g => g.members.length) };   // J3.132: a ship protected by an active wild weasel may not fire
   p = { groups: (p.groups || []).map(g => ({ ...g, members: (g.members || []).filter(m => { const held = heldBy(byId(m.shipId)); return !held || g.targetShipId === held.from; }) })).filter(g => g.members.length) };   // G7.91: a ship held in a tractor beam may fire only at the unit holding it
   const mk = t => t.model || (t.model = buildShipModel(t._ver, t._det));

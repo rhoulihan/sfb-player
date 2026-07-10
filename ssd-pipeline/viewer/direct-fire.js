@@ -8,14 +8,16 @@ import { ewShift } from './ew.js';   // D6.34/D6.35: net ECM applies as a die-ro
 // dieFn() returns a d6 (1..6). netEcm (target ECM beyond firer ECCM, D6.3) is added to the range the weapon
 // chart is read at, so jamming lowers damage or pushes a shot out of range. Returns { hit, points,
 // struckShield, die, trueRange, effRange }.
-export function resolveMount(firer, mount, target, dieFn, mode = false, netEcm = 0, passive = false) {
+export function resolveMount(firer, mount, target, dieFn, mode = false, netEcm = 0, passive = false, noLock = false) {
   const def = WEAPONS[mount.cls];
   const trueRange = hexDistance(firer, target);
   const struckShield = exposedShield(firer, target);
   const die = dieFn();
   if (passive && trueRange > 5)                                    // D19.23: passive FC can't fire direct-fire weapons beyond 5 hexes true range
     return { hit: false, points: 0, struckShield, die, trueRange, effRange: trueRange, feedback: 0, passive: true };
-  const effRange = passive ? 2 * trueRange : trueRange;   // D19.11: passive FC has no lock-on → the hit chart is read at double true range
+  // D19.11 passive FC OR D6.123 failed lock-on: the hit chart is read at double true range. Passive additionally caps
+  // at 5 hexes true range (above); a no-lock shot has no such cap — it fires up to the weapon's own max range.
+  const effRange = (passive || noLock) ? 2 * trueRange : trueRange;
   const shift = ewShift(Math.max(0, netEcm | 0));         // D6.34/D6.35: net ECM produces a die-roll shift (E1.82), applied to the die — NOT added to the range
   const points = def ? damageFor(def, effRange, die, mode, trueRange, shift) : 0;   // mode: false | 'overload' | 'prox'
   const feedback = def ? feedbackFor(def, trueRange, die, mode, points > 0) : 0;   // point-blank overload feeds back to the firer (E4.431/E3.54)
@@ -40,7 +42,7 @@ export async function resolveAttackPlan(plan, ships, shipMounts, models, rand = 
       const firer = byId[m.shipId]; if (!firer) continue;
       for (const id of m.mountIds) {
         const mount = (shipMounts[m.shipId] || []).find(x => x.id === id); if (!mount) continue;
-        const r = resolveMount(firer, mount, target, d6, modeFn ? modeFn(m.shipId, id) : false, netEcmFn ? netEcmFn(firer, target) : 0, passiveFcFn ? passiveFcFn(firer) : false);
+        const r = resolveMount(firer, mount, target, d6, modeFn ? modeFn(m.shipId, id) : false, netEcmFn ? netEcmFn(firer, target) : 0, passiveFcFn ? passiveFcFn(firer) : false, !!m.noLock);   // m.noLock: D6.123 failed lock-on → double range
         log.push({ kind: 'shot', firer: m.shipId, mount: id, cls: mount.cls, target: g.targetShipId, ...r });
         if (r.feedback > 0) {   // E4.431/E3.54: point-blank overload damage to the FIRER's own shield facing the target
           const fbShield = exposedShield(target, firer), key = `fb:${m.shipId}|${fbShield}`;

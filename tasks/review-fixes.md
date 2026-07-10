@@ -64,7 +64,7 @@ Source: `docs/adversarial-review.md` (96 confirmed findings). Strict TDD, one cl
 
 ## Remaining — sequence
 
-- [ ] 🟠 **D6.123 / D6.1142** `ssd-pipeline/viewer/lock-on.js:24` — Failing lock-on completely blocks direct fire at that target; the rule instead DOUBLES the firing range and only blocks if the doubled range exceeds the weapon's max.
+- [x] 🟠 **D6.123 / D6.1142** `ssd-pipeline/viewer/lock-on.js:24` — Failing lock-on completely blocks direct fire at that target; the rule instead DOUBLES the firing range and only blocks if the doubled range exceeds the weapon's max.
 
 ## Remaining — energy
 

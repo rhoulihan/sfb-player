@@ -23,12 +23,22 @@ export function resolveLocks(firers, targets, rng, lockDeny = () => 0, sensorRat
   return locks;
 }
 
-// Gate a fire plan: a mount may only fire at a target its firer has a lock on (D6.1). Drops unlocked
-// members, then empty groups.
-export function applyLockGate(plan, lockOn) {
+// Gate a fire plan against lock-on (D6.1). A firer that HAS a lock fires normally. A firer that FAILED lock-on to the
+// target does NOT lose the shot — per D6.123 it fires at DOUBLE true range (tagged noLock, resolved by direct-fire),
+// and only misses if that doubled range exceeds the weapon's max. The exception is a hard-denied target (cloak/terrain
+// that cannot be locked at all): cloakedFn(targetShipId) reports those, and their unlocked members are dropped.
+export function applyLockGate(plan, lockOn, cloakedFn = null) {
   return {
     groups: (plan.groups || [])
-      .map(g => ({ ...g, members: (g.members || []).filter(m => hasLockOn(lockOn, m.shipId, g.targetShipId)) }))
+      .map(g => {
+        const hardDenied = cloakedFn ? !!cloakedFn(g.targetShipId) : false;
+        const members = (g.members || []).map(m =>
+          hasLockOn(lockOn, m.shipId, g.targetShipId) ? m
+            : hardDenied ? null                       // cloaked/terrain-obscured → cannot be forced (drop)
+            : { ...m, noLock: true }                  // D6.123: no lock-on → fire at double range
+        ).filter(Boolean);
+        return { ...g, members };
+      })
       .filter(g => g.members.length),
   };
 }

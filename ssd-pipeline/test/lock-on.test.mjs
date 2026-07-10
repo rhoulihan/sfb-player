@@ -45,9 +45,15 @@ test('heavy net ECM denies the lock', () => {
   assert.equal(locks.F1.size, 0);
 });
 
-test('applyLockGate drops fire at unlocked targets, keeps locked ones', () => {
+test('D6.123: applyLockGate keeps a locked shot at normal range, fires an unlocked (non-cloaked) shot at double range, blocks a cloaked one', () => {
   const plan = { groups: [{ id: 'A', targetShipId: 'E1', members: [{ shipId: 'F1', mountIds: ['m'] }] }] };
-  assert.equal(applyLockGate(plan, { F1: new Set(['E1']) }).groups.length, 1, 'locked → fires');
-  assert.equal(applyLockGate(plan, { F1: new Set() }).groups.length, 0, 'no lock → no fire');
-  assert.equal(applyLockGate(plan, { F1: true }).groups.length, 1, 'true = locked to all');
+  const locked = applyLockGate(plan, { F1: new Set(['E1']) });
+  assert.equal(locked.groups.length, 1, 'locked → fires');
+  assert.ok(!locked.groups[0].members[0].noLock, 'locked → normal range (no noLock tag)');
+  const noLock = applyLockGate(plan, { F1: new Set() });
+  assert.equal(noLock.groups.length, 1, 'D6.123: no lock still fires...');
+  assert.equal(noLock.groups[0].members[0].noLock, true, '...but is tagged for double range');
+  const blocked = applyLockGate(plan, { F1: new Set() }, () => true);   // target hard-denied (cloaked)
+  assert.equal(blocked.groups.length, 0, 'a cloaked target hard-blocks fire (lock cannot be forced)');
+  assert.equal(applyLockGate(plan, { F1: true }).groups.length, 1, 'true = locked to all → normal fire');
 });
