@@ -594,7 +594,7 @@ function syncMovementEnergy(s) {   // a plot with speed changes drives the EAF "
 }
 let clock = { turn: 1, impulse: 0, phase: 'energy' };   // impulse 0 = pre-start setup; phase = SFB segment id
 const getPhase = () => family(clock.phase);   // coarse energy/impulse fork for the existing UI branches
-const setCoarse = c => { clock.phase = c === 'impulse' ? (family(clock.phase) === 'impulse' ? clock.phase : '6A2') : 'energy'; };
+const setCoarse = c => { clock.phase = c === 'impulse' ? (family(clock.phase) === 'impulse' ? clock.phase : '6D1') : 'energy'; };   // impulse coarse → the driver's per-impulse rest point (6D fire gate, post-movement)
 // solo mode is a per-battle setting (settings.solo); the command perspective (myFleet) switches via the header dropdown
 let myFleet = 'friendly';               // which fleet the local commander controls
 let modelFleet = 'friendly';            // fire-modeling perspective (whose attack you preview); command stays on myFleet
@@ -640,7 +640,7 @@ async function hydrate(d) {
 async function startBattle(defs, clk, restore, ph) {
   battleDefs = defs.map(d => ({ ...d }));
   ships = []; plan = newPlan(); shipRev = {}; workingId = null; ui.activeId = null; clock = clk || { turn: 1, impulse: 0 };
-  clock.phase = ph === 'impulse' ? '6A2' : (ph || 'energy');   // preserve the exact saved SFB segment so a mid-turn resume restores the impulse, not just 'energy'
+  clock.phase = ph === 'impulse' ? '6D1' : (ph || 'energy');   // mid-turn resume restores the impulse at the driver's rest point (6D fire gate, post-movement) so the next step doesn't re-move
   eafDraft = {}; myLockedEnergy = false; ui.eaSelected = null; ui.eaHidden = false;   // turns open in energy allocation
   ui.ghosts = {}; ui.selectedGhost = null; ui.ghostDrag = null; ui.navPreview = null; ui.plotShipId = null; modelFleet = myFleet; stashedPlan = null; lockOn = {}; lockOnTurn = -1; seekers = []; seekerSeq = 0; tractors = []; terrain = { barrier: null, asteroids: [] }; settings = { criticals: true, d8crits: false, advancedShuttles: false, droneSpeed: 20, solo: false };   // fresh battle → no carried-over what-if / plot / perspective / lock state
   for (const d of defs) {
