@@ -1107,34 +1107,55 @@ function renderEnergy() {
   lock.textContent = ui.viewEA ? '✕ Close (read-only)' : (myLockedEnergy ? '🔒 LOCKED' : '🔒 LOCK');
   let h = '';
   const genPts = Math.floor((col.genReinf || 0) / 2);   // D3.341 points; general reinforcement lights all 6 shields (Rick)
-  for (const n of [1, 2, 3, 4, 5, 6]) { const [x, y] = L.shields[n]; h += shieldCtl(n, x, y, sn[n - 1], col.specReinf[n] || 0, specReinfMax(p, n), genPts); }
-  h += toggleCtl(L.activate[0], L.activate[1], 'SHIELDS', 'shieldsActive', col.shieldsActive);
-  const bays = L.bays; let bi = 0;
-  if (bi < bays.length) { h += capCtl(bays[bi][0], bays[bi][1], carriedOf(s), col.phaserCap, p.capacitorCap); bi++; }
-  for (const w of p.weapons) { if (bi >= bays.length) break; h += weaponCtl(bays[bi][0], bays[bi][1], w, col.weapons[w.id]); bi++; }
-  if (p.systems.fireControl && bi < bays.length) { h += segCtl(bays[bi][0], bays[bi][1], 'FIRE CTL', 'fireControl', col.fireControl); bi++; }
-  if (bi < bays.length) { h += stackCtl(bays[bi][0], bays[bi][1], 'GEN REINF', 'genReinf', col.genReinf, sinkMax(p, 'genReinf')); bi++; }
-  // SPEED (movement) — centered in the top-right rectangle: label, power total, ± controls, blank, hex total
-  const [mx, my] = L.move, hexes = Math.floor((col.movement || 0) / p.moveCost);
-  if (s.speedPlot && s.speedPlot.changes.length)
-    h += ctl(mx, my, `<div class="lab">SPEED</div><div class="val">${col.movement}</div><div class="lab">plotted</div><div class="val">${hexesInPlot(s.speedPlot)}h</div>`, 'pwr');
-  else h += ctl(mx, my, `<div class="lab">SPEED</div><div class="val">${col.movement}</div><div class="row">${stepPair('movement', col.movement, sinkMax(p, 'movement'))}</div><div class="gap"></div><div class="val">${hexes}h</div>`, 'pwr');
-  // RESERVE — reserve warp power (H7), lower-right rectangle
-  h += ctl(L.reserve[0], L.reserve[1], `<div class="lab">RESERVE</div><div class="val">${col.reserveWarp || 0}</div><div class="row">${stepPair('reserveWarp', col.reserveWarp || 0, sinkMax(p, 'reserveWarp'))}</div>`, 'pwr');
-  // bottom control strip (art supplies BATTERIES/TRACTOR/TRANSPORTERS/DAMAGE CONTROL labels)
-  const S = L.systems;
-  h += batteryCtl(S.labs[0], S.labs[1], batteryOf(s), col.recharge, p.batteries);   // BATTERIES: charge the empty batteries
-  if (p.systems.tractor) h += sysCtl(S.tractor[0], S.tractor[1], 'tractor', col.tractor, sinkMax(p, 'tractor'));
-  if (p.systems.transporter) h += sysCtl(S.transporter[0], S.transporter[1], 'transporter', col.transporter, sinkMax(p, 'transporter'));
-  h += sysCtl(S.damageControl[0], S.damageControl[1], 'damageControl', col.damageControl, sinkMax(p, 'damageControl'));
-  h += ctl(S.damageControl[0], S.damageControl[1] - 7, `<button class="${col.repairShield ? 'on' : ''}" data-ea="dctarget" title="Damage-control target: SYS repairs destroyed systems (D9.7); SH n repairs shield n at 2 energy/box (D9.21)">🛠 ${col.repairShield ? 'SH ' + col.repairShield : 'SYS'}</button>`);   // D9.21 repair designator
-  if (p.systems.ecm) h += ewCtl(S.ew[0], S.ew[1], col.ecm, col.eccm, 6);            // EW box needs its own ECM/ECCM label
-  // D8-era controls: erratic maneuvers (C10), passive fire control (D19), emergency damage repair (D14)
+  // Movement (SPEED) + reserve + D9.21-designator HTML, reused by both the named and legacy layout paths.
+  const hexes = Math.floor((col.movement || 0) / p.moveCost);
+  const speedHtml = (s.speedPlot && s.speedPlot.changes.length)
+    ? `<div class="lab">SPEED</div><div class="val">${col.movement}</div><div class="lab">plotted</div><div class="val">${hexesInPlot(s.speedPlot)}h</div>`
+    : `<div class="lab">SPEED</div><div class="val">${col.movement}</div><div class="row">${stepPair('movement', col.movement, sinkMax(p, 'movement'))}</div><div class="gap"></div><div class="val">${hexes}h</div>`;
+  const reserveHtml = `<div class="lab">RESERVE</div><div class="val">${col.reserveWarp || 0}</div><div class="row">${stepPair('reserveWarp', col.reserveWarp || 0, sinkMax(p, 'reserveWarp'))}</div>`;
+  const dcTargetHtml = `<button class="${col.repairShield ? 'on' : ''}" data-ea="dctarget" title="Damage-control target: SYS repairs destroyed systems (D9.7); SH n repairs shield n at 2 energy/box (D9.21)">🛠 ${col.repairShield ? 'SH ' + col.repairShield : 'SYS'}</button>`;
   if (hasCrit(s.criticals, 'maneuver')) col.em = false;   // D8.2 #11: a maneuver crit forbids erratic maneuvers
-  if (L.em && !hasCrit(s.criticals, 'maneuver')) h += toggleCtl(L.em[0], L.em[1], 'ERRATIC', 'em', col.em);   // EM: 6 hexes of movement energy, +4 ECM at & by the unit (C10.41/414)
-  if (L.fcMode) h += toggleCtl(L.fcMode[0], L.fcMode[1], 'FC PASSIVE', 'fcPassive', col.fcPassive);   // active↔passive fire control (D6.63/D19)
-  if (hasCrit(s.criticals, 'labs')) col.edr = 0;   // D8.2 #5: labs crit → emergency damage repair impossible (in-progress lost)
-  if (L.edr && p.systems.labs && !hasCrit(s.criticals, 'labs')) h += stackCtl(L.edr[0], L.edr[1], 'EDR (labs)', 'edr', col.edr, sinkMax(p, 'edr'));   // D14: 3 power per lab
+  if (hasCrit(s.criticals, 'labs')) col.edr = 0;          // D8.2 #5: labs crit → EDR impossible (in-progress lost)
+  if (L.controls) {   // named-control layout (drag-authored in verify.html): each control has its own saved position
+    const C = L.controls, at = id => C[id];
+    for (const n of [1, 2, 3, 4, 5, 6]) { const q = at('shield-' + n); if (q) h += shieldCtl(n, q[0], q[1], sn[n - 1], col.specReinf[n] || 0, specReinfMax(p, n), genPts); }
+    if (at('shields-toggle')) h += toggleCtl(at('shields-toggle')[0], at('shields-toggle')[1], 'SHIELDS', 'shieldsActive', col.shieldsActive);
+    if (at('phaser-cap')) h += capCtl(at('phaser-cap')[0], at('phaser-cap')[1], carriedOf(s), col.phaserCap, p.capacitorCap);
+    for (const w of p.weapons) { const q = at('weapon-' + (w.label || '')); if (q) h += weaponCtl(q[0], q[1], w, col.weapons[w.id]); }   // weapons keyed by SSD label (A/B/C…)
+    if (p.systems.fireControl && at('fire-control')) h += segCtl(at('fire-control')[0], at('fire-control')[1], 'FIRE CTL', 'fireControl', col.fireControl);
+    if (at('gen-reinf')) h += stackCtl(at('gen-reinf')[0], at('gen-reinf')[1], 'GEN REINF', 'genReinf', col.genReinf, sinkMax(p, 'genReinf'));
+    if (at('movement')) h += ctl(at('movement')[0], at('movement')[1], speedHtml, 'pwr');
+    if (at('reserve')) h += ctl(at('reserve')[0], at('reserve')[1], reserveHtml, 'pwr');
+    if (at('batteries')) h += batteryCtl(at('batteries')[0], at('batteries')[1], batteryOf(s), col.recharge, p.batteries);
+    if (p.systems.tractor && at('tractor')) h += sysCtl(at('tractor')[0], at('tractor')[1], 'tractor', col.tractor, sinkMax(p, 'tractor'));
+    if (p.systems.transporter && at('transporter')) h += sysCtl(at('transporter')[0], at('transporter')[1], 'transporter', col.transporter, sinkMax(p, 'transporter'));
+    if (at('damage-control')) h += sysCtl(at('damage-control')[0], at('damage-control')[1], 'damageControl', col.damageControl, sinkMax(p, 'damageControl'));
+    if (at('repair-target')) h += ctl(at('repair-target')[0], at('repair-target')[1], dcTargetHtml);
+    if (p.systems.ecm && at('ew')) h += ewCtl(at('ew')[0], at('ew')[1], col.ecm, col.eccm, 6);
+    if (at('erratic') && !hasCrit(s.criticals, 'maneuver')) h += toggleCtl(at('erratic')[0], at('erratic')[1], 'ERRATIC', 'em', col.em);
+    if (at('fc-passive')) h += toggleCtl(at('fc-passive')[0], at('fc-passive')[1], 'FC PASSIVE', 'fcPassive', col.fcPassive);
+    if (at('edr') && p.systems.labs && !hasCrit(s.criticals, 'labs')) h += stackCtl(at('edr')[0], at('edr')[1], 'EDR (labs)', 'edr', col.edr, sinkMax(p, 'edr'));
+  } else {   // legacy layout: shields map + ordered bay slots + fixed system strip
+    for (const n of [1, 2, 3, 4, 5, 6]) { const [x, y] = L.shields[n]; h += shieldCtl(n, x, y, sn[n - 1], col.specReinf[n] || 0, specReinfMax(p, n), genPts); }
+    h += toggleCtl(L.activate[0], L.activate[1], 'SHIELDS', 'shieldsActive', col.shieldsActive);
+    const bays = L.bays; let bi = 0;
+    if (bi < bays.length) { h += capCtl(bays[bi][0], bays[bi][1], carriedOf(s), col.phaserCap, p.capacitorCap); bi++; }
+    for (const w of p.weapons) { if (bi >= bays.length) break; h += weaponCtl(bays[bi][0], bays[bi][1], w, col.weapons[w.id]); bi++; }
+    if (p.systems.fireControl && bi < bays.length) { h += segCtl(bays[bi][0], bays[bi][1], 'FIRE CTL', 'fireControl', col.fireControl); bi++; }
+    if (bi < bays.length) { h += stackCtl(bays[bi][0], bays[bi][1], 'GEN REINF', 'genReinf', col.genReinf, sinkMax(p, 'genReinf')); bi++; }
+    h += ctl(L.move[0], L.move[1], speedHtml, 'pwr');
+    h += ctl(L.reserve[0], L.reserve[1], reserveHtml, 'pwr');
+    const S = L.systems;
+    h += batteryCtl(S.labs[0], S.labs[1], batteryOf(s), col.recharge, p.batteries);
+    if (p.systems.tractor) h += sysCtl(S.tractor[0], S.tractor[1], 'tractor', col.tractor, sinkMax(p, 'tractor'));
+    if (p.systems.transporter) h += sysCtl(S.transporter[0], S.transporter[1], 'transporter', col.transporter, sinkMax(p, 'transporter'));
+    h += sysCtl(S.damageControl[0], S.damageControl[1], 'damageControl', col.damageControl, sinkMax(p, 'damageControl'));
+    h += ctl(S.damageControl[0], S.damageControl[1] - 7, dcTargetHtml);
+    if (p.systems.ecm) h += ewCtl(S.ew[0], S.ew[1], col.ecm, col.eccm, 6);
+    if (L.em && !hasCrit(s.criticals, 'maneuver')) h += toggleCtl(L.em[0], L.em[1], 'ERRATIC', 'em', col.em);
+    if (L.fcMode) h += toggleCtl(L.fcMode[0], L.fcMode[1], 'FC PASSIVE', 'fcPassive', col.fcPassive);
+    if (L.edr && p.systems.labs && !hasCrit(s.criticals, 'labs')) h += stackCtl(L.edr[0], L.edr[1], 'EDR (labs)', 'edr', col.edr, sinkMax(p, 'edr'));
+  }
   if (s.course && s.course.steps.length) h += ctl(5, 5, `<button class="${s.autopilot ? 'on' : ''}" id="epAuto">🅰 AUTO</button>`);
   ov.innerHTML = (theme === 'fed' ? fedShieldSvg(s, p) : kliShieldSvg(s, p, L)) + h;   // status SVG first → behind the shield controls
 }
