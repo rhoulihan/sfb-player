@@ -153,7 +153,7 @@ Source: `docs/adversarial-review.md` (96 confirmed findings). Strict TDD, one cl
 
 - [x] 🟠 **D4.321 (also D2.14/D2.32/D2.33)** `ssd-pipeline/viewer/arc-geom.js:40` — Captured per-hex arc exceptions (paintAdd/paintRemove) are silently dropped when deciding phaser directional damage.
 - [ ] 🟡 **C2.0 / Master Ship Chart (movement cost); B3.3 (size class)** `ssd-pipeline/viewer/energy-model.js:19` — Per-ship sizeClass and moveCost are hardcoded in SHIP_PROFILES and moveCost has no capture UI, violating 'verification owns ship data'.
-- [ ] 🟡 **C3.3 / C3.31 (Turn Mode Chart)** `ssd-pipeline/viewer/verify.html:108` — Turn-mode category dropdown omits category F, which exists on the C3.31 chart.
+- [x] 🟡 **C3.3 / C3.31 (Turn Mode Chart)** `ssd-pipeline/viewer/verify.html:108` — Turn-mode category dropdown omits category F, which exists on the C3.31 chart.
 
 ## Remaining — ui
 

@@ -37,6 +37,15 @@ test('turnModeFor is category-aware: a category-D cruiser turns less often than 
   assert.equal(turnMode(9), turnModeFor('B', 9), 'turnMode() defaults to category B');
   // the audit finding: at speed 9 a category-D ship must go straighter (TM 3) than category B (TM 2)
   assert.ok(turnModeFor('D', 9) > turnModeFor('B', 9));
+  // Category F (C3.31): the tightest-turning curve — 2-3→TM1, 4-5→2, 6-9→3, 10-13→4, 14-17→5, 18-23→6, 24-29→7, 30+→8
+  assert.equal(turnModeFor('F', 1), 0);
+  assert.equal(turnModeFor('F', 3), 1);
+  assert.equal(turnModeFor('F', 5), 2);
+  assert.equal(turnModeFor('F', 9), 3);
+  assert.equal(turnModeFor('F', 17), 5);
+  assert.equal(turnModeFor('F', 29), 7);
+  assert.equal(turnModeFor('F', 30), 8);
+  assert.ok(turnModeFor('F', 10) > turnModeFor('E', 10), 'at speed 10 category F is more turn-constrained (TM4) than E (TM3)');
 });
 import { localBearing } from '../viewer/battle-geom.js';
 
