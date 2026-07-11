@@ -477,22 +477,28 @@ function boardingRaid(ship) {   // D15: a transporter hit-and-run raid on an adj
   } else log.push({ kind: 'shot', firer: ship.id, cls: 'RAID', target: enemy.id, points: 0, hit: false });
   saveSoon(ship.id); render(); renderLog({ log }, true);
 }
-function selfDestruct(ship) {   // D19 (SOP phase-3): the ship explodes, hitting every ship in the blast radius through the DAC, then is lost
-  if (!ship || isDead(ship)) return;
+// D5/D5.41: apply an exploding ship's Basic Explosion Strength to every unit in the blast zone (friend or foe) through
+// the DAC, then mark the exploding ship gone. Blast log entries are pushed into `sink`; the caller announces the death.
+// Shared by the D5.1 plotted self-destruct and the D5.12 combat-destruction explosion, so it never guards on isDead.
+function explodeShip(ship, sink) {
   const rng = makeRng((seed + rngCursor) >>> 0); rngCursor = rng.cursor();
-  const dice = makeDice(rng.next), log = [];
+  const dice = makeDice(rng.next);
   const bes = powerOf(ship).bes || DEFAULT_BES, dmg = selfDestructDamage(bes);   // D5.2/D5.41: per-ship Basic Explosion Strength (verified.json), full strength to every unit in the zone
   for (const victim of selfDestructHits(ship, ships.filter(s => !isDead(s)), selfDestructZone(bes))) {
     const shield = exposedShield(ship, victim);
     const model = victim.model || (victim.model = buildShipModel(victim._ver, victim._det));
     const effects = dmg > 0 ? applyVolley(model, { shield, points: dmg, criticals: settings.criticals }, dice) : [];
     effects.forEach(ef => { if (ef.boxId) victim.status[ef.boxId] = 'destroyed'; });
-    accrueShieldDamage(victim, shield, dmg, log);   // D8.1: blast damage counts toward the per-impulse shield total
-    log.push({ target: victim.id, shield, points: dmg, effects }); saveSoon(victim.id);
+    accrueShieldDamage(victim, shield, dmg, sink);   // D8.1: blast damage counts toward the per-impulse shield total
+    sink.push({ target: victim.id, shield, points: dmg, effects }); saveSoon(victim.id);
   }
   (ship._ver.groups || []).forEach(g => (g.boxIds || []).forEach(id => ship.status[id] = 'destroyed'));   // the exploding ship is gone
-  log.push({ kind: 'death', ship: ship.id });
-  saveSoon(ship.id); render(); renderLog({ log }, true);
+  ship._exploded = true; saveSoon(ship.id);
+}
+function selfDestruct(ship) {   // D5.1 (SOP phase-3): a ship that declared self-destruct explodes on its turn-start position
+  if (!ship || isDead(ship)) return;
+  const log = []; explodeShip(ship, log);
+  log.push({ kind: 'death', ship: ship.id }); render(); renderLog({ log }, true);
 }
 // ---- G7 tractor beams ----
 const tractorBeamsOf = s => powerOf(s).systems.tractor || 0;                     // one beam per TRAC box (G7.11)
@@ -862,8 +868,16 @@ function resolveMovement() {   // 6A Movement Segment: plotted speed changes fir
   pruneTractors();   // G7.125: break any link whose units are no longer valid/in range after movement
 }
 function resolveSeekingImpact() { const skLog = []; stepSeekers(skLog); return skLog; }   // end of 6A (F2.2): seeking weapons advance + impact this impulse, before any 6D fire
-function resolvePostCombat(aliveBefore, skLog) {   // 6E Post-Combat Segment: announce ships lost this impulse
-  for (const s of ships) if (aliveBefore.has(s.id) && isDead(s)) skLog.push({ kind: 'death', ship: s.id });
+function resolvePostCombat(aliveBefore, skLog) {   // 6E Post-Combat Segment: announce ships lost this impulse (D5.12: they explode)
+  // D5.12: a ship destroyed in combat explodes immediately (the self-destruction procedure determines the blast). Explode
+  // each ship that died this segment; a blast may destroy further ships, which chain-explode. `_exploded` prevents re-firing.
+  const queue = ships.filter(s => aliveBefore.has(s.id) && isDead(s) && !s._exploded);
+  while (queue.length) {
+    const s = queue.shift(); if (s._exploded) continue;
+    skLog.push({ kind: 'death', ship: s.id });
+    explodeShip(s, skLog);
+    for (const v of ships) if (isDead(v) && !v._exploded && !queue.includes(v)) queue.push(v);   // chain: units destroyed by the blast explode too
+  }
 }
 function resolveRepairStage() {   // Record Keeping: D9.2 shield repair (allocated energy) + D9.7 continuous system repair (free points)
   for (const s of ships) {

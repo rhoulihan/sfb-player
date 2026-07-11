@@ -49,7 +49,7 @@ Source: `docs/adversarial-review.md` (96 confirmed findings). Strict TDD, one cl
 
 ## Self-destruct (D5)
 
-- [ ] 🟠 **D5.12** `ssd-pipeline/viewer/battle.html:792` — A ship destroyed in combat never explodes; only the plotted self-destruct path ever calls selfDestruct().
+- [x] 🟠 **D5.12** `ssd-pipeline/viewer/battle.html:792` — A ship destroyed in combat never explodes; only the plotted self-destruct path ever calls selfDestruct().
 - [x] 🟠 **D5.5 / D5.51** `ssd-pipeline/viewer/battle.html:843` — resolvePlottedSelfDestruct detonates any ship flagged self-destruct with no crew-unit / last-friendly-ship precondition.
 - [x] 🟠 **D5.2 / D5.12 / D5.41** `ssd-pipeline/viewer/mines.js:36` — Self-destruct explosion strength is a hardcoded 30 for every ship instead of the per-ship Basic Explosion Strength from the Master Ship Chart.
 - [x] 🟠 **D5.41** `ssd-pipeline/viewer/mines.js:36` — Self-destruct blast radius is hardcoded to 2 hexes; the rule caps the zone at radius 1 (or radius 0 for a small explosion).
