@@ -1047,6 +1047,7 @@ function runSegment(seg) {
       break;
     case '6A2': resolveMovement(); break;                                               // 6A Movement Segment
     case '6A4':                                                                         // end of 6A: seeking weapons impact (F2.2), then announce seeking deaths — before any 6D fire
+      applyEmergencyDecel(seqLog);                                                     // C8.101: ships that declared emergency deceleration stop at the end of the movement segment
       seqLog.push(...resolveSeekingImpact());
       resolvePostCombat(seqAlive, seqLog);
       break;
@@ -1097,6 +1098,28 @@ function highEnergyTurn(ship, dir) {
   if (broke) { ship.speed = Math.floor(ship.speed / 2); ship.breakdownRating = Math.max(2, rating - 1); }   // C6.541 speed drops; C6.544 breakdown rating worsens by 1
   saveSoon(ship.id); render();
   renderLog({ log: [{ kind: 'het', ship: ship.id, roll, rating, broke }] }, true);
+}
+// C8.10: declare emergency deceleration during the Impulse Segment; the ship halts at the end of the movement segment two
+// impulses later (C8.101). Emergency decel can only STOP a ship, not reduce speed (C8.21). Declaring again cancels it.
+function emergencyDecel(ship) {
+  if (!ship || !isMine(ship)) return;
+  if (getPhase() !== 'impulse') { alert('Emergency deceleration is declared during the Impulse Segment (C8.10).'); return; }
+  if (ship.emDecelAt) { ship.emDecelAt = null; saveSoon(ship.id); render(); return; }   // toggle off
+  if (ship.speed <= 0 && !ship.speedPlot) { alert('The ship is already stopped (C8.21: emergency deceleration only stops a ship).'); return; }
+  ship.emDecelAt = { turn: clock.turn, impulse: clock.impulse };
+  saveSoon(ship.id); render();
+  renderLog({ log: [{ kind: 'emdecel', ship: ship.id, at: clock.impulse }] }, true);
+}
+// C8.101: at the end of the movement segment two impulses after the declaration, the ship stops (speed 0) and enters the
+// post-deceleration period (C8.4). Runs at 6A4 (end of the Movement Segment).
+function applyEmergencyDecel(skLog) {
+  for (const s of ships) {
+    if (s.emDecelAt && impulsesSince(s.emDecelAt, clock.turn, clock.impulse) >= 2) {
+      s.speed = 0; s.queuedTurn = 0; s.postDecelAt = { turn: clock.turn, impulse: clock.impulse };
+      s.emDecelAt = null; saveSoon(s.id);
+      if (skLog) skLog.push({ kind: 'emdecel-stop', ship: s.id });
+    }
+  }
 }
 
 // ---------- geometry ----------
@@ -1546,10 +1569,12 @@ function turnCtl(s) {
   if (!isMine(s)) return `<div class="turnctl"><span class="tmc" style="margin:0">other fleet — switch command perspective to control it</span></div>`;
   const tm = turnModeOf(s), rem = Math.max(0, tm - s.hexesSinceTurn);
   const cd = tm === 0 ? 'may turn freely' : rem === 0 ? 'may turn on next move' : `turn in ${rem} hex${rem !== 1 ? 'es' : ''}`;
-  const het = getPhase() === 'impulse' && !hasCrit(s.criticals, 'maneuver')   // C6.0: an HET is a movement-phase snap-turn
+  const move = getPhase() === 'impulse';
+  const het = move && !hasCrit(s.criticals, 'maneuver')   // C6.0: an HET is a movement-phase snap-turn
     ? `<button data-het="-1" data-ship="${s.id}" title="High Energy Turn: snap-turn one hexside ignoring turn mode — ${HET_ENERGY} warp energy + breakdown roll (C6.21/C6.51)">⚡↺ HET</button><button data-het="1" data-ship="${s.id}" title="High Energy Turn (C6.0)">HET ↻⚡</button>` : '';
+  const decel = move && (s.speed > 0 || s.speedPlot) ? `<button data-decel="${s.id}" class="${s.emDecelAt ? 'lit' : ''}" title="Emergency Deceleration: the ship stops at the end of the movement segment two impulses from now (C8.10/C8.101)">🛑 stop</button>` : '';
   return `<div class="turnctl"><button data-turn="-1" data-ship="${s.id}" class="${s.queuedTurn === -1 ? 'lit' : ''}">↺ turn</button>
-    <button data-turn="1" data-ship="${s.id}" class="${s.queuedTurn === 1 ? 'lit' : ''}">turn ↻</button>${het}<span class="tmc">${cd}</span></div>`;
+    <button data-turn="1" data-ship="${s.id}" class="${s.queuedTurn === 1 ? 'lit' : ''}">turn ↻</button>${het}${decel}<span class="tmc">${cd}</span></div>`;
 }
 function renderClock() {
   const seg = segmentName(clock.phase);   // SOP: the current sequence-of-play segment
@@ -1670,6 +1695,7 @@ document.getElementById('fleet').addEventListener('click', e => {
   const a = e.target.closest('[data-auto]'); if (a) { const s = byId(a.dataset.auto); if (s) { s.autopilot = !s.autopilot; s._autoIdx = 0; saveSoon(s.id); render(); } return; }
   const cb = e.target.closest('[data-crit]'); if (cb) { const s = byId(cb.dataset.critship); if (s) { s.repairChoice = +cb.dataset.crit; saveSoon(s.id); render(); } return; }   // D8.31: choose which critical to attempt to repair
   const h = e.target.closest('[data-het]'); if (h) { highEnergyTurn(byId(h.dataset.ship), +h.dataset.het); return; }   // C6.0 High Energy Turn
+  const dc = e.target.closest('[data-decel]'); if (dc) { emergencyDecel(byId(dc.dataset.decel)); return; }   // C8.0 Emergency Deceleration
   const b = e.target.closest('[data-turn]'); if (b) turnAction(+b.dataset.turn, b.dataset.ship);
 });
 window.addEventListener('keydown', e => { if (e.target.tagName === 'INPUT') return; if (e.key === '[') turnAction(-1); else if (e.key === ']') turnAction(1); });
@@ -1702,7 +1728,7 @@ window.addEventListener('mousemove', e => {   // a shadow icon trails the cursor
   else if (sh.style.display !== 'none') sh.style.display = 'none';
 });
 window.addEventListener('mouseup', () => { const sh = document.getElementById('dragShadow'); if (sh.style.display !== 'none') sh.style.display = 'none'; });   // release the shadow when the drag ends
-document.getElementById('fleet').addEventListener('click', e => { if (e.target.closest('.spin') || e.target.closest('[data-turn]') || e.target.closest('[data-het]') || e.target.closest('[data-crit]')) return; const row = e.target.closest('.shiprow'); if (row) { ui.selectedId = row.dataset.id; ui.activeId = row.dataset.id; render(); } });
+document.getElementById('fleet').addEventListener('click', e => { if (e.target.closest('.spin') || e.target.closest('[data-turn]') || e.target.closest('[data-het]') || e.target.closest('[data-decel]') || e.target.closest('[data-crit]')) return; const row = e.target.closest('.shiprow'); if (row) { ui.selectedId = row.dataset.id; ui.activeId = row.dataset.id; render(); } });
 document.getElementById('fleet').addEventListener('change', e => { const sp = e.target.closest('.spin'); if (!sp) return; const s = byId(sp.dataset.spd); if (s) { s.speed = Math.max(0, Math.min(32, parseInt(sp.value) || 0)); render(); saveSoon(s.id); } });
 
 document.getElementById('groups').addEventListener('click', e => {
@@ -2110,7 +2136,11 @@ async function resolveAll(plans) {                      // single resolver: both
 }
 function renderLog(res, append) {
   const L = document.getElementById('log');
-  const lines = res.log.map(l => l.kind === 'het'
+  const lines = res.log.map(l => l.kind === 'emdecel'
+    ? `<div class="miss">🛑 ${l.ship} declares Emergency Deceleration (C8.10) — will stop in 2 impulses</div>`
+    : l.kind === 'emdecel-stop'
+    ? `<div class="hit">🛑 ${l.ship} halts (Emergency Deceleration, C8.101) — now at Speed 0</div>`
+    : l.kind === 'het'
     ? `<div class="${l.broke ? 'hit' : 'miss'}">⚡ ${l.ship} High Energy Turn: breakdown d6 ${l.roll} vs rating ${l.rating} → ${l.broke ? '<span style="color:#dc2626;font-weight:700">BREAKDOWN</span> (speed halved, C6.54)' : 'no breakdown'}</div>`
     : l.kind === 'shot'
     ? `<div class="${l.hit ? 'hit' : 'miss'}">${l.firer} ${l.cls} → ${l.target}: die ${l.die}, ${l.hit ? l.points + ' pts → shield #' + l.struckShield : 'miss'}</div>`

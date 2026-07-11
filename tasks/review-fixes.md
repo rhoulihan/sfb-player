@@ -163,5 +163,5 @@ Source: `docs/adversarial-review.md` (96 confirmed findings). Strict TDD, one cl
 - [x] 🟠 **C12.311/C12.312/C12.313/C12.32** `ssd-pipeline/viewer/battle.html:1666` — The mid-turn speed-change menu enforces none of the C12.31/.32 restrictions on number, spacing, impulse window, or deceleration magnitude.
 - [ ] 🟠 **H7.134/H7.342** `ssd-pipeline/viewer/battle.html:1834` — Reactive reserve-power shield reinforcement is offered only in solo mode; a multiplayer defender never gets the H7.134 prompt.
 - [x] 🟡 **C6.0/C6.21** `ssd-pipeline/viewer/battle.html:190` — There is no High Energy Turn control anywhere, so the player cannot execute an HET snap-turn as a decision.
-- [ ] 🟡 **C8.0/C8.10** `ssd-pipeline/viewer/battle.html:1700` — No Emergency Deceleration control — the player cannot declare a C8.0 emergency stop during the impulse phase.
+- [x] 🟡 **C8.0/C8.10** `ssd-pipeline/viewer/battle.html:1700` — No Emergency Deceleration control — the player cannot declare a C8.0 emergency stop during the impulse phase.
 
