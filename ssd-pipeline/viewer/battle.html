@@ -1134,7 +1134,7 @@ function highEnergyTurn(ship, dir) {
   ship.facing = (ship.facing + dir + 6) % 6; ship.hexesSinceTurn = 0; ship.queuedTurn = 0;   // C6.1: snap-turn one hexside, ignoring turn mode
   const rng = makeRng((seed + rngCursor) >>> 0); rngCursor = rng.cursor();   // C6.51 breakdown roll (deterministic across clients)
   const firstUse = !ship._hetUsed; ship._hetUsed = true;
-  const rating = ship.breakdownRating || DEFAULT_BREAKDOWN;
+  const rating = powerOf(ship).breakdownRating || DEFAULT_BREAKDOWN;   // C6.53: per-ship breakdown rating from the MSC (verified stats)
   const roll = rng.d6() - (firstUse ? 2 : 0);   // C6.52: first HET of the scenario is at −2
   const broke = roll >= rating;
   if (broke) { ship.speed = Math.floor(ship.speed / 2); ship.breakdownRating = Math.max(2, rating - 1); }   // C6.541 speed drops; C6.544 breakdown rating worsens by 1

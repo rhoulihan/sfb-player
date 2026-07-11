@@ -1,1491 +1,1495 @@
 {
- "ship": "FED-CA",
- "groups": [
-  {
-   "id": "g0",
-   "boxIds": [
-    "box1",
-    "box2",
-    "box3",
-    "box4",
-    "box5",
-    "box6",
-    "box7",
-    "box8",
-    "box9",
-    "box10",
-    "box11",
-    "box12",
-    "box13",
-    "box14",
-    "box15",
-    "box16",
-    "box17",
-    "box18",
-    "box19",
-    "box20",
-    "box29",
-    "box30",
-    "box31",
-    "box32",
-    "box33",
-    "box34",
-    "box35",
-    "box36",
-    "box37",
-    "box38",
-    "box47",
-    "box48",
-    "box49",
-    "box50",
-    "box51",
-    "box52",
-    "box53",
-    "box54",
-    "box55",
-    "box56",
-    "box65",
-    "box66",
-    "box67"
-   ],
-   "family": "crew",
-   "type": "Crew Units",
-   "arc": "",
-   "arcDef": {
-    "arcs": [],
-    "paintAdd": [],
-    "paintRemove": [],
-    "note": ""
-   },
-   "verified": true
+  "ship": "FED-CA",
+  "groups": [
+    {
+      "id": "g0",
+      "boxIds": [
+        "box1",
+        "box2",
+        "box3",
+        "box4",
+        "box5",
+        "box6",
+        "box7",
+        "box8",
+        "box9",
+        "box10",
+        "box11",
+        "box12",
+        "box13",
+        "box14",
+        "box15",
+        "box16",
+        "box17",
+        "box18",
+        "box19",
+        "box20",
+        "box29",
+        "box30",
+        "box31",
+        "box32",
+        "box33",
+        "box34",
+        "box35",
+        "box36",
+        "box37",
+        "box38",
+        "box47",
+        "box48",
+        "box49",
+        "box50",
+        "box51",
+        "box52",
+        "box53",
+        "box54",
+        "box55",
+        "box56",
+        "box65",
+        "box66",
+        "box67"
+      ],
+      "family": "crew",
+      "type": "Crew Units",
+      "arc": "",
+      "arcDef": {
+        "arcs": [],
+        "paintAdd": [],
+        "paintRemove": [],
+        "note": ""
+      },
+      "verified": true
+    },
+    {
+      "family": "ammo-track",
+      "arc": "",
+      "arcDef": {
+        "arcs": [],
+        "paintAdd": [],
+        "paintRemove": [],
+        "note": ""
+      },
+      "verified": true,
+      "id": "g1_s1",
+      "type": "Shuttle 1",
+      "boxIds": [
+        "box21",
+        "box22",
+        "box23",
+        "box24",
+        "box25",
+        "box26",
+        "box27",
+        "box28"
+      ]
+    },
+    {
+      "family": "ammo-track",
+      "arc": "",
+      "arcDef": {
+        "arcs": [],
+        "paintAdd": [],
+        "paintRemove": [],
+        "note": ""
+      },
+      "verified": true,
+      "id": "g1_s2",
+      "type": "Shuttle 2",
+      "boxIds": [
+        "box39",
+        "box40",
+        "box41",
+        "box42",
+        "box43",
+        "box44",
+        "box45",
+        "box46"
+      ]
+    },
+    {
+      "family": "ammo-track",
+      "arc": "",
+      "arcDef": {
+        "arcs": [],
+        "paintAdd": [],
+        "paintRemove": [],
+        "note": ""
+      },
+      "verified": true,
+      "id": "g1_s3",
+      "type": "Shuttle 3",
+      "boxIds": [
+        "box57",
+        "box58",
+        "box59",
+        "box60",
+        "box61",
+        "box62",
+        "box63",
+        "box64"
+      ]
+    },
+    {
+      "family": "ammo-track",
+      "arc": "",
+      "arcDef": {
+        "arcs": [],
+        "paintAdd": [],
+        "paintRemove": [],
+        "note": ""
+      },
+      "verified": true,
+      "id": "g1_s4",
+      "type": "Shuttle 4",
+      "boxIds": [
+        "box68",
+        "box69",
+        "box70",
+        "box71",
+        "box72",
+        "box73",
+        "box74",
+        "box75"
+      ]
+    },
+    {
+      "id": "g2",
+      "boxIds": [
+        "box76",
+        "box79",
+        "box80",
+        "box81",
+        "box86",
+        "box87",
+        "box88",
+        "box89",
+        "box90",
+        "box91",
+        "box92",
+        "box93",
+        "box94",
+        "box95",
+        "box107",
+        "box108",
+        "box109",
+        "box110",
+        "box111",
+        "box112",
+        "box113",
+        "box114",
+        "box115",
+        "box116",
+        "box77",
+        "box78",
+        "box82",
+        "box83",
+        "box84",
+        "box85"
+      ],
+      "family": "shield",
+      "type": "Shield 1",
+      "arc": "",
+      "arcDef": {
+        "arcs": [],
+        "paintAdd": [],
+        "paintRemove": [],
+        "note": ""
+      },
+      "verified": true
+    },
+    {
+      "id": "g3",
+      "boxIds": [
+        "box96",
+        "box97",
+        "box98",
+        "box99",
+        "box100",
+        "box101",
+        "box102",
+        "box103",
+        "box104",
+        "box105"
+      ],
+      "family": "crew",
+      "type": "Boarding Parties",
+      "arc": "",
+      "arcDef": {
+        "arcs": [],
+        "paintAdd": [],
+        "paintRemove": [],
+        "note": ""
+      },
+      "verified": true
+    },
+    {
+      "id": "g4",
+      "boxIds": [
+        "box106",
+        "box117",
+        "box135",
+        "box140",
+        "box149",
+        "box154"
+      ],
+      "family": "sensor",
+      "type": "Sensor",
+      "arc": "",
+      "arcDef": {
+        "arcs": [],
+        "paintAdd": [],
+        "paintRemove": [],
+        "note": ""
+      },
+      "verified": true
+    },
+    {
+      "id": "g6",
+      "boxIds": [
+        "box120",
+        "box121",
+        "box138",
+        "box139",
+        "box143",
+        "box144",
+        "box152",
+        "box153",
+        "box157",
+        "box158",
+        "box167",
+        "box168",
+        "box171",
+        "box172",
+        "box182",
+        "box183",
+        "box195",
+        "box196",
+        "box200",
+        "box201",
+        "r1783007584276",
+        "r1783007584277",
+        "r1783007584278",
+        "r1783007584279"
+      ],
+      "family": "shield",
+      "type": "Shield 2",
+      "arc": "",
+      "arcDef": {
+        "arcs": [],
+        "paintAdd": [],
+        "paintRemove": [],
+        "note": ""
+      },
+      "verified": true
+    },
+    {
+      "id": "g7",
+      "boxIds": [
+        "box122",
+        "box123",
+        "box124",
+        "box125",
+        "box126"
+      ],
+      "family": "ammo-track",
+      "type": "Probes",
+      "arc": "",
+      "arcDef": {
+        "arcs": [],
+        "paintAdd": [],
+        "paintRemove": [],
+        "note": ""
+      },
+      "verified": true
+    },
+    {
+      "id": "g8",
+      "boxIds": [
+        "box127",
+        "box128",
+        "box129",
+        "box130"
+      ],
+      "family": "ammo-track",
+      "type": "Transporter Bombs",
+      "arc": "",
+      "arcDef": {
+        "arcs": [],
+        "paintAdd": [],
+        "paintRemove": [],
+        "note": ""
+      },
+      "verified": true
+    },
+    {
+      "id": "g9",
+      "boxIds": [
+        "box131",
+        "box132",
+        "box133",
+        "box134"
+      ],
+      "family": "ammo-track",
+      "type": "Transporter Bombs (Dummy)",
+      "arc": "",
+      "arcDef": {
+        "arcs": [],
+        "paintAdd": [],
+        "paintRemove": [],
+        "note": ""
+      },
+      "verified": true
+    },
+    {
+      "id": "g10",
+      "boxIds": [
+        "box145",
+        "box146",
+        "box147",
+        "box148"
+      ],
+      "family": "heavy-weapon",
+      "type": "Photon torpedo (FA)",
+      "arc": "FA",
+      "arcDef": {
+        "arcs": [
+          "FA"
+        ],
+        "paintAdd": [],
+        "paintRemove": [],
+        "note": ""
+      },
+      "verified": true
+    },
+    {
+      "id": "g12",
+      "boxIds": [
+        "box161",
+        "box162",
+        "box249"
+      ],
+      "family": "transporter",
+      "type": "Transporter",
+      "arc": "",
+      "arcDef": {
+        "arcs": [],
+        "paintAdd": [],
+        "paintRemove": [],
+        "note": ""
+      },
+      "verified": true
+    },
+    {
+      "id": "g13",
+      "boxIds": [
+        "box163",
+        "box164"
+      ],
+      "family": "phaser",
+      "type": "Phaser-1 (FH)",
+      "arc": "FH",
+      "arcDef": {
+        "arcs": [
+          "FH"
+        ],
+        "paintAdd": [],
+        "paintRemove": [],
+        "note": ""
+      },
+      "verified": true
+    },
+    {
+      "id": "g14",
+      "boxIds": [
+        "box173",
+        "box187"
+      ],
+      "family": "phaser",
+      "type": "Phaser-1 (L+LF, +rear)",
+      "arc": "L",
+      "arcDef": {
+        "arcs": [
+          "L",
+          "LF"
+        ],
+        "paintAdd": [
+          [
+            0,
+            1
+          ],
+          [
+            0,
+            2
+          ],
+          [
+            0,
+            3
+          ],
+          [
+            0,
+            4
+          ]
+        ],
+        "paintRemove": [],
+        "note": "+rear row (SSD note / D2.13)"
+      },
+      "verified": true
+    },
+    {
+      "id": "g15",
+      "boxIds": [
+        "box174",
+        "box175",
+        "box184",
+        "box188",
+        "box176",
+        "box177",
+        "box186",
+        "box185"
+      ],
+      "family": "lab",
+      "type": "Lab",
+      "arc": "",
+      "arcDef": {
+        "arcs": [],
+        "paintAdd": [],
+        "paintRemove": [],
+        "note": ""
+      },
+      "verified": true
+    },
+    {
+      "id": "g17",
+      "boxIds": [
+        "box178",
+        "box189"
+      ],
+      "family": "phaser",
+      "type": "Phaser-1 (R+RF, +rear)",
+      "arc": "R",
+      "arcDef": {
+        "arcs": [
+          "R",
+          "RF"
+        ],
+        "paintAdd": [
+          [
+            0,
+            1
+          ],
+          [
+            0,
+            2
+          ],
+          [
+            0,
+            3
+          ],
+          [
+            0,
+            4
+          ]
+        ],
+        "paintRemove": [],
+        "note": "+rear row (SSD note / D2.13)"
+      },
+      "verified": true
+    },
+    {
+      "id": "g18",
+      "boxIds": [
+        "box179",
+        "box192",
+        "box197",
+        "box208",
+        "box213",
+        "box218"
+      ],
+      "family": "scanner",
+      "type": "Scanner",
+      "arc": "",
+      "arcDef": {
+        "arcs": [],
+        "paintAdd": [],
+        "paintRemove": [],
+        "note": ""
+      },
+      "verified": true
+    },
+    {
+      "id": "g19",
+      "boxIds": [
+        "box190",
+        "box191"
+      ],
+      "family": "bridge",
+      "type": "Bridge",
+      "arc": "",
+      "arcDef": {
+        "arcs": [],
+        "paintAdd": [],
+        "paintRemove": [],
+        "note": ""
+      },
+      "verified": true
+    },
+    {
+      "id": "g20",
+      "boxIds": [
+        "box202",
+        "box203",
+        "box204",
+        "box209",
+        "box210",
+        "box216",
+        "box205",
+        "box206",
+        "box207",
+        "box212",
+        "box211",
+        "box217"
+      ],
+      "family": "hull",
+      "type": "Forward Hull",
+      "arc": "",
+      "arcDef": {
+        "arcs": [],
+        "paintAdd": [],
+        "paintRemove": [],
+        "note": ""
+      },
+      "verified": true
+    },
+    {
+      "id": "g22",
+      "boxIds": [
+        "box214",
+        "box215"
+      ],
+      "family": "emergency-bridge",
+      "type": "Emergency Bridge",
+      "arc": "",
+      "arcDef": {
+        "arcs": [],
+        "paintAdd": [],
+        "paintRemove": [],
+        "note": ""
+      },
+      "verified": true
+    },
+    {
+      "id": "g23",
+      "boxIds": [
+        "box219",
+        "box220",
+        "box221",
+        "box222"
+      ],
+      "family": "impulse-engine",
+      "type": "Impulse",
+      "arc": "",
+      "arcDef": {
+        "arcs": [],
+        "paintAdd": [],
+        "paintRemove": [],
+        "note": ""
+      },
+      "verified": true
+    },
+    {
+      "id": "g24",
+      "boxIds": [
+        "box223",
+        "box225",
+        "box228",
+        "box235",
+        "box242",
+        "box245"
+      ],
+      "family": "damage-control",
+      "type": "Damage Control",
+      "arc": "",
+      "arcDef": {
+        "arcs": [],
+        "paintAdd": [],
+        "paintRemove": [],
+        "note": ""
+      },
+      "verified": true
+    },
+    {
+      "id": "g25",
+      "boxIds": [
+        "box224"
+      ],
+      "family": "markers",
+      "type": "HET",
+      "arc": "",
+      "arcDef": {
+        "arcs": [],
+        "paintAdd": [],
+        "paintRemove": [],
+        "note": ""
+      },
+      "verified": true
+    },
+    {
+      "id": "g26",
+      "boxIds": [
+        "box226",
+        "box227"
+      ],
+      "family": "auxiliary-control",
+      "type": "Auxiliary Control",
+      "arc": "",
+      "arcDef": {
+        "arcs": [],
+        "paintAdd": [],
+        "paintRemove": [],
+        "note": ""
+      },
+      "verified": true
+    },
+    {
+      "id": "g27",
+      "boxIds": [
+        "box229",
+        "box230"
+      ],
+      "family": "markers",
+      "type": "Breakdown",
+      "arc": "",
+      "arcDef": {
+        "arcs": [],
+        "paintAdd": [],
+        "paintRemove": [],
+        "note": ""
+      },
+      "verified": true
+    },
+    {
+      "id": "g28",
+      "boxIds": [
+        "box231",
+        "box240",
+        "box243",
+        "box250",
+        "box252",
+        "box253",
+        "box266",
+        "box267",
+        "box271",
+        "box272",
+        "box292",
+        "box293",
+        "box303",
+        "box304",
+        "box317",
+        "box318",
+        "box328",
+        "box329",
+        "box333",
+        "box334",
+        "r1783007998183",
+        "r1783007998184",
+        "r1783007998185",
+        "r1783007998186"
+      ],
+      "family": "shield",
+      "type": "Shield 5",
+      "arc": "",
+      "arcDef": {
+        "arcs": [],
+        "paintAdd": [],
+        "paintRemove": [],
+        "note": ""
+      },
+      "verified": true
+    },
+    {
+      "id": "g29",
+      "boxIds": [
+        "box232",
+        "box236",
+        "box160",
+        "box159"
+      ],
+      "family": "battery",
+      "type": "Battery",
+      "arc": "",
+      "arcDef": {
+        "arcs": [],
+        "paintAdd": [],
+        "paintRemove": [],
+        "note": ""
+      },
+      "verified": true
+    },
+    {
+      "id": "g30",
+      "boxIds": [
+        "box233",
+        "box237"
+      ],
+      "family": "tractor",
+      "type": "Tractor",
+      "arc": "",
+      "arcDef": {
+        "arcs": [],
+        "paintAdd": [],
+        "paintRemove": [],
+        "note": ""
+      },
+      "verified": true
+    },
+    {
+      "id": "g32",
+      "boxIds": [
+        "box238",
+        "box239"
+      ],
+      "family": "apr",
+      "type": "APR",
+      "arc": "",
+      "arcDef": {
+        "arcs": [],
+        "paintAdd": [],
+        "paintRemove": [],
+        "note": ""
+      },
+      "verified": true
+    },
+    {
+      "id": "g33",
+      "boxIds": [
+        "box246"
+      ],
+      "family": "probe-launcher",
+      "type": "Probe",
+      "arc": "",
+      "arcDef": {
+        "arcs": [],
+        "paintAdd": [],
+        "paintRemove": [],
+        "note": ""
+      },
+      "verified": true
+    },
+    {
+      "id": "g34",
+      "boxIds": [
+        "box247",
+        "box248"
+      ],
+      "family": "phaser",
+      "type": "Phaser-1 (RH)",
+      "arc": "RH",
+      "arcDef": {
+        "arcs": [
+          "RH"
+        ],
+        "paintAdd": [],
+        "paintRemove": [],
+        "note": ""
+      },
+      "verified": true
+    },
+    {
+      "id": "g36",
+      "boxIds": [
+        "box256",
+        "box257",
+        "box258",
+        "box273",
+        "box274",
+        "box275",
+        "box294",
+        "box295",
+        "box296",
+        "box305",
+        "box306",
+        "box307",
+        "box319",
+        "box320",
+        "box321"
+      ],
+      "family": "warp-engine",
+      "type": "Left Warp",
+      "arc": "",
+      "arcDef": {
+        "arcs": [],
+        "paintAdd": [],
+        "paintRemove": [],
+        "note": ""
+      },
+      "verified": true
+    },
+    {
+      "id": "g37",
+      "boxIds": [
+        "box259",
+        "box276",
+        "box262",
+        "box279"
+      ],
+      "family": "hull",
+      "type": "Rear Hull",
+      "arc": "",
+      "arcDef": {
+        "arcs": [],
+        "paintAdd": [],
+        "paintRemove": [],
+        "note": ""
+      },
+      "verified": true
+    },
+    {
+      "id": "g38",
+      "boxIds": [
+        "box260",
+        "box261",
+        "box277",
+        "box278"
+      ],
+      "family": "shuttle-bay",
+      "type": "Shuttle",
+      "arc": "",
+      "arcDef": {
+        "arcs": [],
+        "paintAdd": [],
+        "paintRemove": [],
+        "note": ""
+      },
+      "verified": true
+    },
+    {
+      "id": "g40",
+      "boxIds": [
+        "box263",
+        "box264",
+        "box265",
+        "box280",
+        "box281",
+        "box282",
+        "box297",
+        "box298",
+        "box299",
+        "box311",
+        "box312",
+        "box313",
+        "box322",
+        "box323",
+        "box324"
+      ],
+      "family": "warp-engine",
+      "type": "Right Warp",
+      "arc": "",
+      "arcDef": {
+        "arcs": [],
+        "paintAdd": [],
+        "paintRemove": [],
+        "note": ""
+      },
+      "verified": true
+    },
+    {
+      "id": "g41",
+      "boxIds": [
+        "box270",
+        "box285",
+        "box302",
+        "box316",
+        "box327",
+        "box332"
+      ],
+      "family": "excess-damage",
+      "type": "Excess Damage",
+      "arc": "",
+      "arcDef": {
+        "arcs": [],
+        "paintAdd": [],
+        "paintRemove": [],
+        "note": ""
+      },
+      "verified": true
+    },
+    {
+      "id": "g43",
+      "boxIds": [
+        "box287",
+        "box289",
+        "box288",
+        "box290"
+      ],
+      "family": "ammo-track",
+      "type": "Drone Rack",
+      "arc": "",
+      "arcDef": {
+        "arcs": [],
+        "paintAdd": [],
+        "paintRemove": [],
+        "note": ""
+      },
+      "verified": true
+    },
+    {
+      "id": "g48",
+      "boxIds": [
+        "box308",
+        "box310"
+      ],
+      "family": "phaser",
+      "type": "Phaser-3 (360)",
+      "arc": "360",
+      "arcDef": {
+        "arcs": [
+          "RF",
+          "R",
+          "RR",
+          "LR",
+          "L",
+          "LF"
+        ],
+        "paintAdd": [],
+        "paintRemove": [],
+        "note": "360 refit"
+      },
+      "verified": true
+    },
+    {
+      "id": "g49",
+      "boxIds": [
+        "box309"
+      ],
+      "family": "drone-rack",
+      "type": "Drone",
+      "arc": "360",
+      "arcDef": {
+        "arcs": [
+          "RF",
+          "R",
+          "RR",
+          "LR",
+          "L",
+          "LF"
+        ],
+        "paintAdd": [],
+        "paintRemove": [],
+        "note": "360 refit"
+      },
+      "verified": true
+    },
+    {
+      "id": "g51",
+      "boxIds": [
+        "box337",
+        "box338",
+        "box339",
+        "box340",
+        "box346",
+        "box349",
+        "box350",
+        "box351",
+        "box352",
+        "box353",
+        "box354",
+        "box355",
+        "box356",
+        "box357",
+        "box341",
+        "box342",
+        "box343",
+        "box344",
+        "box347",
+        "box348",
+        "r1783007976577",
+        "r1783007976578",
+        "r1783007976579",
+        "r1783007976580"
+      ],
+      "family": "shield",
+      "type": "Shield 4",
+      "arc": "",
+      "arcDef": {
+        "arcs": [],
+        "paintAdd": [],
+        "paintRemove": [],
+        "note": ""
+      },
+      "verified": true
+    },
+    {
+      "id": "g1783007832139",
+      "boxIds": [
+        "box118",
+        "box119",
+        "box136",
+        "box137",
+        "box141",
+        "box142",
+        "box150",
+        "box151",
+        "box155",
+        "box156",
+        "box165",
+        "box166",
+        "box169",
+        "box170",
+        "box180",
+        "box181",
+        "box193",
+        "box194",
+        "box198",
+        "box199",
+        "r1783007802584",
+        "r1783007802585",
+        "r1783007802586",
+        "r1783007802587"
+      ],
+      "family": "shield",
+      "type": "Shield 6",
+      "arc": "",
+      "arcDef": {
+        "arcs": [],
+        "paintAdd": [],
+        "paintRemove": [],
+        "note": ""
+      },
+      "verified": true
+    },
+    {
+      "id": "g1783007926128",
+      "boxIds": [
+        "box234",
+        "box241",
+        "box244",
+        "box251",
+        "box254",
+        "box255",
+        "box268",
+        "box269",
+        "box283",
+        "box284",
+        "box300",
+        "box301",
+        "box314",
+        "box315",
+        "box325",
+        "box326",
+        "box330",
+        "box331",
+        "box335",
+        "box336",
+        "r1783007874021",
+        "r1783007874022",
+        "r1783007874023",
+        "r1783007874024"
+      ],
+      "family": "shield",
+      "type": "Shield 3",
+      "arc": "",
+      "arcDef": {
+        "arcs": [],
+        "paintAdd": [],
+        "paintRemove": [],
+        "note": ""
+      },
+      "verified": true
+    }
+  ],
+  "extraBoxes": [
+    {
+      "x": 1923,
+      "y": 769,
+      "w": 25,
+      "h": 25,
+      "bbox": [
+        0.8741,
+        0.4524,
+        0.0114,
+        0.0147
+      ],
+      "cc": "control",
+      "family": "control",
+      "shaded": false,
+      "src": "rescan",
+      "id": "r1783007584276"
+    },
+    {
+      "x": 1952,
+      "y": 769,
+      "w": 25,
+      "h": 25,
+      "bbox": [
+        0.8873,
+        0.4524,
+        0.0114,
+        0.0147
+      ],
+      "cc": "control",
+      "family": "control",
+      "shaded": false,
+      "src": "rescan",
+      "id": "r1783007584277"
+    },
+    {
+      "x": 1923,
+      "y": 797,
+      "w": 25,
+      "h": 25,
+      "bbox": [
+        0.8741,
+        0.4688,
+        0.0114,
+        0.0147
+      ],
+      "cc": "control",
+      "family": "control",
+      "shaded": false,
+      "src": "rescan",
+      "id": "r1783007584278"
+    },
+    {
+      "x": 1952,
+      "y": 797,
+      "w": 25,
+      "h": 25,
+      "bbox": [
+        0.8873,
+        0.4688,
+        0.0114,
+        0.0147
+      ],
+      "cc": "control",
+      "family": "control",
+      "shaded": false,
+      "src": "rescan",
+      "id": "r1783007584279"
+    },
+    {
+      "x": 1354,
+      "y": 769,
+      "w": 25,
+      "h": 25,
+      "bbox": [
+        0.6155,
+        0.4524,
+        0.0114,
+        0.0147
+      ],
+      "cc": "control",
+      "family": "control",
+      "shaded": false,
+      "src": "rescan",
+      "id": "r1783007802584"
+    },
+    {
+      "x": 1383,
+      "y": 769,
+      "w": 25,
+      "h": 25,
+      "bbox": [
+        0.6286,
+        0.4524,
+        0.0114,
+        0.0147
+      ],
+      "cc": "control",
+      "family": "control",
+      "shaded": false,
+      "src": "rescan",
+      "id": "r1783007802585"
+    },
+    {
+      "x": 1354,
+      "y": 797,
+      "w": 25,
+      "h": 25,
+      "bbox": [
+        0.6155,
+        0.4688,
+        0.0114,
+        0.0147
+      ],
+      "cc": "control",
+      "family": "control",
+      "shaded": false,
+      "src": "rescan",
+      "id": "r1783007802586"
+    },
+    {
+      "x": 1383,
+      "y": 797,
+      "w": 25,
+      "h": 25,
+      "bbox": [
+        0.6286,
+        0.4688,
+        0.0114,
+        0.0147
+      ],
+      "cc": "control",
+      "family": "control",
+      "shaded": false,
+      "src": "rescan",
+      "id": "r1783007802587"
+    },
+    {
+      "x": 1923,
+      "y": 982,
+      "w": 25,
+      "h": 25,
+      "bbox": [
+        0.8741,
+        0.5776,
+        0.0114,
+        0.0147
+      ],
+      "cc": "control",
+      "family": "control",
+      "shaded": false,
+      "src": "rescan",
+      "id": "r1783007874021"
+    },
+    {
+      "x": 1923,
+      "y": 1011,
+      "w": 25,
+      "h": 24,
+      "bbox": [
+        0.8741,
+        0.5947,
+        0.0114,
+        0.0141
+      ],
+      "cc": "control",
+      "family": "control",
+      "shaded": false,
+      "src": "rescan",
+      "id": "r1783007874022"
+    },
+    {
+      "x": 1923,
+      "y": 1039,
+      "w": 25,
+      "h": 25,
+      "bbox": [
+        0.8741,
+        0.6112,
+        0.0114,
+        0.0147
+      ],
+      "cc": "control",
+      "family": "control",
+      "shaded": false,
+      "src": "rescan",
+      "id": "r1783007874023"
+    },
+    {
+      "x": 1923,
+      "y": 1067,
+      "w": 25,
+      "h": 25,
+      "bbox": [
+        0.8741,
+        0.6276,
+        0.0114,
+        0.0147
+      ],
+      "cc": "control",
+      "family": "control",
+      "shaded": false,
+      "src": "rescan",
+      "id": "r1783007874024"
+    },
+    {
+      "x": 1611,
+      "y": 1310,
+      "w": 24,
+      "h": 24,
+      "bbox": [
+        0.7323,
+        0.7706,
+        0.0109,
+        0.0141
+      ],
+      "cc": "control",
+      "family": "control",
+      "shaded": false,
+      "src": "rescan",
+      "id": "r1783007976577"
+    },
+    {
+      "x": 1639,
+      "y": 1310,
+      "w": 25,
+      "h": 24,
+      "bbox": [
+        0.745,
+        0.7706,
+        0.0114,
+        0.0141
+      ],
+      "cc": "control",
+      "family": "control",
+      "shaded": false,
+      "src": "rescan",
+      "id": "r1783007976578"
+    },
+    {
+      "x": 1667,
+      "y": 1310,
+      "w": 25,
+      "h": 24,
+      "bbox": [
+        0.7577,
+        0.7706,
+        0.0114,
+        0.0141
+      ],
+      "cc": "control",
+      "family": "control",
+      "shaded": false,
+      "src": "rescan",
+      "id": "r1783007976579"
+    },
+    {
+      "x": 1696,
+      "y": 1310,
+      "w": 25,
+      "h": 24,
+      "bbox": [
+        0.7709,
+        0.7706,
+        0.0114,
+        0.0141
+      ],
+      "cc": "control",
+      "family": "control",
+      "shaded": false,
+      "src": "rescan",
+      "id": "r1783007976580"
+    },
+    {
+      "x": 1383,
+      "y": 982,
+      "w": 25,
+      "h": 25,
+      "bbox": [
+        0.6286,
+        0.5776,
+        0.0114,
+        0.0147
+      ],
+      "cc": "control",
+      "family": "control",
+      "shaded": false,
+      "src": "rescan",
+      "id": "r1783007998183"
+    },
+    {
+      "x": 1383,
+      "y": 1011,
+      "w": 25,
+      "h": 24,
+      "bbox": [
+        0.6286,
+        0.5947,
+        0.0114,
+        0.0141
+      ],
+      "cc": "control",
+      "family": "control",
+      "shaded": false,
+      "src": "rescan",
+      "id": "r1783007998184"
+    },
+    {
+      "x": 1383,
+      "y": 1039,
+      "w": 25,
+      "h": 25,
+      "bbox": [
+        0.6286,
+        0.6112,
+        0.0114,
+        0.0147
+      ],
+      "cc": "control",
+      "family": "control",
+      "shaded": false,
+      "src": "rescan",
+      "id": "r1783007998185"
+    },
+    {
+      "x": 1383,
+      "y": 1067,
+      "w": 25,
+      "h": 25,
+      "bbox": [
+        0.6286,
+        0.6276,
+        0.0114,
+        0.0147
+      ],
+      "cc": "control",
+      "family": "control",
+      "shaded": false,
+      "src": "rescan",
+      "id": "r1783007998186"
+    }
+  ],
+  "labels": {
+    "box135": "5",
+    "box149": "1",
+    "box117": "6",
+    "box140": "3",
+    "box154": "0",
+    "box179": "0",
+    "box192": "0",
+    "box197": "1",
+    "box208": "3",
+    "box213": "5",
+    "box218": "9",
+    "box228": "2",
+    "box225": "4",
+    "box235": "2",
+    "box242": "2",
+    "box245": "0",
+    "box223": "4",
+    "box64": "A",
+    "box131": "D",
+    "box133": "D",
+    "box309": "",
+    "box163": "",
+    "box164": "",
+    "box173": "",
+    "box187": "",
+    "box178": "",
+    "box189": "",
+    "box248": "",
+    "box259": "",
+    "box262": "",
+    "box310": "",
+    "box147": "C",
+    "box148": "D",
+    "box239": "",
+    "box126": "5"
   },
-  {
-   "family": "ammo-track",
-   "arc": "",
-   "arcDef": {
-    "arcs": [],
-    "paintAdd": [],
-    "paintRemove": [],
-    "note": ""
-   },
-   "verified": true,
-   "id": "g1_s1",
-   "type": "Shuttle 1",
-   "boxIds": [
-    "box21",
-    "box22",
-    "box23",
-    "box24",
-    "box25",
-    "box26",
-    "box27",
-    "box28"
-   ]
-  },
-  {
-   "family": "ammo-track",
-   "arc": "",
-   "arcDef": {
-    "arcs": [],
-    "paintAdd": [],
-    "paintRemove": [],
-    "note": ""
-   },
-   "verified": true,
-   "id": "g1_s2",
-   "type": "Shuttle 2",
-   "boxIds": [
-    "box39",
-    "box40",
-    "box41",
-    "box42",
-    "box43",
-    "box44",
-    "box45",
-    "box46"
-   ]
-  },
-  {
-   "family": "ammo-track",
-   "arc": "",
-   "arcDef": {
-    "arcs": [],
-    "paintAdd": [],
-    "paintRemove": [],
-    "note": ""
-   },
-   "verified": true,
-   "id": "g1_s3",
-   "type": "Shuttle 3",
-   "boxIds": [
-    "box57",
-    "box58",
-    "box59",
-    "box60",
-    "box61",
-    "box62",
-    "box63",
-    "box64"
-   ]
-  },
-  {
-   "family": "ammo-track",
-   "arc": "",
-   "arcDef": {
-    "arcs": [],
-    "paintAdd": [],
-    "paintRemove": [],
-    "note": ""
-   },
-   "verified": true,
-   "id": "g1_s4",
-   "type": "Shuttle 4",
-   "boxIds": [
-    "box68",
-    "box69",
-    "box70",
-    "box71",
-    "box72",
-    "box73",
-    "box74",
-    "box75"
-   ]
-  },
-  {
-   "id": "g2",
-   "boxIds": [
-    "box76",
-    "box79",
-    "box80",
-    "box81",
-    "box86",
-    "box87",
-    "box88",
-    "box89",
-    "box90",
-    "box91",
-    "box92",
-    "box93",
-    "box94",
-    "box95",
-    "box107",
-    "box108",
-    "box109",
-    "box110",
-    "box111",
-    "box112",
-    "box113",
-    "box114",
-    "box115",
-    "box116",
-    "box77",
-    "box78",
-    "box82",
-    "box83",
-    "box84",
-    "box85"
-   ],
-   "family": "shield",
-   "type": "Shield 1",
-   "arc": "",
-   "arcDef": {
-    "arcs": [],
-    "paintAdd": [],
-    "paintRemove": [],
-    "note": ""
-   },
-   "verified": true
-  },
-  {
-   "id": "g3",
-   "boxIds": [
-    "box96",
-    "box97",
-    "box98",
-    "box99",
-    "box100",
-    "box101",
-    "box102",
-    "box103",
-    "box104",
-    "box105"
-   ],
-   "family": "crew",
-   "type": "Boarding Parties",
-   "arc": "",
-   "arcDef": {
-    "arcs": [],
-    "paintAdd": [],
-    "paintRemove": [],
-    "note": ""
-   },
-   "verified": true
-  },
-  {
-   "id": "g4",
-   "boxIds": [
-    "box106",
-    "box117",
-    "box135",
-    "box140",
-    "box149",
-    "box154"
-   ],
-   "family": "sensor",
-   "type": "Sensor",
-   "arc": "",
-   "arcDef": {
-    "arcs": [],
-    "paintAdd": [],
-    "paintRemove": [],
-    "note": ""
-   },
-   "verified": true
-  },
-  {
-   "id": "g6",
-   "boxIds": [
-    "box120",
-    "box121",
-    "box138",
-    "box139",
-    "box143",
-    "box144",
-    "box152",
-    "box153",
-    "box157",
-    "box158",
-    "box167",
-    "box168",
-    "box171",
-    "box172",
-    "box182",
-    "box183",
-    "box195",
-    "box196",
-    "box200",
-    "box201",
-    "r1783007584276",
-    "r1783007584277",
-    "r1783007584278",
-    "r1783007584279"
-   ],
-   "family": "shield",
-   "type": "Shield 2",
-   "arc": "",
-   "arcDef": {
-    "arcs": [],
-    "paintAdd": [],
-    "paintRemove": [],
-    "note": ""
-   },
-   "verified": true
-  },
-  {
-   "id": "g7",
-   "boxIds": [
-    "box122",
-    "box123",
-    "box124",
-    "box125",
-    "box126"
-   ],
-   "family": "ammo-track",
-   "type": "Probes",
-   "arc": "",
-   "arcDef": {
-    "arcs": [],
-    "paintAdd": [],
-    "paintRemove": [],
-    "note": ""
-   },
-   "verified": true
-  },
-  {
-   "id": "g8",
-   "boxIds": [
-    "box127",
-    "box128",
-    "box129",
-    "box130"
-   ],
-   "family": "ammo-track",
-   "type": "Transporter Bombs",
-   "arc": "",
-   "arcDef": {
-    "arcs": [],
-    "paintAdd": [],
-    "paintRemove": [],
-    "note": ""
-   },
-   "verified": true
-  },
-  {
-   "id": "g9",
-   "boxIds": [
-    "box131",
-    "box132",
-    "box133",
-    "box134"
-   ],
-   "family": "ammo-track",
-   "type": "Transporter Bombs (Dummy)",
-   "arc": "",
-   "arcDef": {
-    "arcs": [],
-    "paintAdd": [],
-    "paintRemove": [],
-    "note": ""
-   },
-   "verified": true
-  },
-  {
-   "id": "g10",
-   "boxIds": [
-    "box145",
-    "box146",
-    "box147",
-    "box148"
-   ],
-   "family": "heavy-weapon",
-   "type": "Photon torpedo (FA)",
-   "arc": "FA",
-   "arcDef": {
-    "arcs": [
-     "FA"
-    ],
-    "paintAdd": [],
-    "paintRemove": [],
-    "note": ""
-   },
-   "verified": true
-  },
-  {
-   "id": "g12",
-   "boxIds": [
-    "box161",
-    "box162",
-    "box249"
-   ],
-   "family": "transporter",
-   "type": "Transporter",
-   "arc": "",
-   "arcDef": {
-    "arcs": [],
-    "paintAdd": [],
-    "paintRemove": [],
-    "note": ""
-   },
-   "verified": true
-  },
-  {
-   "id": "g13",
-   "boxIds": [
-    "box163",
-    "box164"
-   ],
-   "family": "phaser",
-   "type": "Phaser-1 (FH)",
-   "arc": "FH",
-   "arcDef": {
-    "arcs": [
-     "FH"
-    ],
-    "paintAdd": [],
-    "paintRemove": [],
-    "note": ""
-   },
-   "verified": true
-  },
-  {
-   "id": "g14",
-   "boxIds": [
-    "box173",
-    "box187"
-   ],
-   "family": "phaser",
-   "type": "Phaser-1 (L+LF, +rear)",
-   "arc": "L",
-   "arcDef": {
-    "arcs": [
-     "L",
-     "LF"
-    ],
-    "paintAdd": [
-     [
-      0,
-      1
-     ],
-     [
-      0,
-      2
-     ],
-     [
-      0,
-      3
-     ],
-     [
-      0,
-      4
-     ]
-    ],
-    "paintRemove": [],
-    "note": "+rear row (SSD note / D2.13)"
-   },
-   "verified": true
-  },
-  {
-   "id": "g15",
-   "boxIds": [
-    "box174",
-    "box175",
-    "box184",
-    "box188",
-    "box176",
-    "box177",
-    "box186",
-    "box185"
-   ],
-   "family": "lab",
-   "type": "Lab",
-   "arc": "",
-   "arcDef": {
-    "arcs": [],
-    "paintAdd": [],
-    "paintRemove": [],
-    "note": ""
-   },
-   "verified": true
-  },
-  {
-   "id": "g17",
-   "boxIds": [
-    "box178",
-    "box189"
-   ],
-   "family": "phaser",
-   "type": "Phaser-1 (R+RF, +rear)",
-   "arc": "R",
-   "arcDef": {
-    "arcs": [
-     "R",
-     "RF"
-    ],
-    "paintAdd": [
-     [
-      0,
-      1
-     ],
-     [
-      0,
-      2
-     ],
-     [
-      0,
-      3
-     ],
-     [
-      0,
-      4
-     ]
-    ],
-    "paintRemove": [],
-    "note": "+rear row (SSD note / D2.13)"
-   },
-   "verified": true
-  },
-  {
-   "id": "g18",
-   "boxIds": [
-    "box179",
-    "box192",
-    "box197",
-    "box208",
-    "box213",
-    "box218"
-   ],
-   "family": "scanner",
-   "type": "Scanner",
-   "arc": "",
-   "arcDef": {
-    "arcs": [],
-    "paintAdd": [],
-    "paintRemove": [],
-    "note": ""
-   },
-   "verified": true
-  },
-  {
-   "id": "g19",
-   "boxIds": [
-    "box190",
-    "box191"
-   ],
-   "family": "bridge",
-   "type": "Bridge",
-   "arc": "",
-   "arcDef": {
-    "arcs": [],
-    "paintAdd": [],
-    "paintRemove": [],
-    "note": ""
-   },
-   "verified": true
-  },
-  {
-   "id": "g20",
-   "boxIds": [
-    "box202",
-    "box203",
-    "box204",
-    "box209",
-    "box210",
-    "box216",
-    "box205",
-    "box206",
-    "box207",
-    "box212",
-    "box211",
-    "box217"
-   ],
-   "family": "hull",
-   "type": "Forward Hull",
-   "arc": "",
-   "arcDef": {
-    "arcs": [],
-    "paintAdd": [],
-    "paintRemove": [],
-    "note": ""
-   },
-   "verified": true
-  },
-  {
-   "id": "g22",
-   "boxIds": [
-    "box214",
-    "box215"
-   ],
-   "family": "emergency-bridge",
-   "type": "Emergency Bridge",
-   "arc": "",
-   "arcDef": {
-    "arcs": [],
-    "paintAdd": [],
-    "paintRemove": [],
-    "note": ""
-   },
-   "verified": true
-  },
-  {
-   "id": "g23",
-   "boxIds": [
-    "box219",
-    "box220",
-    "box221",
-    "box222"
-   ],
-   "family": "impulse-engine",
-   "type": "Impulse",
-   "arc": "",
-   "arcDef": {
-    "arcs": [],
-    "paintAdd": [],
-    "paintRemove": [],
-    "note": ""
-   },
-   "verified": true
-  },
-  {
-   "id": "g24",
-   "boxIds": [
-    "box223",
-    "box225",
-    "box228",
-    "box235",
-    "box242",
-    "box245"
-   ],
-   "family": "damage-control",
-   "type": "Damage Control",
-   "arc": "",
-   "arcDef": {
-    "arcs": [],
-    "paintAdd": [],
-    "paintRemove": [],
-    "note": ""
-   },
-   "verified": true
-  },
-  {
-   "id": "g25",
-   "boxIds": [
-    "box224"
-   ],
-   "family": "markers",
-   "type": "HET",
-   "arc": "",
-   "arcDef": {
-    "arcs": [],
-    "paintAdd": [],
-    "paintRemove": [],
-    "note": ""
-   },
-   "verified": true
-  },
-  {
-   "id": "g26",
-   "boxIds": [
-    "box226",
-    "box227"
-   ],
-   "family": "auxiliary-control",
-   "type": "Auxiliary Control",
-   "arc": "",
-   "arcDef": {
-    "arcs": [],
-    "paintAdd": [],
-    "paintRemove": [],
-    "note": ""
-   },
-   "verified": true
-  },
-  {
-   "id": "g27",
-   "boxIds": [
-    "box229",
-    "box230"
-   ],
-   "family": "markers",
-   "type": "Breakdown",
-   "arc": "",
-   "arcDef": {
-    "arcs": [],
-    "paintAdd": [],
-    "paintRemove": [],
-    "note": ""
-   },
-   "verified": true
-  },
-  {
-   "id": "g28",
-   "boxIds": [
-    "box231",
-    "box240",
-    "box243",
-    "box250",
-    "box252",
-    "box253",
-    "box266",
-    "box267",
-    "box271",
-    "box272",
-    "box292",
-    "box293",
-    "box303",
-    "box304",
-    "box317",
-    "box318",
-    "box328",
-    "box329",
-    "box333",
-    "box334",
-    "r1783007998183",
-    "r1783007998184",
-    "r1783007998185",
-    "r1783007998186"
-   ],
-   "family": "shield",
-   "type": "Shield 5",
-   "arc": "",
-   "arcDef": {
-    "arcs": [],
-    "paintAdd": [],
-    "paintRemove": [],
-    "note": ""
-   },
-   "verified": true
-  },
-  {
-   "id": "g29",
-   "boxIds": [
-    "box232",
-    "box236",
-    "box160",
-    "box159"
-   ],
-   "family": "battery",
-   "type": "Battery",
-   "arc": "",
-   "arcDef": {
-    "arcs": [],
-    "paintAdd": [],
-    "paintRemove": [],
-    "note": ""
-   },
-   "verified": true
-  },
-  {
-   "id": "g30",
-   "boxIds": [
-    "box233",
-    "box237"
-   ],
-   "family": "tractor",
-   "type": "Tractor",
-   "arc": "",
-   "arcDef": {
-    "arcs": [],
-    "paintAdd": [],
-    "paintRemove": [],
-    "note": ""
-   },
-   "verified": true
-  },
-  {
-   "id": "g32",
-   "boxIds": [
-    "box238",
-    "box239"
-   ],
-   "family": "apr",
-   "type": "APR",
-   "arc": "",
-   "arcDef": {
-    "arcs": [],
-    "paintAdd": [],
-    "paintRemove": [],
-    "note": ""
-   },
-   "verified": true
-  },
-  {
-   "id": "g33",
-   "boxIds": [
-    "box246"
-   ],
-   "family": "probe-launcher",
-   "type": "Probe",
-   "arc": "",
-   "arcDef": {
-    "arcs": [],
-    "paintAdd": [],
-    "paintRemove": [],
-    "note": ""
-   },
-   "verified": true
-  },
-  {
-   "id": "g34",
-   "boxIds": [
-    "box247",
-    "box248"
-   ],
-   "family": "phaser",
-   "type": "Phaser-1 (RH)",
-   "arc": "RH",
-   "arcDef": {
-    "arcs": [
-     "RH"
-    ],
-    "paintAdd": [],
-    "paintRemove": [],
-    "note": ""
-   },
-   "verified": true
-  },
-  {
-   "id": "g36",
-   "boxIds": [
-    "box256",
-    "box257",
-    "box258",
-    "box273",
-    "box274",
-    "box275",
-    "box294",
-    "box295",
-    "box296",
-    "box305",
-    "box306",
-    "box307",
-    "box319",
-    "box320",
-    "box321"
-   ],
-   "family": "warp-engine",
-   "type": "Left Warp",
-   "arc": "",
-   "arcDef": {
-    "arcs": [],
-    "paintAdd": [],
-    "paintRemove": [],
-    "note": ""
-   },
-   "verified": true
-  },
-  {
-   "id": "g37",
-   "boxIds": [
-    "box259",
-    "box276",
-    "box262",
-    "box279"
-   ],
-   "family": "hull",
-   "type": "Rear Hull",
-   "arc": "",
-   "arcDef": {
-    "arcs": [],
-    "paintAdd": [],
-    "paintRemove": [],
-    "note": ""
-   },
-   "verified": true
-  },
-  {
-   "id": "g38",
-   "boxIds": [
-    "box260",
-    "box261",
-    "box277",
-    "box278"
-   ],
-   "family": "shuttle-bay",
-   "type": "Shuttle",
-   "arc": "",
-   "arcDef": {
-    "arcs": [],
-    "paintAdd": [],
-    "paintRemove": [],
-    "note": ""
-   },
-   "verified": true
-  },
-  {
-   "id": "g40",
-   "boxIds": [
-    "box263",
-    "box264",
-    "box265",
-    "box280",
-    "box281",
-    "box282",
-    "box297",
-    "box298",
-    "box299",
-    "box311",
-    "box312",
-    "box313",
-    "box322",
-    "box323",
-    "box324"
-   ],
-   "family": "warp-engine",
-   "type": "Right Warp",
-   "arc": "",
-   "arcDef": {
-    "arcs": [],
-    "paintAdd": [],
-    "paintRemove": [],
-    "note": ""
-   },
-   "verified": true
-  },
-  {
-   "id": "g41",
-   "boxIds": [
-    "box270",
-    "box285",
-    "box302",
-    "box316",
-    "box327",
-    "box332"
-   ],
-   "family": "excess-damage",
-   "type": "Excess Damage",
-   "arc": "",
-   "arcDef": {
-    "arcs": [],
-    "paintAdd": [],
-    "paintRemove": [],
-    "note": ""
-   },
-   "verified": true
-  },
-  {
-   "id": "g43",
-   "boxIds": [
-    "box287",
-    "box289",
-    "box288",
-    "box290"
-   ],
-   "family": "ammo-track",
-   "type": "Drone Rack",
-   "arc": "",
-   "arcDef": {
-    "arcs": [],
-    "paintAdd": [],
-    "paintRemove": [],
-    "note": ""
-   },
-   "verified": true
-  },
-  {
-   "id": "g48",
-   "boxIds": [
-    "box308",
-    "box310"
-   ],
-   "family": "phaser",
-   "type": "Phaser-3 (360)",
-   "arc": "360",
-   "arcDef": {
-    "arcs": [
-     "RF",
-     "R",
-     "RR",
-     "LR",
-     "L",
-     "LF"
-    ],
-    "paintAdd": [],
-    "paintRemove": [],
-    "note": "360 refit"
-   },
-   "verified": true
-  },
-  {
-   "id": "g49",
-   "boxIds": [
-    "box309"
-   ],
-   "family": "drone-rack",
-   "type": "Drone",
-   "arc": "360",
-   "arcDef": {
-    "arcs": [
-     "RF",
-     "R",
-     "RR",
-     "LR",
-     "L",
-     "LF"
-    ],
-    "paintAdd": [],
-    "paintRemove": [],
-    "note": "360 refit"
-   },
-   "verified": true
-  },
-  {
-   "id": "g51",
-   "boxIds": [
-    "box337",
-    "box338",
-    "box339",
-    "box340",
-    "box346",
-    "box349",
-    "box350",
-    "box351",
-    "box352",
-    "box353",
-    "box354",
-    "box355",
-    "box356",
-    "box357",
-    "box341",
-    "box342",
-    "box343",
-    "box344",
-    "box347",
-    "box348",
-    "r1783007976577",
-    "r1783007976578",
-    "r1783007976579",
-    "r1783007976580"
-   ],
-   "family": "shield",
-   "type": "Shield 4",
-   "arc": "",
-   "arcDef": {
-    "arcs": [],
-    "paintAdd": [],
-    "paintRemove": [],
-    "note": ""
-   },
-   "verified": true
-  },
-  {
-   "id": "g1783007832139",
-   "boxIds": [
-    "box118",
-    "box119",
-    "box136",
-    "box137",
-    "box141",
-    "box142",
-    "box150",
-    "box151",
-    "box155",
-    "box156",
-    "box165",
-    "box166",
-    "box169",
-    "box170",
-    "box180",
-    "box181",
-    "box193",
-    "box194",
-    "box198",
-    "box199",
-    "r1783007802584",
-    "r1783007802585",
-    "r1783007802586",
-    "r1783007802587"
-   ],
-   "family": "shield",
-   "type": "Shield 6",
-   "arc": "",
-   "arcDef": {
-    "arcs": [],
-    "paintAdd": [],
-    "paintRemove": [],
-    "note": ""
-   },
-   "verified": true
-  },
-  {
-   "id": "g1783007926128",
-   "boxIds": [
-    "box234",
-    "box241",
-    "box244",
-    "box251",
-    "box254",
-    "box255",
-    "box268",
-    "box269",
-    "box283",
-    "box284",
-    "box300",
-    "box301",
-    "box314",
-    "box315",
-    "box325",
-    "box326",
-    "box330",
-    "box331",
-    "box335",
-    "box336",
-    "r1783007874021",
-    "r1783007874022",
-    "r1783007874023",
-    "r1783007874024"
-   ],
-   "family": "shield",
-   "type": "Shield 3",
-   "arc": "",
-   "arcDef": {
-    "arcs": [],
-    "paintAdd": [],
-    "paintRemove": [],
-    "note": ""
-   },
-   "verified": true
+  "deleted": [
+    "box345",
+    "box358",
+    "box286",
+    "box291"
+  ],
+  "pass": "b4-verify",
+  "stats": {
+    "turnCategory": "D",
+    "turnCategorySource": "MSC C3.3",
+    "sizeClass": 3,
+    "moveCost": 1.0,
+    "bes": 18,
+    "breakdownRating": 5,
+    "dcRating": 4,
+    "statsSource": "MSC (Module G3, Annex R2-R6)"
   }
- ],
- "extraBoxes": [
-  {
-   "x": 1923,
-   "y": 769,
-   "w": 25,
-   "h": 25,
-   "bbox": [
-    0.8741,
-    0.4524,
-    0.0114,
-    0.0147
-   ],
-   "cc": "control",
-   "family": "control",
-   "shaded": false,
-   "src": "rescan",
-   "id": "r1783007584276"
-  },
-  {
-   "x": 1952,
-   "y": 769,
-   "w": 25,
-   "h": 25,
-   "bbox": [
-    0.8873,
-    0.4524,
-    0.0114,
-    0.0147
-   ],
-   "cc": "control",
-   "family": "control",
-   "shaded": false,
-   "src": "rescan",
-   "id": "r1783007584277"
-  },
-  {
-   "x": 1923,
-   "y": 797,
-   "w": 25,
-   "h": 25,
-   "bbox": [
-    0.8741,
-    0.4688,
-    0.0114,
-    0.0147
-   ],
-   "cc": "control",
-   "family": "control",
-   "shaded": false,
-   "src": "rescan",
-   "id": "r1783007584278"
-  },
-  {
-   "x": 1952,
-   "y": 797,
-   "w": 25,
-   "h": 25,
-   "bbox": [
-    0.8873,
-    0.4688,
-    0.0114,
-    0.0147
-   ],
-   "cc": "control",
-   "family": "control",
-   "shaded": false,
-   "src": "rescan",
-   "id": "r1783007584279"
-  },
-  {
-   "x": 1354,
-   "y": 769,
-   "w": 25,
-   "h": 25,
-   "bbox": [
-    0.6155,
-    0.4524,
-    0.0114,
-    0.0147
-   ],
-   "cc": "control",
-   "family": "control",
-   "shaded": false,
-   "src": "rescan",
-   "id": "r1783007802584"
-  },
-  {
-   "x": 1383,
-   "y": 769,
-   "w": 25,
-   "h": 25,
-   "bbox": [
-    0.6286,
-    0.4524,
-    0.0114,
-    0.0147
-   ],
-   "cc": "control",
-   "family": "control",
-   "shaded": false,
-   "src": "rescan",
-   "id": "r1783007802585"
-  },
-  {
-   "x": 1354,
-   "y": 797,
-   "w": 25,
-   "h": 25,
-   "bbox": [
-    0.6155,
-    0.4688,
-    0.0114,
-    0.0147
-   ],
-   "cc": "control",
-   "family": "control",
-   "shaded": false,
-   "src": "rescan",
-   "id": "r1783007802586"
-  },
-  {
-   "x": 1383,
-   "y": 797,
-   "w": 25,
-   "h": 25,
-   "bbox": [
-    0.6286,
-    0.4688,
-    0.0114,
-    0.0147
-   ],
-   "cc": "control",
-   "family": "control",
-   "shaded": false,
-   "src": "rescan",
-   "id": "r1783007802587"
-  },
-  {
-   "x": 1923,
-   "y": 982,
-   "w": 25,
-   "h": 25,
-   "bbox": [
-    0.8741,
-    0.5776,
-    0.0114,
-    0.0147
-   ],
-   "cc": "control",
-   "family": "control",
-   "shaded": false,
-   "src": "rescan",
-   "id": "r1783007874021"
-  },
-  {
-   "x": 1923,
-   "y": 1011,
-   "w": 25,
-   "h": 24,
-   "bbox": [
-    0.8741,
-    0.5947,
-    0.0114,
-    0.0141
-   ],
-   "cc": "control",
-   "family": "control",
-   "shaded": false,
-   "src": "rescan",
-   "id": "r1783007874022"
-  },
-  {
-   "x": 1923,
-   "y": 1039,
-   "w": 25,
-   "h": 25,
-   "bbox": [
-    0.8741,
-    0.6112,
-    0.0114,
-    0.0147
-   ],
-   "cc": "control",
-   "family": "control",
-   "shaded": false,
-   "src": "rescan",
-   "id": "r1783007874023"
-  },
-  {
-   "x": 1923,
-   "y": 1067,
-   "w": 25,
-   "h": 25,
-   "bbox": [
-    0.8741,
-    0.6276,
-    0.0114,
-    0.0147
-   ],
-   "cc": "control",
-   "family": "control",
-   "shaded": false,
-   "src": "rescan",
-   "id": "r1783007874024"
-  },
-  {
-   "x": 1611,
-   "y": 1310,
-   "w": 24,
-   "h": 24,
-   "bbox": [
-    0.7323,
-    0.7706,
-    0.0109,
-    0.0141
-   ],
-   "cc": "control",
-   "family": "control",
-   "shaded": false,
-   "src": "rescan",
-   "id": "r1783007976577"
-  },
-  {
-   "x": 1639,
-   "y": 1310,
-   "w": 25,
-   "h": 24,
-   "bbox": [
-    0.745,
-    0.7706,
-    0.0114,
-    0.0141
-   ],
-   "cc": "control",
-   "family": "control",
-   "shaded": false,
-   "src": "rescan",
-   "id": "r1783007976578"
-  },
-  {
-   "x": 1667,
-   "y": 1310,
-   "w": 25,
-   "h": 24,
-   "bbox": [
-    0.7577,
-    0.7706,
-    0.0114,
-    0.0141
-   ],
-   "cc": "control",
-   "family": "control",
-   "shaded": false,
-   "src": "rescan",
-   "id": "r1783007976579"
-  },
-  {
-   "x": 1696,
-   "y": 1310,
-   "w": 25,
-   "h": 24,
-   "bbox": [
-    0.7709,
-    0.7706,
-    0.0114,
-    0.0141
-   ],
-   "cc": "control",
-   "family": "control",
-   "shaded": false,
-   "src": "rescan",
-   "id": "r1783007976580"
-  },
-  {
-   "x": 1383,
-   "y": 982,
-   "w": 25,
-   "h": 25,
-   "bbox": [
-    0.6286,
-    0.5776,
-    0.0114,
-    0.0147
-   ],
-   "cc": "control",
-   "family": "control",
-   "shaded": false,
-   "src": "rescan",
-   "id": "r1783007998183"
-  },
-  {
-   "x": 1383,
-   "y": 1011,
-   "w": 25,
-   "h": 24,
-   "bbox": [
-    0.6286,
-    0.5947,
-    0.0114,
-    0.0141
-   ],
-   "cc": "control",
-   "family": "control",
-   "shaded": false,
-   "src": "rescan",
-   "id": "r1783007998184"
-  },
-  {
-   "x": 1383,
-   "y": 1039,
-   "w": 25,
-   "h": 25,
-   "bbox": [
-    0.6286,
-    0.6112,
-    0.0114,
-    0.0147
-   ],
-   "cc": "control",
-   "family": "control",
-   "shaded": false,
-   "src": "rescan",
-   "id": "r1783007998185"
-  },
-  {
-   "x": 1383,
-   "y": 1067,
-   "w": 25,
-   "h": 25,
-   "bbox": [
-    0.6286,
-    0.6276,
-    0.0114,
-    0.0147
-   ],
-   "cc": "control",
-   "family": "control",
-   "shaded": false,
-   "src": "rescan",
-   "id": "r1783007998186"
-  }
- ],
- "labels": {
-  "box135": "5",
-  "box149": "1",
-  "box117": "6",
-  "box140": "3",
-  "box154": "0",
-  "box179": "0",
-  "box192": "0",
-  "box197": "1",
-  "box208": "3",
-  "box213": "5",
-  "box218": "9",
-  "box228": "2",
-  "box225": "4",
-  "box235": "2",
-  "box242": "2",
-  "box245": "0",
-  "box223": "4",
-  "box64": "A",
-  "box131": "D",
-  "box133": "D",
-  "box309": "",
-  "box163": "",
-  "box164": "",
-  "box173": "",
-  "box187": "",
-  "box178": "",
-  "box189": "",
-  "box248": "",
-  "box259": "",
-  "box262": "",
-  "box310": "",
-  "box147": "C",
-  "box148": "D",
-  "box239": "",
-  "box126": "5"
- },
- "deleted": [
-  "box345",
-  "box358",
-  "box286",
-  "box291"
- ],
- "pass": "b4-verify",
- "stats": {
-  "turnCategory": "D",
-  "turnCategorySource": "MSC C3.3",
-  "sizeClass": 3,
-  "moveCost": 1
- }
 }

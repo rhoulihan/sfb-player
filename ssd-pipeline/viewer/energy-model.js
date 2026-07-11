@@ -56,6 +56,7 @@ export function shipPower(code, verified, detection) {
     cloakCost: prof.cloakCost || 0,   // G13.21: per-ship cloak energy cost from the SSD (verified stats)
     dcRating: prof.dcRating || 0,     // D14/D9.21: damage-control track rating (highest number on the DC track), from verified stats
     bes: prof.bes || 0,               // D5.2: Basic Explosion Strength (self-destruction / excess-damage blast), from the ship chart via verified stats
+    breakdownRating: prof.breakdownRating || 0,   // C6.5: breakdown rating (a die roll ≥ this breaks down after an HET), from the Master Ship Chart via verified stats
     shields: (shields || []).slice(),
     weapons,
     systems: {
