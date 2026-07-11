@@ -107,6 +107,7 @@
     <div class="prog"><span id="ptxt">0/0</span><span class="pbar"><i id="pbar"></i></span></div>
     <label style="font-size:12px;color:#64748b;display:flex;align-items:center;gap:4px" title="Turn-mode category from the Master Ship Chart (C3.3) — saved into verified.json">Turn cat <select id="turnCatSel" style="padding:3px;border:1px solid #cbd5e1;border-radius:6px"><option value="">–</option><option>AA</option><option>A</option><option>B</option><option>C</option><option>D</option><option>E</option><option>F</option></select></label>
     <label style="font-size:12px;color:#64748b;display:flex;align-items:center;gap:4px" title="Size class from the Master Ship Chart (B3.3) — saved into verified.json">Size <input id="sizeClassInp" type="number" min="1" max="6" style="width:44px;padding:3px;border:1px solid #cbd5e1;border-radius:6px"></label>
+    <label style="font-size:12px;color:#64748b;display:flex;align-items:center;gap:4px" title="Movement cost from the Master Ship Chart (C2.0) — energy per hex of movement (usually 1) — saved into verified.json">Move¢ <input id="moveCostInp" type="number" min="0.5" step="0.5" style="width:44px;padding:3px;border:1px solid #cbd5e1;border-radius:6px"></label>
     <label style="font-size:12px;color:#64748b;display:flex;align-items:center;gap:4px" title="Cloak energy cost/turn from the SSD (G13.21), 0 if none — saved into verified.json">Cloak <input id="cloakCostInp" type="number" min="0" style="width:44px;padding:3px;border:1px solid #cbd5e1;border-radius:6px"></label>
     <label style="font-size:12px;color:#64748b;display:flex;align-items:center;gap:4px" title="Damage-control track rating — the highest number on the DC track (D9/D14), 0 if none — saved into verified.json">DC <input id="dcRatingInp" type="number" min="0" max="9" style="width:44px;padding:3px;border:1px solid #cbd5e1;border-radius:6px"></label>
     <label style="font-size:12px;color:#64748b;display:flex;align-items:center;gap:4px" title="Basic Explosion Strength from the Master Ship Chart (D5.2) — the self-destruction / excess-damage blast, 0 if none — saved into verified.json">BES <input id="besInp" type="number" min="0" style="width:44px;padding:3px;border:1px solid #cbd5e1;border-radius:6px"></label>
@@ -528,13 +529,14 @@ async function runAudit(){await save();const r=await fetch(`/api/audit/${ship}`,
   el.innerHTML=h;}
 document.getElementById("saveBtn").onclick=save;
 document.getElementById("auditBtn").onclick=runAudit;
-const turnCatSel=document.getElementById("turnCatSel"),sizeClassInp=document.getElementById("sizeClassInp"),cloakCostInp=document.getElementById("cloakCostInp"),dcRatingInp=document.getElementById("dcRatingInp"),besInp=document.getElementById("besInp");
+const turnCatSel=document.getElementById("turnCatSel"),sizeClassInp=document.getElementById("sizeClassInp"),moveCostInp=document.getElementById("moveCostInp"),cloakCostInp=document.getElementById("cloakCostInp"),dcRatingInp=document.getElementById("dcRatingInp"),besInp=document.getElementById("besInp");
+moveCostInp.onchange=()=>{ const v=+moveCostInp.value; if(v>0) stats.moveCost=v; else delete stats.moveCost; };   // C2.0: per-ship movement cost (energy per hex) from the MSC
 dcRatingInp.onchange=()=>{ const v=+dcRatingInp.value; if(v) stats.dcRating=v; else delete stats.dcRating; };
 besInp.onchange=()=>{ const v=+besInp.value; if(v) stats.bes=v; else delete stats.bes; };   // D5.2 Basic Explosion Strength
 turnCatSel.onchange=()=>{ if(turnCatSel.value) stats.turnCategory=turnCatSel.value; else delete stats.turnCategory; };
 sizeClassInp.onchange=()=>{ const v=+sizeClassInp.value; if(v) stats.sizeClass=v; else delete stats.sizeClass; };
 cloakCostInp.onchange=()=>{ const v=+cloakCostInp.value; if(v) stats.cloakCost=v; else delete stats.cloakCost; };
-function syncStatsUI(){ turnCatSel.value=stats.turnCategory||""; sizeClassInp.value=stats.sizeClass||""; cloakCostInp.value=stats.cloakCost||""; dcRatingInp.value=stats.dcRating||""; besInp.value=stats.bes||""; if(eafSel) eafSel.value=stats.eafLayout||""; }
+function syncStatsUI(){ turnCatSel.value=stats.turnCategory||""; sizeClassInp.value=stats.sizeClass||""; moveCostInp.value=stats.moveCost||""; cloakCostInp.value=stats.cloakCost||""; dcRatingInp.value=stats.dcRating||""; besInp.value=stats.bes||""; if(eafSel) eafSel.value=stats.eafLayout||""; }
 
 // ---------- EAF layout editor ----------
 // A ship's verified.json names an EAF layout (stats.eafLayout); layouts are shared per race and hold the

@@ -113,7 +113,7 @@ Source: `docs/adversarial-review.md` (96 confirmed findings). Strict TDD, one cl
 
 - [ ] 🟠 **D8.31** `ssd-pipeline/viewer/battle.html:818` — When multiple criticals are active the engine always attempts to repair criticals[0] (the oldest); D8.31 gives the owning player the choice of which one to attempt.
 - [x] 🟠 **D19.26** `ssd-pipeline/viewer/battle.html:819` — Repairing a fire-control critical hit does not start the D19.26 reactivation delay, so active FC returns with no 4-impulse penalty.
-- [ ] 🟠 **D14.13** `ssd-pipeline/viewer/battle.html:827` — The DC rating that sets EDR success probability and cap is never captured in verified.json, so a hardcoded min(4, intact-DC-boxes) proxy is always used.
+- [x] 🟠 **D14.13** `ssd-pipeline/viewer/battle.html:827` — The DC rating that sets EDR success probability and cap is never captured in verified.json, so a hardcoded min(4, intact-DC-boxes) proxy is always used.
 - [x] 🟠 **D14.26** `ssd-pipeline/viewer/battle.html:862` — A ship can perform both D9.7 continuous system repair and D14 emergency damage repair in the same turn; the rules make them mutually exclusive.
 - [x] 🟠 **D19.26** `ssd-pipeline/viewer/battle.html:1822` — During the 4-impulse fire-control reactivation window the ship is barred from firing entirely, but D19.26 allows it to keep firing on passive fire control.
 - [x] 🟠 **D19.25** `ssd-pipeline/viewer/battle.html:1841` — A ship on passive fire control that is also using erratic maneuvers can still fire; D19.25 forbids any firing/launching in that state.
@@ -152,7 +152,7 @@ Source: `docs/adversarial-review.md` (96 confirmed findings). Strict TDD, one cl
 ## Remaining — ssd
 
 - [x] 🟠 **D4.321 (also D2.14/D2.32/D2.33)** `ssd-pipeline/viewer/arc-geom.js:40` — Captured per-hex arc exceptions (paintAdd/paintRemove) are silently dropped when deciding phaser directional damage.
-- [ ] 🟡 **C2.0 / Master Ship Chart (movement cost); B3.3 (size class)** `ssd-pipeline/viewer/energy-model.js:19` — Per-ship sizeClass and moveCost are hardcoded in SHIP_PROFILES and moveCost has no capture UI, violating 'verification owns ship data'.
+- [x] 🟡 **C2.0 / Master Ship Chart (movement cost); B3.3 (size class)** `ssd-pipeline/viewer/energy-model.js:19` — Per-ship sizeClass and moveCost are hardcoded in SHIP_PROFILES and moveCost has no capture UI, violating 'verification owns ship data'.
 - [x] 🟡 **C3.3 / C3.31 (Turn Mode Chart)** `ssd-pipeline/viewer/verify.html:108` — Turn-mode category dropdown omits category F, which exists on the C3.31 chart.
 
 ## Remaining — ui
