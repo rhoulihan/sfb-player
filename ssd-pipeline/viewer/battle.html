@@ -459,6 +459,13 @@ function layMine(ship, spec = MINE) {   // C10: drop a static mine at the ship's
   seekers.push({ id: `mi${++seekerSeq}`, owner: ship.id, side: ship.side, type: 'mine', q: ship.q, r: ship.r, facing: ship.facing, nuclear: spec === NUCLEAR_MINE, warhead: spec.warhead, radius: spec.radius });
   saveSoon(ship.id); render();
 }
+const TRANSPORTER_ENERGY = 1;   // G8.13: one unit of energy operates a transporter (up to five crew) for one operation
+function payTransporter(ship) {   // charge the G8.13 energy from the ship's reactive pool (reserve warp, then batteries)
+  if ((ship.reserveWarp || 0) + batteryOf(ship) < TRANSPORTER_ENERGY) { alert('A transporter operation requires 1 energy point (G8.13) — no reserve or battery power is available.'); return false; }
+  const src = (ship.reserveWarp || 0) >= TRANSPORTER_ENERGY ? 'warp' : 'battery';
+  const np = spendReserve(ship.reserveWarp || 0, batteryOf(ship), TRANSPORTER_ENERGY, src); ship.reserveWarp = np.reserveWarp; ship.batteryCharge = np.battery;
+  return true;
+}
 function transporterBomb(ship) {   // D15: beam a bomb onto an adjacent enemy — a mine at its hex that detonates on it next impulse
   if (!ship) return;
   if (ship.cloaked) { alert('A cloaked ship cannot use transporters (G13.51).'); return; }
@@ -466,6 +473,7 @@ function transporterBomb(ship) {   // D15: beam a bomb onto an adjacent enemy �
   const tgt = transporterTarget(ship, ships.filter(s => !isDead(s)));
   if (!tgt) { renderLog({ log: [{ kind: 'shot', firer: ship.id, cls: 'T-BOMB', target: '\u2014', points: 0, hit: false }] }, true); return; }
   if (shieldsNow(tgt)[exposedShield(ship, tgt) - 1] > 0) { alert('The target\u2019s facing shield is up \u2014 transporters cannot function through a shield (G8.21).'); return; }
+  if (!payTransporter(ship)) return;   // G8.13: the transporter operation costs 1 energy
   seekers.push({ id: `tb${++seekerSeq}`, owner: ship.id, side: ship.side, type: 'mine', q: tgt.q, r: tgt.r, facing: ship.facing, warhead: TBOMB_WARHEAD, radius: 0 });
   saveSoon(ship.id); render();
 }
@@ -478,6 +486,7 @@ function boardingRaid(ship) {   // D15: a transporter hit-and-run raid on an adj
   if (ship._raidsUsed >= transCount) { alert(`Each transporter supports one hit-and-run raid per turn (D7.821); all ${transCount} used this turn.`); return; }
   const enemy = ships.find(s => s.side !== ship.side && !isDead(s) && hexDistance(ship, s) <= TRANSPORTER_RANGE);   // G8.14: transporters reach five hexes
   if (enemy && shieldsNow(enemy)[exposedShield(ship, enemy) - 1] > 0) { alert('The target’s facing shield is up — transporters cannot function through a shield (G8.21).'); return; }
+  if (enemy && !payTransporter(ship)) return;   // G8.13: the transporter operation costs 1 energy
   if (enemy) ship._raidsUsed = (ship._raidsUsed || 0) + 1;   // a raid is expended once a valid target is engaged
   const rng = makeRng((seed + rngCursor) >>> 0); rngCursor = rng.cursor();
   const log = [];
