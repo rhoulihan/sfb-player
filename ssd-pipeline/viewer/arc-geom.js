@@ -33,9 +33,22 @@ export function arcCoversBearing(name, bearing) {
 /** Direction a shield faces, in degrees (0° = forward). #1 front … #4 rear … #6 left-front. */
 export const shieldBearing = n => (((n - 1) * 60) % 360 + 360) % 360;
 
+// Bearing of a painted hex offset, in the same 0°=forward, clockwise frame as shieldBearing. Mirrors verify.html's
+// arc editor: flat-top hexPix (x = 1.5q, y = √3·(r + q/2)), bearing = atan2(x, -y). The common scale cancels.
+function hexOffsetBearing(q, r) {
+  return ((Math.atan2(1.5 * q, -Math.sqrt(3) * (r + q / 2)) * 180 / Math.PI) + 360) % 360;
+}
+const angDiff = (a, b) => { const d = Math.abs(a - b) % 360; return Math.min(d, 360 - d); };
+
 /** True if a weapon group with this arcDef can fire toward the given shield's facing (D4.321). */
 export function arcBearsToShield(arcDef, shieldNum) {
   const b = shieldBearing(shieldNum);
   const arcs = (arcDef && arcDef.arcs) || [];
-  return arcs.some(a => arcCoversBearing(a, b));
+  if (arcs.some(a => arcCoversBearing(a, b))) return true;   // a named arc covers this shield's facing
+  // D4.321: honor the per-hex arc exceptions captured at verification. A paintAdd hex EXTENDS the firing arc — if one
+  // bears within the shield's 60° facing sector (±30°), the phaser can fire toward that shield even without a named arc
+  // there. (paintRemove carves individual hexes out of a named sector; a sparse removal cannot clear a full 60° facing,
+  // so it does not change this directional test.)
+  const add = (arcDef && arcDef.paintAdd) || [];
+  return add.some(h => angDiff(hexOffsetBearing(h[0], h[1]), b) <= 30 + 1e-9);
 }
