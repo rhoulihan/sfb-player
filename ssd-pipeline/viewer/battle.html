@@ -193,11 +193,11 @@
   <div class="ctxitem" data-act="cloak" style="padding:8px 14px;cursor:pointer;border-top:1px solid #eef2f6">🌫 Cloak</div>
   <div class="ctxitem" data-act="weasel" style="padding:8px 14px;cursor:pointer;border-top:1px solid #eef2f6">🎣 Wild weasel</div>
   <div class="ctxitem" data-act="mine" style="padding:8px 14px;cursor:pointer;border-top:1px solid #eef2f6">💣 Lay mine</div>
-  <div class="ctxitem" data-act="raid" style="padding:8px 14px;cursor:pointer;border-top:1px solid #eef2f6">⚔ Boarding raid</div>
+  <div class="ctxitem" data-act="raid" style="padding:8px 14px;cursor:pointer;border-top:1px solid #eef2f6">⚔ Boarding raid this ship</div>
   <div class="ctxitem" data-act="nukemine" style="padding:8px 14px;cursor:pointer;border-top:1px solid #eef2f6">☢ Nuclear mine</div>
-  <div class="ctxitem" data-act="tbomb" style="padding:8px 14px;cursor:pointer;border-top:1px solid #eef2f6">📦 Transporter bomb</div>
+  <div class="ctxitem" data-act="tbomb" style="padding:8px 14px;cursor:pointer;border-top:1px solid #eef2f6">📦 Transporter bomb this ship</div>
   <div class="ctxitem" data-act="admin" style="padding:8px 14px;cursor:pointer;border-top:1px solid #eef2f6">🛰 Admin shuttle</div>
-  <div class="ctxitem" data-act="tractor" style="padding:8px 14px;cursor:pointer;border-top:1px solid #eef2f6">🧲 Tractor nearest</div>
+  <div class="ctxitem" data-act="tractor" style="padding:8px 14px;cursor:pointer;border-top:1px solid #eef2f6">🧲 Tractor this unit</div>
   <div class="ctxitem" data-act="release" style="padding:8px 14px;cursor:pointer">🧲 Release tractor</div>
   <div class="ctxitem" data-act="breaktractor" style="padding:8px 14px;cursor:pointer">🧲 Break tractor (negative)</div>
   <div class="ctxitem" data-act="selfdestruct" style="padding:8px 14px;cursor:pointer;border-top:1px solid #eef2f6;color:#C74634">💥 Self-destruct</div>
@@ -466,26 +466,75 @@ function payTransporter(ship) {   // charge the G8.13 energy from the ship's rea
   const np = spendReserve(ship.reserveWarp || 0, batteryOf(ship), TRANSPORTER_ENERGY, src); ship.reserveWarp = np.reserveWarp; ship.batteryCharge = np.battery;
   return true;
 }
-function transporterBomb(ship) {   // D15: beam a bomb onto an adjacent enemy — a mine at its hex that detonates on it next impulse
+// G8.21: a transporter cannot operate through the FIRER's own raised shield either. If the firer's facing shield toward
+// the target is up, ask to voluntarily drop it (D3.5); returns true to proceed (having dropped it), false to cancel.
+function clearFiringShield(firer, target) {
+  const n = exposedShield(target, firer);   // the firer's shield facing the target
+  if (shieldsNow(firer)[n - 1] <= 0) return true;   // already down -> nothing to drop
+  if (!confirm(`Beaming requires dropping your own #${n} shield (G8.21/D3.5). It stays down 8 impulses, then raises automatically. Drop it and proceed?`)) return false;
+  const m = firer.model || (firer.model = buildShipModel(firer._ver, firer._det));
+  if (m.shields[n]) {
+    (firer.droppedShields = firer.droppedShields || {})[n] = { priorDown: m.shields[n].down, at: { turn: clock.turn, impulse: clock.impulse } };   // D3.51: remember to auto-raise after 8 impulses
+    m.shields[n].down = m.shields[n].max;   // voluntarily drop the facing shield
+  }
+  saveSoon(firer.id);
+  return true;
+}
+// D3.51: a voluntarily-dropped shield must stay down at least 1/4 turn (8 impulses); after that it raises automatically to
+// its pre-drop strength. Runs at the start of each impulse (Operate Shields Step).
+function raiseDroppedShields() {
+  for (const s of ships) {
+    if (!s.droppedShields || !s.model) continue;
+    for (const n of Object.keys(s.droppedShields)) {
+      const d = s.droppedShields[n];
+      if (impulsesSince(d.at, clock.turn, clock.impulse) >= 8) {
+        if (s.model.shields[n]) s.model.shields[n].down = d.priorDown;   // raise back to its pre-drop strength
+        delete s.droppedShields[n]; saveSoon(s.id);
+      }
+    }
+  }
+}
+// the friendly ship best placed to beam a transporter bomb at enemy unit t (in range, transporter intact, power available)
+function tbombSourceFor(t) {
+  if (!t || isMine(t)) return null;
+  return ships.filter(s => isMine(s) && !isDead(s) && !s.cloaked && !hasCrit(s.criticals, 'transporter') && hexDistance(s, t) <= TRANSPORTER_RANGE && ((s.reserveWarp || 0) + batteryOf(s) >= TRANSPORTER_ENERGY))
+    .sort((a, b) => hexDistance(a, t) - hexDistance(b, t))[0] || null;
+}
+function transporterBomb(ship, tgt) {   // D15: beam a bomb onto a chosen enemy \u2014 a mine at its hex that detonates on it next impulse
   if (!ship) return;
   if (ship.cloaked) { alert('A cloaked ship cannot use transporters (G13.51).'); return; }
   if (hasCrit(ship.criticals, 'transporter')) { alert('Transporters disabled by a critical hit (D8.2).'); return; }
-  const tgt = transporterTarget(ship, ships.filter(s => !isDead(s)));
+  if (tgt && (isDead(tgt) || hexDistance(ship, tgt) > TRANSPORTER_RANGE)) tgt = null;   // stale/out-of-range choice
+  if (!tgt) tgt = transporterTarget(ship, ships.filter(s => !isDead(s)));   // fallback: nearest enemy in range
   if (!tgt) { renderLog({ log: [{ kind: 'shot', firer: ship.id, cls: 'T-BOMB', target: '\u2014', points: 0, hit: false }] }, true); return; }
   if (shieldsNow(tgt)[exposedShield(ship, tgt) - 1] > 0) { alert('The target\u2019s facing shield is up \u2014 transporters cannot function through a shield (G8.21).'); return; }
+  if (!clearFiringShield(ship, tgt)) return;   // G8.21: drop the firer's own facing shield (confirm) or cancel
   if (!payTransporter(ship)) return;   // G8.13: the transporter operation costs 1 energy
   seekers.push({ id: `tb${++seekerSeq}`, owner: ship.id, side: ship.side, type: 'mine', q: tgt.q, r: tgt.r, facing: ship.facing, warhead: TBOMB_WARHEAD, radius: 0 });
   saveSoon(ship.id); render();
 }
-function boardingRaid(ship) {   // D15: a transporter hit-and-run raid on an adjacent enemy — on 4+ it knocks out a random enemy system
+// G7.11/G7.6: the friendly ship best placed to tractor unit t (free beam, within range, not cloaked / not crit), or null
+function tractorSourceFor(t) {
+  if (!t) return null;
+  return ships.filter(s => isMine(s) && !isDead(s) && s.id !== t.id && !s.cloaked && !hasCrit(s.criticals, 'tractor') && tractorBeamsOf(s) > tractorLinksFrom(s).length && canTractor(hexDistance(s, t)))
+    .sort((a, b) => hexDistance(a, t) - hexDistance(b, t))[0] || null;
+}
+// D7/D15: the friendly ship best placed to hit-and-run raid enemy unit t (transporter intact, in range, its facing shield down), or null
+function raidSourceFor(t) {
+  if (!t || isMine(t)) return null;
+  return ships.filter(s => isMine(s) && !isDead(s) && !s.cloaked && !hasCrit(s.criticals, 'transporter') && hexDistance(s, t) <= TRANSPORTER_RANGE && !(shieldsNow(t)[exposedShield(s, t) - 1] > 0))
+    .sort((a, b) => hexDistance(a, t) - hexDistance(b, t))[0] || null;
+}
+function boardingRaid(ship, enemy) {   // D15: a transporter hit-and-run raid on a chosen enemy — on 4+ it knocks out a random enemy system
   if (!ship) return;
   if (ship.cloaked) { alert('A cloaked ship cannot use transporters (G13.51).'); return; }
   if (hasCrit(ship.criticals, 'transporter')) { alert('Transporters disabled by a critical hit (D8.2).'); return; }
   const transCount = (ship._ver.groups || []).filter(g => g.family === 'transporter').reduce((n, g) => n + (g.boxIds || []).filter(id => !ship.status[id]).length, 0) || 1;   // D7.821: each transporter supports one raid (in and out) per turn
   if (ship._raidTurn !== clock.turn) { ship._raidTurn = clock.turn; ship._raidsUsed = 0; }
   if (ship._raidsUsed >= transCount) { alert(`Each transporter supports one hit-and-run raid per turn (D7.821); all ${transCount} used this turn.`); return; }
-  const enemy = ships.find(s => s.side !== ship.side && !isDead(s) && hexDistance(ship, s) <= TRANSPORTER_RANGE);   // G8.14: transporters reach five hexes
+  if (enemy && (isDead(enemy) || hexDistance(ship, enemy) > TRANSPORTER_RANGE)) enemy = null;   // stale/out-of-range choice
   if (enemy && shieldsNow(enemy)[exposedShield(ship, enemy) - 1] > 0) { alert('The target’s facing shield is up — transporters cannot function through a shield (G8.21).'); return; }
+  if (enemy && !clearFiringShield(ship, enemy)) return;   // G8.21: drop the raiding ship's own facing shield (confirm) or cancel
   if (enemy && !payTransporter(ship)) return;   // G8.13: the transporter operation costs 1 energy
   if (enemy) ship._raidsUsed = (ship._raidsUsed || 0) + 1;   // a raid is expended once a valid target is engaged
   const rng = makeRng((seed + rngCursor) >>> 0); rngCursor = rng.cursor();
@@ -989,6 +1038,7 @@ function runSegment(seg) {
     case '6A1':                                                                         // start of an impulse: fresh fire commits + per-impulse tallies
       myCommitted = false; committed = {};
       ships.forEach(s => s._shieldDmg = {});                                            // D8.1 per-impulse shield-damage tally
+      raiseDroppedShields();                                                            // D3.51: auto-raise voluntarily-dropped shields once their 8-impulse minimum has elapsed
       ships.forEach(applyReserveQueue);                                                 // H7.1 queued reserve allocations take effect at the impulse boundary
       seqAlive = new Set(ships.filter(s => !isDead(s)).map(s => s.id));
       break;
@@ -1790,7 +1840,7 @@ let ctxShip = null;
 createBattleMap({
   map, ui, getPhase, getShips: () => ships, byId, isMine, isFirer, COLS, ROWS, hasGhosts, groupOfShip,
   plotBase, saveSoon, render, syncMovementEnergy, onShipClick, renderFleet, pruneUnavailable,
-  openCtxMenu: (shipId, e) => { ctxShip = shipId; const mine = isMine(byId(shipId)); document.querySelector('#ctxMenu [data-act="ea"]').style.display = mine ? '' : 'none'; document.querySelector('#ctxMenu [data-act="intel"]').style.display = mine ? 'none' : ''; document.querySelector('#ctxMenu [data-act="setspeed"]').style.display = (mine && getPhase() === 'energy' && !myLockedEnergy) ? '' : 'none'; const ci = document.querySelector('#ctxMenu [data-act="cloak"]'); const cShip = byId(shipId); ci.style.display = (mine && powerOf(cShip).systems.cloak) ? '' : 'none'; ci.textContent = cShip.cloaked ? '🌫 Decloak' : '🌫 Cloak'; document.querySelector('#ctxMenu [data-act="weasel"]').style.display = (mine && getPhase() !== 'energy' && shuttleBaysOf(cShip) > 0 && !cShip.cloaked) ? '' : 'none'; document.querySelector('#ctxMenu [data-act="mine"]').style.display = document.querySelector('#ctxMenu [data-act="raid"]').style.display = document.querySelector('#ctxMenu [data-act="nukemine"]').style.display = document.querySelector('#ctxMenu [data-act="tbomb"]').style.display = (mine && getPhase() !== 'energy' && !cShip.cloaked) ? '' : 'none'; document.querySelector('#ctxMenu [data-act="admin"]').style.display = (mine && getPhase() !== 'energy' && shuttleBaysOf(cShip) > 0 && !cShip.cloaked) ? '' : 'none'; document.querySelector('#ctxMenu [data-act="tractor"]').style.display = (mine && getPhase() !== 'energy' && tractorBeamsOf(cShip) > 0 && !hasCrit(cShip.criticals, 'tractor') && !cShip.cloaked) ? '' : 'none'; document.querySelector('#ctxMenu [data-act="release"]').style.display = (mine && tractorLinksFrom(cShip).length) ? '' : 'none'; document.querySelector('#ctxMenu [data-act="breaktractor"]').style.display = (mine && getPhase() !== 'energy' && heldBy(cShip)) ? '' : 'none'; const sd = document.querySelector('#ctxMenu [data-act="selfdestruct"]'); sd.style.display = (mine && getPhase() === 'energy' && !myLockedEnergy) ? '' : 'none'; sd.textContent = cShip.selfDestructPlot ? '💥 Cancel self-destruct' : '💥 Self-destruct (D5.1)'; const m = document.getElementById('ctxMenu'); m.style.display = 'block'; m.style.left = Math.min(e.clientX, innerWidth - 160) + 'px'; m.style.top = e.clientY + 'px'; },
+  openCtxMenu: (shipId, e) => { ctxShip = shipId; const mine = isMine(byId(shipId)); document.querySelector('#ctxMenu [data-act="ea"]').style.display = mine ? '' : 'none'; document.querySelector('#ctxMenu [data-act="intel"]').style.display = mine ? 'none' : ''; document.querySelector('#ctxMenu [data-act="setspeed"]').style.display = (mine && getPhase() === 'energy' && !myLockedEnergy) ? '' : 'none'; const ci = document.querySelector('#ctxMenu [data-act="cloak"]'); const cShip = byId(shipId); ci.style.display = (mine && powerOf(cShip).systems.cloak) ? '' : 'none'; ci.textContent = cShip.cloaked ? '🌫 Decloak' : '🌫 Cloak'; document.querySelector('#ctxMenu [data-act="weasel"]').style.display = (mine && getPhase() !== 'energy' && shuttleBaysOf(cShip) > 0 && !cShip.cloaked) ? '' : 'none'; document.querySelector('#ctxMenu [data-act="mine"]').style.display = document.querySelector('#ctxMenu [data-act="nukemine"]').style.display = (mine && getPhase() !== 'energy' && !cShip.cloaked) ? '' : 'none';   document.querySelector('#ctxMenu [data-act="raid"]').style.display = (getPhase() !== 'energy' && raidSourceFor(cShip)) ? '' : 'none';   document.querySelector('#ctxMenu [data-act="tbomb"]').style.display = (getPhase() !== 'energy' && tbombSourceFor(cShip)) ? '' : 'none';   /* D7/D15/G8: raid + transporter bomb shown on any enemy a friendly ship can reach */ document.querySelector('#ctxMenu [data-act="admin"]').style.display = (mine && getPhase() !== 'energy' && shuttleBaysOf(cShip) > 0 && !cShip.cloaked) ? '' : 'none'; document.querySelector('#ctxMenu [data-act="tractor"]').style.display = (getPhase() !== 'energy' && tractorSourceFor(cShip)) ? '' : 'none';   /* G7.11: shown on any unit a friendly ship can tractor */ document.querySelector('#ctxMenu [data-act="release"]').style.display = (mine && tractorLinksFrom(cShip).length) ? '' : 'none'; document.querySelector('#ctxMenu [data-act="breaktractor"]').style.display = (mine && getPhase() !== 'energy' && heldBy(cShip)) ? '' : 'none'; const sd = document.querySelector('#ctxMenu [data-act="selfdestruct"]'); sd.style.display = (mine && getPhase() === 'energy' && !myLockedEnergy) ? '' : 'none'; sd.textContent = cShip.selfDestructPlot ? '💥 Cancel self-destruct' : '💥 Self-destruct (D5.1)'; const m = document.getElementById('ctxMenu'); m.style.display = 'block'; m.style.left = Math.min(e.clientX, innerWidth - 160) + 'px'; m.style.top = e.clientY + 'px'; },
   openSpeedMenu: (shipId, idx, e) => { navSpeed = { shipId, idx }; const m = document.getElementById('speedMenu'); m.style.display = 'block'; m.style.left = Math.min(e.clientX, innerWidth - 160) + 'px'; m.style.top = e.clientY + 'px'; },
 });
 document.addEventListener('click', () => { document.getElementById('ctxMenu').style.display = 'none'; });
@@ -1802,7 +1852,7 @@ document.getElementById('ctxMenu').addEventListener('click', e => { const it = e
       const wasCloaked = s.cloaked; s.cloaked = !s.cloaked;
       if (wasCloaked) s.fcReactAt = { turn: clock.turn, impulse: clock.impulse };   // G13.13/G13.15: decloak → fire control must reactivate (4 impulses) before firing/launching
       else s.cloakAt = { turn: clock.turn, impulse: clock.impulse };   // G13.14: activation starts a fade-out — the targeting benefit is not yet in effect
-      saveSoon(s.id); render(); } } else if (it.dataset.act === 'weasel') launchWeasel(byId(ctxShip)); else if (it.dataset.act === 'mine') layMine(byId(ctxShip), MINE); else if (it.dataset.act === 'nukemine') layMine(byId(ctxShip), NUCLEAR_MINE); else if (it.dataset.act === 'tbomb') transporterBomb(byId(ctxShip)); else if (it.dataset.act === 'admin') launchAdminShuttle(byId(ctxShip)); else if (it.dataset.act === 'raid') boardingRaid(byId(ctxShip)); else if (it.dataset.act === 'tractor') { const from = byId(ctxShip); const tgt = ships.filter(s => s.id !== ctxShip && !isDead(s)).map(s => ({ s, d: hexDistance(from, s) })).filter(x => canTractor(x.d)).sort((a, b) => a.d - b.d)[0]; if (tgt) establishTractor(from, tgt.s); else alert(`No unit within tractor range (${TRACTOR_MAX_RANGE} hexes).`); } else if (it.dataset.act === 'release') releaseTractor(byId(ctxShip)); else if (it.dataset.act === 'breaktractor') breakTractor(byId(ctxShip)); else if (it.dataset.act === 'selfdestruct') { const s = byId(ctxShip); if (s) { s.selfDestructPlot = !s.selfDestructPlot; render(); } } });
+      saveSoon(s.id); render(); } } else if (it.dataset.act === 'weasel') launchWeasel(byId(ctxShip)); else if (it.dataset.act === 'mine') layMine(byId(ctxShip), MINE); else if (it.dataset.act === 'nukemine') layMine(byId(ctxShip), NUCLEAR_MINE); else if (it.dataset.act === 'tbomb') { const t = byId(ctxShip), src = tbombSourceFor(t); if (src) transporterBomb(src, t); } else if (it.dataset.act === 'admin') launchAdminShuttle(byId(ctxShip)); else if (it.dataset.act === 'raid') { const t = byId(ctxShip), src = raidSourceFor(t); if (src) boardingRaid(src, t); } else if (it.dataset.act === 'tractor') { const t = byId(ctxShip), src = tractorSourceFor(t); if (src) establishTractor(src, t); else alert(`No friendly ship in range with a free tractor beam (G7.11).`); } else if (it.dataset.act === 'release') releaseTractor(byId(ctxShip)); else if (it.dataset.act === 'breaktractor') breakTractor(byId(ctxShip)); else if (it.dataset.act === 'selfdestruct') { const s = byId(ctxShip); if (s) { s.selfDestructPlot = !s.selfDestructPlot; render(); } } });
 let navSpeed = null;   // nav-hex speed-change target { shipId, idx }
 document.addEventListener('click', () => { document.getElementById('speedMenu').style.display = 'none'; });
 document.getElementById('speedMenu').addEventListener('click', e => {

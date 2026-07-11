@@ -157,9 +157,9 @@ Source: `docs/adversarial-review.md` (96 confirmed findings). Strict TDD, one cl
 
 ## Remaining — ui
 
-- [ ] 🟠 **D7/D15** `ssd-pipeline/viewer/battle.html:440` — A boarding raid auto-picks the first adjacent enemy and knocks out one random system; the player chooses neither the target ship nor how many boarding parties to commit.
+- [x] 🟠 **D7/D15** `ssd-pipeline/viewer/battle.html:440` — A boarding raid auto-picks the first adjacent enemy and knocks out one random system; the player chooses neither the target ship nor how many boarding parties to commit.
 - [x] 🟠 **E5.14** `ssd-pipeline/viewer/battle.html:547` — ADD point-defense auto-fires with no lock-on requirement (and ignores the defender being on passive fire control).
-- [ ] 🟠 **G7.11/G7.6** `ssd-pipeline/viewer/battle.html:1658` — Tractor beams can only lock the single nearest in-range unit; the player has no way to choose which of several eligible targets to tractor.
+- [x] 🟠 **G7.11/G7.6** `ssd-pipeline/viewer/battle.html:1658` — Tractor beams can only lock the single nearest in-range unit; the player has no way to choose which of several eligible targets to tractor.
 - [x] 🟠 **C12.311/C12.312/C12.313/C12.32** `ssd-pipeline/viewer/battle.html:1666` — The mid-turn speed-change menu enforces none of the C12.31/.32 restrictions on number, spacing, impulse window, or deceleration magnitude.
 - [ ] 🟠 **H7.134/H7.342** `ssd-pipeline/viewer/battle.html:1834` — Reactive reserve-power shield reinforcement is offered only in solo mode; a multiplayer defender never gets the H7.134 prompt.
 - [ ] 🟡 **C6.0/C6.21** `ssd-pipeline/viewer/battle.html:190` — There is no High Energy Turn control anywhere, so the player cannot execute an HET snap-turn as a decision.

@@ -31,3 +31,7 @@ Lower-priority polish. None block normal cruiser play.
 - The suicide-shuttle arming (J2.2211) currently applies a fixed 3 warp points per turn (→ max warhead 18). Add an EAF
   slider so the player can commit 1–3 points per turn (half-point increments) for a genuinely variable warhead (2×energy,
   min 6 / max 18), plus the 1-point/turn hold cost after the third turn (J2.2212). Requires EAF UI + energy accounting.
+
+## Boarding-party count (from D7/D15 fix)
+- A hit-and-run raid currently commits a single boarding party per transporter. Add a control to choose HOW MANY boarding
+  parties to commit per raid (D7.8x), affecting the odds/effect. Target selection is done (right-click the target).
