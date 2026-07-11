@@ -1077,6 +1077,27 @@ function turnAction(dir, shipId = ui.selectedId) {
   s.queuedTurn = s.queuedTurn === dir ? 0 : dir;         // always QUEUE — a ship only turns when it moves
   pruneUnavailable(); render(); saveSoon(shipId);
 }
+const HET_ENERGY = 5;              // C6.21: a High Energy Turn costs 5 hexes of warp energy
+const DEFAULT_BREAKDOWN = 5;       // C6.53: per-ship breakdown rating (a roll ≥ this breaks down); D7-class default until captured from the SSD
+// C6.1/C6.21/C6.51: a High Energy Turn snaps the ship to face an adjacent hexside regardless of turn mode, costs 5 warp
+// energy, then rolls for breakdown (1d6 ≥ the ship's breakdown rating; −2 on the first HET of the scenario, C6.52).
+function highEnergyTurn(ship, dir) {
+  if (!ship || !isMine(ship)) return;
+  if (getPhase() !== 'impulse') { alert('High Energy Turns are made during the Movement Segment (C6.1).'); return; }
+  if (hasCrit(ship.criticals, 'maneuver')) { alert('Maneuver damaged — cannot perform a High Energy Turn.'); return; }
+  if ((ship.reserveWarp || 0) + batteryOf(ship) < HET_ENERGY) { alert(`A High Energy Turn costs ${HET_ENERGY} warp energy (C6.21) — insufficient reserve/battery power.`); return; }
+  const src = (ship.reserveWarp || 0) >= HET_ENERGY ? 'warp' : 'battery';
+  const np = spendReserve(ship.reserveWarp || 0, batteryOf(ship), HET_ENERGY, src); ship.reserveWarp = np.reserveWarp; ship.batteryCharge = np.battery;
+  ship.facing = (ship.facing + dir + 6) % 6; ship.hexesSinceTurn = 0; ship.queuedTurn = 0;   // C6.1: snap-turn one hexside, ignoring turn mode
+  const rng = makeRng((seed + rngCursor) >>> 0); rngCursor = rng.cursor();   // C6.51 breakdown roll (deterministic across clients)
+  const firstUse = !ship._hetUsed; ship._hetUsed = true;
+  const rating = ship.breakdownRating || DEFAULT_BREAKDOWN;
+  const roll = rng.d6() - (firstUse ? 2 : 0);   // C6.52: first HET of the scenario is at −2
+  const broke = roll >= rating;
+  if (broke) { ship.speed = Math.floor(ship.speed / 2); ship.breakdownRating = Math.max(2, rating - 1); }   // C6.541 speed drops; C6.544 breakdown rating worsens by 1
+  saveSoon(ship.id); render();
+  renderLog({ log: [{ kind: 'het', ship: ship.id, roll, rating, broke }] }, true);
+}
 
 // ---------- geometry ----------
 const sideFill = s => isMine(s) ? '#2563eb' : '#C74634';   // my fleet blue, opponents red (relative to the commander)
@@ -1525,8 +1546,10 @@ function turnCtl(s) {
   if (!isMine(s)) return `<div class="turnctl"><span class="tmc" style="margin:0">other fleet — switch command perspective to control it</span></div>`;
   const tm = turnModeOf(s), rem = Math.max(0, tm - s.hexesSinceTurn);
   const cd = tm === 0 ? 'may turn freely' : rem === 0 ? 'may turn on next move' : `turn in ${rem} hex${rem !== 1 ? 'es' : ''}`;
+  const het = getPhase() === 'impulse' && !hasCrit(s.criticals, 'maneuver')   // C6.0: an HET is a movement-phase snap-turn
+    ? `<button data-het="-1" data-ship="${s.id}" title="High Energy Turn: snap-turn one hexside ignoring turn mode — ${HET_ENERGY} warp energy + breakdown roll (C6.21/C6.51)">⚡↺ HET</button><button data-het="1" data-ship="${s.id}" title="High Energy Turn (C6.0)">HET ↻⚡</button>` : '';
   return `<div class="turnctl"><button data-turn="-1" data-ship="${s.id}" class="${s.queuedTurn === -1 ? 'lit' : ''}">↺ turn</button>
-    <button data-turn="1" data-ship="${s.id}" class="${s.queuedTurn === 1 ? 'lit' : ''}">turn ↻</button><span class="tmc">${cd}</span></div>`;
+    <button data-turn="1" data-ship="${s.id}" class="${s.queuedTurn === 1 ? 'lit' : ''}">turn ↻</button>${het}<span class="tmc">${cd}</span></div>`;
 }
 function renderClock() {
   const seg = segmentName(clock.phase);   // SOP: the current sequence-of-play segment
@@ -1646,6 +1669,7 @@ function onShipClick(s) {
 document.getElementById('fleet').addEventListener('click', e => {
   const a = e.target.closest('[data-auto]'); if (a) { const s = byId(a.dataset.auto); if (s) { s.autopilot = !s.autopilot; s._autoIdx = 0; saveSoon(s.id); render(); } return; }
   const cb = e.target.closest('[data-crit]'); if (cb) { const s = byId(cb.dataset.critship); if (s) { s.repairChoice = +cb.dataset.crit; saveSoon(s.id); render(); } return; }   // D8.31: choose which critical to attempt to repair
+  const h = e.target.closest('[data-het]'); if (h) { highEnergyTurn(byId(h.dataset.ship), +h.dataset.het); return; }   // C6.0 High Energy Turn
   const b = e.target.closest('[data-turn]'); if (b) turnAction(+b.dataset.turn, b.dataset.ship);
 });
 window.addEventListener('keydown', e => { if (e.target.tagName === 'INPUT') return; if (e.key === '[') turnAction(-1); else if (e.key === ']') turnAction(1); });
@@ -1678,7 +1702,7 @@ window.addEventListener('mousemove', e => {   // a shadow icon trails the cursor
   else if (sh.style.display !== 'none') sh.style.display = 'none';
 });
 window.addEventListener('mouseup', () => { const sh = document.getElementById('dragShadow'); if (sh.style.display !== 'none') sh.style.display = 'none'; });   // release the shadow when the drag ends
-document.getElementById('fleet').addEventListener('click', e => { if (e.target.closest('.spin') || e.target.closest('[data-turn]') || e.target.closest('[data-crit]')) return; const row = e.target.closest('.shiprow'); if (row) { ui.selectedId = row.dataset.id; ui.activeId = row.dataset.id; render(); } });
+document.getElementById('fleet').addEventListener('click', e => { if (e.target.closest('.spin') || e.target.closest('[data-turn]') || e.target.closest('[data-het]') || e.target.closest('[data-crit]')) return; const row = e.target.closest('.shiprow'); if (row) { ui.selectedId = row.dataset.id; ui.activeId = row.dataset.id; render(); } });
 document.getElementById('fleet').addEventListener('change', e => { const sp = e.target.closest('.spin'); if (!sp) return; const s = byId(sp.dataset.spd); if (s) { s.speed = Math.max(0, Math.min(32, parseInt(sp.value) || 0)); render(); saveSoon(s.id); } });
 
 document.getElementById('groups').addEventListener('click', e => {
@@ -2086,7 +2110,9 @@ async function resolveAll(plans) {                      // single resolver: both
 }
 function renderLog(res, append) {
   const L = document.getElementById('log');
-  const lines = res.log.map(l => l.kind === 'shot'
+  const lines = res.log.map(l => l.kind === 'het'
+    ? `<div class="${l.broke ? 'hit' : 'miss'}">⚡ ${l.ship} High Energy Turn: breakdown d6 ${l.roll} vs rating ${l.rating} → ${l.broke ? '<span style="color:#dc2626;font-weight:700">BREAKDOWN</span> (speed halved, C6.54)' : 'no breakdown'}</div>`
+    : l.kind === 'shot'
     ? `<div class="${l.hit ? 'hit' : 'miss'}">${l.firer} ${l.cls} → ${l.target}: die ${l.die}, ${l.hit ? l.points + ' pts → shield #' + l.struckShield : 'miss'}</div>`
     : l.kind === 'crit'
     ? `<div class="vol"><span style="color:#dc2626;font-weight:700">💥 CRITICAL</span> ${l.ship} shield #${l.shield}: 2d6=${l.roll} → ${l.type ? CRIT_INFO[l.type].label + ' disabled' : 'no critical hit'}</div>`
