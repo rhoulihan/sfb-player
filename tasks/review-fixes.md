@@ -117,7 +117,7 @@ Source: `docs/adversarial-review.md` (96 confirmed findings). Strict TDD, one cl
 - [x] 🟠 **D14.26** `ssd-pipeline/viewer/battle.html:862` — A ship can perform both D9.7 continuous system repair and D14 emergency damage repair in the same turn; the rules make them mutually exclusive.
 - [x] 🟠 **D19.26** `ssd-pipeline/viewer/battle.html:1822` — During the 4-impulse fire-control reactivation window the ship is barred from firing entirely, but D19.26 allows it to keep firing on passive fire control.
 - [x] 🟠 **D19.25** `ssd-pipeline/viewer/battle.html:1841` — A ship on passive fire control that is also using erratic maneuvers can still fire; D19.25 forbids any firing/launching in that state.
-- [ ] 🟡 **D8.2 (#3)** `ssd-pipeline/viewer/battle.html:1037` — A battery critical hit only masks stored battery charge to 0 while active; the stored energy is silently preserved and restored when the crit is repaired.
+- [x] 🟡 **D8.2 (#3)** `ssd-pipeline/viewer/battle.html:1037` — A battery critical hit only masks stored battery charge to 0 while active; the stored energy is silently preserved and restored when the crit is repaired.
 
 ## Remaining — tractor
 

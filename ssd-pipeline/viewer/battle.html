@@ -565,6 +565,7 @@ function accrueShieldDamage(target, shield, points, log) {
     if (type === 'shuttleBay') { const nb = baseShuttleBays(target), jammed = jammedBaySet(target), free = [...Array(nb).keys()].filter(b => !jammed.has(b)); if (free.length) meta = { bay: free[roll % free.length] }; }   // D8.24: pick the jammed bay by die roll
     target.criticals = addCrit(target.criticals || [], type, meta); target.model = null;
     if (type === 'tractor') tractors = tractors.filter(t => t.from !== target.id);   // a tractor crit releases the ship's OWN beams (D8.2 #9 / G7.122)
+    if (type === 'battery') target.batteryCharge = 0;   // D8.2 #3: the batteries LOSE their stored power — it is gone, not merely masked, so a later repair does not restore it
   }
   if (log) log.push({ kind: 'crit', ship: target.id, roll, type, shield });
   saveSoon(target.id);
@@ -899,7 +900,7 @@ function resolveFinalActivity(skLog) {   // Final Activity Phase (7): reload, no
     }
     if (s.drones) s.drones.racks = s.drones.racks.map(r => (loadoutSpaces(r.loaded) < r.capacity && r.reloadsLeft > 0 && r.firedTurn !== clock.turn - 1) ? reloadStep(r) : r); s.shuttlesLeft = shuttleBaysOf(s);   // FD2.421: reload 2 spaces/turn from the magazine, only if the rack did not fire the turn just ended; plasma re-arms through the EAF (FP1.21)
     for (const w of powerOf(s).weapons) if (!canHold(w.cls) && s.armProgress && isArmed(w.cls, s.armProgress[w.id] || 0)) s.armProgress[w.id] = 0;   // non-holdable weapon armed but not fired → discharge (E3.24 disruptor, FP1.311 plasma-R)
-    if (s.reserveWarp) { s.batteryCharge = Math.min(powerOf(s).batteries, batteryOf(s) + s.reserveWarp); s.reserveWarp = 0; }   // H7.36: unused reserve warp drains into the batteries at end of turn
+    if (s.reserveWarp) { if (!hasCrit(s.criticals, 'battery')) s.batteryCharge = Math.min(powerOf(s).batteries, batteryOf(s) + s.reserveWarp); s.reserveWarp = 0; }   // H7.36: unused reserve warp drains into the batteries at end of turn — but a battery crit means they can't hold power (D8.2), so it is simply lost
     if (addRacksOf(s) > 0 && addAmmoOf(s) < addCapOf(s)) { const mag = s.addMag ?? (s.addMag = ADD_RELOAD_SETS * addCapOf(s)); const add = Math.min(ADD_RELOAD_RATE, addCapOf(s) - s.addAmmo, mag); s.addAmmo += add; s.addMag = mag - add; }   // E5.74/E5.71: reload ≤4 anti-drones/turn from two reload sets
     if (settings.d8crits && s.criticals && s.criticals.length) {   // D8.31: one repair attempt per turn — 1d6 ≤4 repairs, −1/−2 on repeat attempts of the same occurrence
       const crit = s.criticals[0], rr = makeRng((seed ^ 0x5EE9A12 ^ Math.imul(clock.turn, 0x85ebca6b) ^ hashId(s.id)) >>> 0), d = rr.d6();
