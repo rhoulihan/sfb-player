@@ -494,11 +494,11 @@ function raiseDroppedShields() {
     }
   }
 }
-// the friendly ship best placed to beam a transporter bomb at enemy unit t (in range, transporter intact, power available)
+// the SELECTED friendly ship if it can beam a transporter bomb at enemy unit t (in range, transporter intact, power available), else null
 function tbombSourceFor(t) {
-  if (!t || isMine(t)) return null;
-  return ships.filter(s => isMine(s) && !isDead(s) && !s.cloaked && !hasCrit(s.criticals, 'transporter') && hexDistance(s, t) <= TRANSPORTER_RANGE && ((s.reserveWarp || 0) + batteryOf(s) >= TRANSPORTER_ENERGY))
-    .sort((a, b) => hexDistance(a, t) - hexDistance(b, t))[0] || null;
+  const s = selectedShip();
+  if (!t || isMine(t) || !s || !isMine(s) || isDead(s) || s.cloaked || hasCrit(s.criticals, 'transporter')) return null;
+  return (hexDistance(s, t) <= TRANSPORTER_RANGE && ((s.reserveWarp || 0) + batteryOf(s) >= TRANSPORTER_ENERGY)) ? s : null;
 }
 function transporterBomb(ship, tgt) {   // D15: beam a bomb onto a chosen enemy \u2014 a mine at its hex that detonates on it next impulse
   if (!ship) return;
@@ -513,17 +513,19 @@ function transporterBomb(ship, tgt) {   // D15: beam a bomb onto a chosen enemy 
   seekers.push({ id: `tb${++seekerSeq}`, owner: ship.id, side: ship.side, type: 'mine', q: tgt.q, r: tgt.r, facing: ship.facing, warhead: TBOMB_WARHEAD, radius: 0 });
   saveSoon(ship.id); render();
 }
-// G7.11/G7.6: the friendly ship best placed to tractor unit t (free beam, within range, not cloaked / not crit), or null
+// the source ship for a target-menu action is the player's SELECTED ship (ui.activeId), not an auto-picked nearest one
+const selectedShip = () => byId(ui.activeId);
+// G7.11/G7.6: the SELECTED friendly ship if it can tractor unit t (free beam, within range, not cloaked / not crit), else null
 function tractorSourceFor(t) {
-  if (!t) return null;
-  return ships.filter(s => isMine(s) && !isDead(s) && s.id !== t.id && !s.cloaked && !hasCrit(s.criticals, 'tractor') && tractorBeamsOf(s) > tractorLinksFrom(s).length && canTractor(hexDistance(s, t)))
-    .sort((a, b) => hexDistance(a, t) - hexDistance(b, t))[0] || null;
+  const s = selectedShip();
+  if (!t || !s || !isMine(s) || isDead(s) || s.id === t.id || s.cloaked || hasCrit(s.criticals, 'tractor')) return null;
+  return (tractorBeamsOf(s) > tractorLinksFrom(s).length && canTractor(hexDistance(s, t))) ? s : null;
 }
-// D7/D15: the friendly ship best placed to hit-and-run raid enemy unit t (transporter intact, in range, its facing shield down), or null
+// D7/D15: the SELECTED friendly ship if it can hit-and-run raid enemy unit t (transporter intact, in range, its facing shield down), else null
 function raidSourceFor(t) {
-  if (!t || isMine(t)) return null;
-  return ships.filter(s => isMine(s) && !isDead(s) && !s.cloaked && !hasCrit(s.criticals, 'transporter') && hexDistance(s, t) <= TRANSPORTER_RANGE && !(shieldsNow(t)[exposedShield(s, t) - 1] > 0))
-    .sort((a, b) => hexDistance(a, t) - hexDistance(b, t))[0] || null;
+  const s = selectedShip();
+  if (!t || isMine(t) || !s || !isMine(s) || isDead(s) || s.cloaked || hasCrit(s.criticals, 'transporter')) return null;
+  return (hexDistance(s, t) <= TRANSPORTER_RANGE && !(shieldsNow(t)[exposedShield(s, t) - 1] > 0)) ? s : null;
 }
 function boardingRaid(ship, enemy) {   // D15: a transporter hit-and-run raid on a chosen enemy — on 4+ it knocks out a random enemy system
   if (!ship) return;
