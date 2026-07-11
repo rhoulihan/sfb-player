@@ -988,8 +988,9 @@ function resolveFinalActivity(skLog) {   // Final Activity Phase (7): reload, no
     if (s.reserveWarp) { if (!hasCrit(s.criticals, 'battery')) s.batteryCharge = Math.min(powerOf(s).batteries, batteryOf(s) + s.reserveWarp); s.reserveWarp = 0; }   // H7.36: unused reserve warp drains into the batteries at end of turn — but a battery crit means they can't hold power (D8.2), so it is simply lost
     if (addRacksOf(s) > 0 && addAmmoOf(s) < addCapOf(s)) { const mag = s.addMag ?? (s.addMag = ADD_RELOAD_SETS * addCapOf(s)); const add = Math.min(ADD_RELOAD_RATE, addCapOf(s) - s.addAmmo, mag); s.addAmmo += add; s.addMag = mag - add; }   // E5.74/E5.71: reload ≤4 anti-drones/turn from two reload sets
     if (settings.d8crits && s.criticals && s.criticals.length) {   // D8.31: one repair attempt per turn — 1d6 ≤4 repairs, −1/−2 on repeat attempts of the same occurrence
-      const crit = s.criticals[0], rr = makeRng((seed ^ 0x5EE9A12 ^ Math.imul(clock.turn, 0x85ebca6b) ^ hashId(s.id)) >>> 0), d = rr.d6();
-      if (critRepairs(d, crit.repairAttempts)) { s.criticals = s.criticals.slice(1); s.model = null;
+      const ci = Math.min(s.repairChoice || 0, s.criticals.length - 1);   // D8.31: the owning player chooses which critical to attempt (defaults to the oldest)
+      const crit = s.criticals[ci], rr = makeRng((seed ^ 0x5EE9A12 ^ Math.imul(clock.turn, 0x85ebca6b) ^ hashId(s.id)) >>> 0), d = rr.d6();
+      if (critRepairs(d, crit.repairAttempts)) { s.criticals = s.criticals.filter((_, i) => i !== ci); s.repairChoice = 0; s.model = null;
         if (crit.type === 'fireControl') s.fcReactAt = { turn: clock.turn, impulse: clock.impulse };   // D19.26: FC restored by repairing its crit reactivates from passive — it can't fire/guide for 4 impulses
         skLog.push({ kind: 'critRepair', ship: s.id, type: crit.type, roll: d, repaired: true }); }
       else { crit.repairAttempts = (crit.repairAttempts || 0) + 1; skLog.push({ kind: 'critRepair', ship: s.id, type: crit.type, roll: d, repaired: false }); }
@@ -1512,7 +1513,7 @@ function renderFleet() {
            <span class="meta">${chargedCount(s)}/${s.mounts.length}w</span>${isMine(s) && s.course && s.course.steps.length ? `<span class="auto" data-auto="${s.id}" title="${s.autopilot ? 'autopilot on — click to disable' : 'enable autopilot'}" style="cursor:pointer;margin-left:5px;color:${s.autopilot ? '#16a34a' : '#cbd5e1'}">🅰</span>` : ''}</div>
          <div class="sbot"><label class="spd" title="speed is set by Energy for Movement in the allocation phase">spd <input class="spin" data-spd="${s.id}" value="${s.speed}" readonly style="background:#f1f5f9;color:#475569"></label>
            <div class="hbar" title="${Math.round(h * 100)}% intact"><i style="width:${Math.round(h * 100)}%;background:${healthColor(h)}"></i></div></div>
-         ${(s.criticals && s.criticals.length) ? `<div class="crits">${s.criticals.map(c => `<span class="critbadge" title="${CRIT_INFO[c.type].desc}">💥 ${CRIT_INFO[c.type].label}</span>`).join('')}</div>` : ''}
+         ${(s.criticals && s.criticals.length) ? `<div class="crits">${s.criticals.map((c, i) => { const pick = isMine(s) && s.criticals.length > 1; const chosen = (s.repairChoice || 0) === i; return `<span class="critbadge"${pick ? ` data-crit="${i}" data-critship="${s.id}" style="cursor:pointer${chosen ? ';outline:2px solid #16a34a;outline-offset:1px' : ''}" title="${CRIT_INFO[c.type].desc} — click to repair this one first (D8.31)"` : ` title="${CRIT_INFO[c.type].desc}"`}>💥 ${CRIT_INFO[c.type].label}</span>`; }).join('')}</div>` : ''}
        </div></div>`;
     return row + (s.id === ui.selectedId ? turnCtl(s) : '');   // turn controls follow the last-clicked ship
   }).join('');
@@ -1642,6 +1643,7 @@ function onShipClick(s) {
 
 document.getElementById('fleet').addEventListener('click', e => {
   const a = e.target.closest('[data-auto]'); if (a) { const s = byId(a.dataset.auto); if (s) { s.autopilot = !s.autopilot; s._autoIdx = 0; saveSoon(s.id); render(); } return; }
+  const cb = e.target.closest('[data-crit]'); if (cb) { const s = byId(cb.dataset.critship); if (s) { s.repairChoice = +cb.dataset.crit; saveSoon(s.id); render(); } return; }   // D8.31: choose which critical to attempt to repair
   const b = e.target.closest('[data-turn]'); if (b) turnAction(+b.dataset.turn, b.dataset.ship);
 });
 window.addEventListener('keydown', e => { if (e.target.tagName === 'INPUT') return; if (e.key === '[') turnAction(-1); else if (e.key === ']') turnAction(1); });
@@ -1674,7 +1676,7 @@ window.addEventListener('mousemove', e => {   // a shadow icon trails the cursor
   else if (sh.style.display !== 'none') sh.style.display = 'none';
 });
 window.addEventListener('mouseup', () => { const sh = document.getElementById('dragShadow'); if (sh.style.display !== 'none') sh.style.display = 'none'; });   // release the shadow when the drag ends
-document.getElementById('fleet').addEventListener('click', e => { if (e.target.closest('.spin') || e.target.closest('[data-turn]')) return; const row = e.target.closest('.shiprow'); if (row) { ui.selectedId = row.dataset.id; ui.activeId = row.dataset.id; render(); } });
+document.getElementById('fleet').addEventListener('click', e => { if (e.target.closest('.spin') || e.target.closest('[data-turn]') || e.target.closest('[data-crit]')) return; const row = e.target.closest('.shiprow'); if (row) { ui.selectedId = row.dataset.id; ui.activeId = row.dataset.id; render(); } });
 document.getElementById('fleet').addEventListener('change', e => { const sp = e.target.closest('.spin'); if (!sp) return; const s = byId(sp.dataset.spd); if (s) { s.speed = Math.max(0, Math.min(32, parseInt(sp.value) || 0)); render(); saveSoon(s.id); } });
 
 document.getElementById('groups').addEventListener('click', e => {
