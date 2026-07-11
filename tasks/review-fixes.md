@@ -68,7 +68,7 @@ Source: `docs/adversarial-review.md` (96 confirmed findings). Strict TDD, one cl
 
 ## Remaining — energy
 
-- [ ] 🟠 **D14.12** `ssd-pipeline/viewer/battle.html:832` — EDR auto-repairs arbitrary destroyed boxes rather than the systems the player must specify when allocating lab energy.
+- [x] 🟠 **D14.12** `ssd-pipeline/viewer/battle.html:832` — EDR auto-repairs arbitrary destroyed boxes rather than the systems the player must specify when allocating lab energy.
 - [x] 🟠 **D3.343** `ssd-pipeline/viewer/battle.html:1112` — The reactive reserve-reinforcement modal lets a defender put SPECIFIC reinforcement onto a down (0-strength) shield.
 - [x] 🟠 **H7.41 / H7.42** `ssd-pipeline/viewer/energy-model.js:74` — Reserve warp power is capped in quantity but not gated to warp-engine source, letting warp output be double-committed to movement and reserve simultaneously.
 - [x] 🟠 **D3.343** `ssd-pipeline/viewer/energy-model.js:84` — A down (0-strength) shield can still receive specific reinforcement, which D3.343 forbids.

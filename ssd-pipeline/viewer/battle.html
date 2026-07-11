@@ -1001,13 +1001,17 @@ function resolveFinalActivity(skLog) {   // Final Activity Phase (7): reload, no
       const famOf = id => { for (const g of (s._ver.groups || [])) if ((g.boxIds || []).includes(id)) return g.family; return null; };
       const dcBoxes = (s._ver.groups || []).filter(g => g.family === 'damage-control').flatMap(g => g.boxIds || []);
       const dead = Object.keys(s.status).filter(id => !dcBoxes.includes(id) && famOf(id) !== 'excess-damage');   // repairable system boxes
+      // D14.12: repair the systems the PLAYER specified (s.edrTargets, in their chosen order) first; then any remaining
+      const chosen = (s.edrTargets || []).filter(id => dead.includes(id));
+      const order = [...chosen, ...dead.filter(id => !chosen.includes(id))];
       const markable = dcBoxes.find(id => !s.status[id]);                                        // D14.11: sacrifice one DC box to power EDR
       const rating = powerOf(s).dcRating || Math.min(4, dcBoxes.filter(id => !s.status[id]).length);   // D14.13: DC-track rating from verified.json, else a min(4, intact-DC-boxes) proxy
       if (dead.length && markable && rating > 0) {
         s.status[markable] = 'destroyed';
         const er = makeRng((seed ^ 0x0ED12A4 ^ Math.imul(clock.turn, 0x27d4eb2f) ^ hashId(s.id)) >>> 0);
         let fixed = 0;
-        for (let i = 0; i < s.edr && fixed < rating && dead.length; i++) if (er.d6() <= rating) { delete s.status[dead.shift()]; fixed++; }
+        for (let i = 0; i < s.edr && fixed < rating && order.length; i++) if (er.d6() <= rating) { delete s.status[order.shift()]; fixed++; }
+        s.edrTargets = (s.edrTargets || []).filter(id => s.status[id]);   // drop any that were repaired
         if (fixed) s.model = null;
         skLog.push({ kind: 'edr', ship: s.id, repaired: fixed, rating });
       }
@@ -1072,6 +1076,13 @@ function stepImpulse() {
   save(null, wrapped ? { step: true, phase: 'energy' } : { step: true });   // movement syncs to all commanders
 }
 // a queued turn executes when the ship next moves; applies to the given ship (defaults to the last-clicked one)
+// D14.12: destroyed system boxes eligible for emergency damage repair (excludes damage-control track + excess-damage boxes)
+const edrCandidates = s => {
+  const groups = (s._ver && s._ver.groups) || [];
+  const famOf = id => { for (const g of groups) if ((g.boxIds || []).includes(id)) return g.family; return null; };
+  const dcBoxes = new Set(groups.filter(g => g.family === 'damage-control').flatMap(g => g.boxIds || []));
+  return Object.keys(s.status || {}).filter(id => !dcBoxes.has(id) && famOf(id) !== 'excess-damage').map(id => ({ id, fam: famOf(id) || 'system' }));
+};
 function turnAction(dir, shipId = ui.selectedId) {
   if (!shipId) return; const s = byId(shipId);
   if (!s || !isMine(s)) return;           // only the fleet you currently command turns (switch perspective for the other)
@@ -1560,6 +1571,7 @@ function renderFleet() {
          <div class="sbot"><label class="spd" title="speed is set by Energy for Movement in the allocation phase">spd <input class="spin" data-spd="${s.id}" value="${s.speed}" readonly style="background:#f1f5f9;color:#475569"></label>
            <div class="hbar" title="${Math.round(h * 100)}% intact"><i style="width:${Math.round(h * 100)}%;background:${healthColor(h)}"></i></div></div>
          ${(s.criticals && s.criticals.length) ? `<div class="crits">${s.criticals.map((c, i) => { const pick = isMine(s) && s.criticals.length > 1; const chosen = (s.repairChoice || 0) === i; return `<span class="critbadge"${pick ? ` data-crit="${i}" data-critship="${s.id}" style="cursor:pointer${chosen ? ';outline:2px solid #16a34a;outline-offset:1px' : ''}" title="${CRIT_INFO[c.type].desc} — click to repair this one first (D8.31)"` : ` title="${CRIT_INFO[c.type].desc}"`}>💥 ${CRIT_INFO[c.type].label}</span>`; }).join('')}</div>` : ''}
+         ${(isMine(s) && s.edr > 0 && s.id === ui.selectedId && edrCandidates(s).length) ? `<div class="crits" style="margin-top:2px"><span style="font-size:10px;color:#64748b">EDR (D14.12): pick systems to repair</span> ${edrCandidates(s).map(c => { const chosen = (s.edrTargets || []).includes(c.id); return `<span class="critbadge" data-edr="${c.id}" data-edrship="${s.id}" style="cursor:pointer${chosen ? ';outline:2px solid #16a34a;outline-offset:1px' : ''}" title="click to prioritize this system for emergency damage repair (D14.12)">🔧 ${c.fam}</span>`; }).join('')}</div>` : ''}
        </div></div>`;
     return row + (s.id === ui.selectedId ? turnCtl(s) : '');   // turn controls follow the last-clicked ship
   }).join('');
@@ -1694,6 +1706,7 @@ function onShipClick(s) {
 document.getElementById('fleet').addEventListener('click', e => {
   const a = e.target.closest('[data-auto]'); if (a) { const s = byId(a.dataset.auto); if (s) { s.autopilot = !s.autopilot; s._autoIdx = 0; saveSoon(s.id); render(); } return; }
   const cb = e.target.closest('[data-crit]'); if (cb) { const s = byId(cb.dataset.critship); if (s) { s.repairChoice = +cb.dataset.crit; saveSoon(s.id); render(); } return; }   // D8.31: choose which critical to attempt to repair
+  const ed = e.target.closest('[data-edr]'); if (ed) { const s = byId(ed.dataset.edrship); if (s) { const id = ed.dataset.edr; s.edrTargets = s.edrTargets || []; const i = s.edrTargets.indexOf(id); if (i >= 0) s.edrTargets.splice(i, 1); else s.edrTargets.push(id); saveSoon(s.id); render(); } return; }   // D14.12: pick EDR repair targets
   const h = e.target.closest('[data-het]'); if (h) { highEnergyTurn(byId(h.dataset.ship), +h.dataset.het); return; }   // C6.0 High Energy Turn
   const dc = e.target.closest('[data-decel]'); if (dc) { emergencyDecel(byId(dc.dataset.decel)); return; }   // C8.0 Emergency Deceleration
   const b = e.target.closest('[data-turn]'); if (b) turnAction(+b.dataset.turn, b.dataset.ship);
@@ -1728,7 +1741,7 @@ window.addEventListener('mousemove', e => {   // a shadow icon trails the cursor
   else if (sh.style.display !== 'none') sh.style.display = 'none';
 });
 window.addEventListener('mouseup', () => { const sh = document.getElementById('dragShadow'); if (sh.style.display !== 'none') sh.style.display = 'none'; });   // release the shadow when the drag ends
-document.getElementById('fleet').addEventListener('click', e => { if (e.target.closest('.spin') || e.target.closest('[data-turn]') || e.target.closest('[data-het]') || e.target.closest('[data-decel]') || e.target.closest('[data-crit]')) return; const row = e.target.closest('.shiprow'); if (row) { ui.selectedId = row.dataset.id; ui.activeId = row.dataset.id; render(); } });
+document.getElementById('fleet').addEventListener('click', e => { if (e.target.closest('.spin') || e.target.closest('[data-turn]') || e.target.closest('[data-het]') || e.target.closest('[data-decel]') || e.target.closest('[data-crit]') || e.target.closest('[data-edr]')) return; const row = e.target.closest('.shiprow'); if (row) { ui.selectedId = row.dataset.id; ui.activeId = row.dataset.id; render(); } });
 document.getElementById('fleet').addEventListener('change', e => { const sp = e.target.closest('.spin'); if (!sp) return; const s = byId(sp.dataset.spd); if (s) { s.speed = Math.max(0, Math.min(32, parseInt(sp.value) || 0)); render(); saveSoon(s.id); } });
 
 document.getElementById('groups').addEventListener('click', e => {
