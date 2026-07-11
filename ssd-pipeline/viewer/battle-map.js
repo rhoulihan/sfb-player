@@ -123,7 +123,7 @@ export function plotOverlaySvg({ ships, isMine, byId, plotBase, ui }) {
 // mousedown listeners exactly.
 export function createBattleMap(ctx) {
   const { map, ui, getPhase, getShips, byId, isMine, isFirer, COLS, ROWS, hasGhosts, groupOfShip,
-          plotBase, saveSoon, render, syncMovementEnergy, onShipClick, renderFleet, pruneUnavailable, openCtxMenu, openSpeedMenu } = ctx;
+          plotBase, saveSoon, render, syncMovementEnergy, onShipClick, renderFleet, pruneUnavailable, openCtxMenu, openSpeedMenu, openSeekerMenu } = ctx;
   // a dragged ship joins the virtual fire group: attacker → add as a firer (once), other side → set as target
   const joinFireGroup = s => { if (isFirer(s)) { if (!groupOfShip(s.id)) onShipClick(s); } else onShipClick(s); };
   const svgPoint = e => { const pt = map.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY; return pt.matrixTransform(map.getScreenCTM().inverse()); };
@@ -244,6 +244,8 @@ export function createBattleMap(ctx) {
   map.addEventListener('contextmenu', e => {
     const g = e.target.closest('.ship');
     if (g) { e.preventDefault(); openCtxMenu(g.dataset.id, e); return; }   // right-click a ship → View EA / View SSD (both phases, any side)
+    const sk = e.target.closest('.seeker');
+    if (sk && openSeekerMenu) { e.preventDefault(); openSeekerMenu(sk.dataset.seeker, e); return; }   // FP1.611: right-click a drone/plasma → fire the selected ship's phasers at it
     const ps = getPhase() === 'energy' && ui.plotShipId && byId(ui.plotShipId);
     if (ps && isMine(ps)) {
       const idx = navIdxAt(ps, clickToHex(e));

@@ -296,7 +296,7 @@
   </div>
 </div>
 <script type="module">
-import { hexCenter, headingDeg, GEOM, hexDistance, exposedShield } from './battle-geom.js';
+import { hexCenter, headingDeg, GEOM, hexDistance, exposedShield, isInArc } from './battle-geom.js';   // isInArc: FP1.611 phaser-vs-seeker arc check
 import { shipLoadout } from './ship-loadout.js';
 import { buildShipModel } from './ship-model.js';
 import { newPlan, newGroup, assignMount, unassignMount, planEligibility, mountEligibility, combinedPreview } from './fire-plan.js';
@@ -425,6 +425,37 @@ function launchShuttle(firer, target) {   // suicide shuttle (J2.22): three CONS
   seekers.push({ ...launchSeeker({ id: `sh${++seekerSeq}`, owner: firer.id, q: firer.q, r: firer.r, facing: firer.facing, targetId: target.id, ...SUICIDE_SHUTTLE, warhead }), hp: shHp, maxHp: shHp });
   firer.suicideArm = null;
   saveSoon(firer.id); render();
+}
+const PHASER_SEEKER_RANGE = 5;   // FP1.611/D6.36: player-directed phaser defense against a seeker (close range)
+// charged phaser mounts that bear on the seeker and have not fired this turn (E2.23)
+function phasersBearingSeeker(ship, sk) {
+  return (ship.mounts || []).filter(m => isPhaser(m.cls) && isInArc(ship, m, sk).inArc && !firedThisTurn(ship.firedAt && ship.firedAt[m.id], clock.turn));
+}
+// FP1.611/D6.36: direct the ship's phasers at a seeking weapon — destroy a drone/shuttle, or WEAKEN an approaching plasma
+// torpedo (phasers add to its phaserHits; only phasers can, not ADDs — E5.32). Spends the capacitor and marks the phasers fired.
+function firePhasersAtSeeker(ship, sk) {
+  if (!ship || !isMine(ship) || !sk || getPhase() !== 'impulse') return;
+  if (sk.type === 'mine' || sk.type === 'weasel') { alert('Phasers cannot be directed at that.'); return; }
+  const range = hexDistance(ship, sk);
+  if (range > PHASER_SEEKER_RANGE) { alert(`The ${sk.type} is out of close phaser range (${PHASER_SEEKER_RANGE} hexes).`); return; }
+  const bearing = phasersBearingSeeker(ship, sk);
+  const n = Math.min(bearing.length, Math.floor((ship.capacitor || 0) / PHASER_FIRE_COST));
+  if (n <= 0) { alert('No unfired phaser bears on it, or the capacitor is empty.'); return; }
+  ship.firedAt = ship.firedAt || {};
+  for (const m of bearing.slice(0, n)) ship.firedAt[m.id] = { turn: clock.turn, impulse: clock.impulse };   // E2.23: these phasers have now fired this turn
+  ship.capacitor = (ship.capacitor || 0) - n * PHASER_FIRE_COST;
+  const rng = makeRng((seed + rngCursor) >>> 0); rngCursor = rng.cursor();
+  const log = [];
+  if (sk.type === 'plasma') {
+    const hits = pointDefenseHits(n, rng, range);   // FP1.611: phasers weaken the plasma (reduces its warhead 1 per 2 points, via seekerDamage)
+    if (hits > 0) sk.phaserHits = (sk.phaserHits || 0) + hits * PD_PLASMA_DMG;
+    log.push({ kind: 'shot', firer: ship.id, cls: `${n}×PH→plasma`, target: sk.id, points: hits * PD_PLASMA_DMG, hit: hits > 0 });
+  } else {
+    const killed = pointDefense(n, rng, range);   // a drone/shuttle is shot down on a good roll (E5 / FD1)
+    if (killed) seekers = seekers.filter(x => x.id !== sk.id);
+    log.push({ kind: 'shot', firer: ship.id, cls: `${n}×PH→${sk.type}`, target: sk.id, points: killed ? 1 : 0, hit: killed });
+  }
+  saveSoon(ship.id); render(); renderLog({ log }, true);
 }
 function launchScatterPack(firer, target) {   // C6: a shuttle releases a burst of drones at the target
   if (!firer || !target || shuttlesLeftOf(firer) <= 0 || !canControlMore(firer)) return;
@@ -1908,6 +1939,16 @@ createBattleMap({
   map, ui, getPhase, getShips: () => ships, byId, isMine, isFirer, COLS, ROWS, hasGhosts, groupOfShip,
   plotBase, saveSoon, render, syncMovementEnergy, onShipClick, renderFleet, pruneUnavailable,
   openCtxMenu: (shipId, e) => { ctxShip = shipId; const mine = isMine(byId(shipId)); document.querySelector('#ctxMenu [data-act="ea"]').style.display = mine ? '' : 'none'; document.querySelector('#ctxMenu [data-act="intel"]').style.display = mine ? 'none' : ''; document.querySelector('#ctxMenu [data-act="setspeed"]').style.display = (mine && getPhase() === 'energy' && !myLockedEnergy) ? '' : 'none'; const ci = document.querySelector('#ctxMenu [data-act="cloak"]'); const cShip = byId(shipId); ci.style.display = (mine && powerOf(cShip).systems.cloak) ? '' : 'none'; ci.textContent = cShip.cloaked ? '🌫 Decloak' : '🌫 Cloak'; document.querySelector('#ctxMenu [data-act="weasel"]').style.display = (mine && getPhase() !== 'energy' && shuttleBaysOf(cShip) > 0 && !cShip.cloaked) ? '' : 'none'; document.querySelector('#ctxMenu [data-act="mine"]').style.display = document.querySelector('#ctxMenu [data-act="nukemine"]').style.display = (mine && getPhase() !== 'energy' && !cShip.cloaked) ? '' : 'none';   document.querySelector('#ctxMenu [data-act="raid"]').style.display = (getPhase() !== 'energy' && raidSourceFor(cShip)) ? '' : 'none';   document.querySelector('#ctxMenu [data-act="tbomb"]').style.display = (getPhase() !== 'energy' && tbombSourceFor(cShip)) ? '' : 'none';   /* D7/D15/G8: raid + transporter bomb shown on any enemy a friendly ship can reach */ document.querySelector('#ctxMenu [data-act="admin"]').style.display = (mine && getPhase() !== 'energy' && shuttleBaysOf(cShip) > 0 && !cShip.cloaked) ? '' : 'none'; document.querySelector('#ctxMenu [data-act="tractor"]').style.display = (getPhase() !== 'energy' && tractorSourceFor(cShip)) ? '' : 'none';   /* G7.11: shown on any unit a friendly ship can tractor */ document.querySelector('#ctxMenu [data-act="release"]').style.display = (mine && tractorLinksFrom(cShip).length) ? '' : 'none'; document.querySelector('#ctxMenu [data-act="breaktractor"]').style.display = (mine && getPhase() !== 'energy' && heldBy(cShip)) ? '' : 'none'; const sd = document.querySelector('#ctxMenu [data-act="selfdestruct"]'); sd.style.display = (mine && getPhase() === 'energy' && !myLockedEnergy) ? '' : 'none'; sd.textContent = cShip.selfDestructPlot ? '💥 Cancel self-destruct' : '💥 Self-destruct (D5.1)'; const m = document.getElementById('ctxMenu'); m.style.display = 'block'; m.style.left = Math.min(e.clientX, innerWidth - 160) + 'px'; m.style.top = e.clientY + 'px'; },
+  openSeekerMenu: (seekerId, e) => {   // FP1.611: fire the SELECTED ship's phasers at the right-clicked drone/plasma
+    const sk = seekers.find(x => x.id === seekerId); const ship = selectedShip();
+    if (!sk) return;
+    if (!ship || !isMine(ship)) { alert('Select one of your ships first, then right-click the drone/plasma to fire at it (FP1.611).'); return; }
+    if (getPhase() !== 'impulse') { alert('Direct phaser fire at seeking weapons happens during the impulse phase.'); return; }
+    const range = hexDistance(ship, sk), bearing = phasersBearingSeeker(ship, sk);
+    const n = Math.min(bearing.length, Math.floor((ship.capacitor || 0) / PHASER_FIRE_COST));
+    if (range > PHASER_SEEKER_RANGE || n <= 0) { alert(`${ship.id} cannot fire phasers at this ${sk.type} (need a bearing, charged phaser within ${PHASER_SEEKER_RANGE} hexes).`); return; }
+    if (confirm(`Fire ${n} phaser${n > 1 ? 's' : ''} from ${ship.id} at this ${sk.type}${sk.type === 'plasma' ? ' (weaken it, FP1.611)' : ''}?`)) firePhasersAtSeeker(ship, sk);
+  },
   openSpeedMenu: (shipId, idx, e) => { navSpeed = { shipId, idx }; const m = document.getElementById('speedMenu'); m.style.display = 'block'; m.style.left = Math.min(e.clientX, innerWidth - 160) + 'px'; m.style.top = e.clientY + 'px'; },
 });
 document.addEventListener('click', () => { document.getElementById('ctxMenu').style.display = 'none'; });
