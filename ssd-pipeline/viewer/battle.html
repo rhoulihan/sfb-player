@@ -405,12 +405,25 @@ const jammedBaySet = s => new Set((s.criticals || []).filter(c => c.type === 'sh
 const rackInJammedBay = (s, i) => { const nb = baseShuttleBays(s); return nb > 0 && jammedBaySet(s).has(i % nb); };   // drone racks are split across the bays by index — a rack in a jammed bay can't fire (D8.24)
 const shuttleBaysOf = s => Math.max(0, baseShuttleBays(s) - (s.criticals || []).filter(c => c.type === 'shuttleBay').length);   // D8.2 #10: each shuttle-bay crit jams one bay (D8.24)
 const shuttlesLeftOf = s => Math.min(shuttleBaysOf(s), s.shuttlesLeft == null ? (s.shuttlesLeft = shuttleBaysOf(s)) : s.shuttlesLeft);   // a mid-turn bay crit immediately caps the launches still available
-function launchShuttle(firer, target) {   // suicide shuttle (C6): a slow homing seeker at the target
+function launchShuttle(firer, target) {   // suicide shuttle (J2.22): three CONSECUTIVE turns of arming (J2.2211), then launch with a variable warhead
   if (!firer || !target || shuttlesLeftOf(firer) <= 0 || !canControlMore(firer)) return;   // F3.21 control limit
   if (heldBy(firer)) { alert('A ship held in a tractor beam cannot launch a shuttle (G7.941).'); return; }
+  // J2.2211: arming takes three turns; energy must be applied every turn or arming aborts and the energy is lost. Each
+  // arming turn applies the maximum 3 warp points here (a variable-per-turn slider is backlogged). Warhead = 2 × energy.
+  const prev = (firer.suicideArm && firer.suicideArm.lastTurn === clock.turn - 1) ? firer.suicideArm : { turns: 0, energy: 0 };
+  const turns = prev.turns + 1, energy = Math.min(9, prev.energy + 3);
+  if (turns < 3) {   // not yet fully armed — bank this turn's arming and wait for the next turn
+    firer.suicideArm = { turns, energy, lastTurn: clock.turn };
+    saveSoon(firer.id); render();
+    alert(`Suicide shuttle arming ${turns}/3 (J2.2211) — apply arming energy again next turn to continue.`);
+    return;
+  }
+  // J2.2212: the third arming turn can be the launch turn → launch now, warhead = 2 × energy applied (min 6, max 18)
   firer.shuttlesLeft = shuttlesLeftOf(firer) - 1;
+  const warhead = Math.max(6, Math.min(18, 2 * energy));
   const shHp = shuttleMaxHp('admin', settings.advancedShuttles);
-  seekers.push({ ...launchSeeker({ id: `sh${++seekerSeq}`, owner: firer.id, q: firer.q, r: firer.r, facing: firer.facing, targetId: target.id, ...SUICIDE_SHUTTLE }), hp: shHp, maxHp: shHp });
+  seekers.push({ ...launchSeeker({ id: `sh${++seekerSeq}`, owner: firer.id, q: firer.q, r: firer.r, facing: firer.facing, targetId: target.id, ...SUICIDE_SHUTTLE, warhead }), hp: shHp, maxHp: shHp });
+  firer.suicideArm = null;
   saveSoon(firer.id); render();
 }
 function launchScatterPack(firer, target) {   // C6: a shuttle releases a burst of drones at the target

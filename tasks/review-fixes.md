@@ -139,7 +139,7 @@ Source: `docs/adversarial-review.md` (96 confirmed findings). Strict TDD, one cl
 
 ## Remaining — mines
 
-- [ ] 🟠 **J2.221 / J2.2211** `ssd-pipeline/viewer/battle.html:397` — Suicide shuttle launches instantly with a fixed 12-point warhead; the rules require three turns of arming and a variable warhead.
+- [x] 🟠 **J2.221 / J2.2211** `ssd-pipeline/viewer/battle.html:397` — Suicide shuttle launches instantly with a fixed 12-point warhead; the rules require three turns of arming and a variable warhead.
 - [x] 🟠 **D7.821** `ssd-pipeline/viewer/battle.html:437` — No per-turn / per-transporter cap on hit-and-run raids — a ship can raid every impulse without limit.
 - [x] 🟠 **G8.21** `ssd-pipeline/viewer/battle.html:440` — Hit-and-run raid and transporter bomb ignore the target's shields; transporters cannot beam through an intact shield.
 - [x] 🟠 **D7.81** `ssd-pipeline/viewer/battle.html:445` — Hit-and-run picks a random enemy box; the rules require the attacker to designate the specific box, and restrict which boxes are legal.
