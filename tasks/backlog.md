@@ -35,3 +35,9 @@ Lower-priority polish. None block normal cruiser play.
 ## Boarding-party count (from D7/D15 fix)
 - A hit-and-run raid currently commits a single boarding party per transporter. Add a control to choose HOW MANY boarding
   parties to commit per raid (D7.8x), affecting the odds/effect. Target selection is done (right-click the target).
+
+## Multiplayer reactive reinforcement — defender-not-resolver handshake (from H7.134 fix)
+- H7.134 reactive reserve reinforcement now prompts the defender for their own ships when THEY are the fire resolver
+  (last to commit). When the ATTACKER is the resolver, the defending player is not local and cannot be prompted. The full
+  fix is a networked mid-resolution handshake: the resolver pauses on each penetrating hit, requests the defending
+  commander's reserve-reinforcement decision over the save/poll channel, waits, then applies it. Needs 2-player testing.
