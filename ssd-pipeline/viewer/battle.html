@@ -1876,10 +1876,14 @@ function observerColumn(o) {   // base 'Ship' column, shifted right by damage st
 function tacLevel(enemy) {   // best information level across all your ships (D17.2 range → D17.3 chart)
   const obs = ships.filter(o => o.side === myFleet && !isDead(o));
   if (!obs.length) return { lvl: 'A', range: null, via: null };
-  const nearest = Math.min(...obs.map(o => hexDistance(o, enemy)));
+  ensureLocks();
+  // D17.22: the chart range is the EFFECTIVE direct-fire weapon range (D1.4), not true hex distance — it doubles when the
+  // observer has no lock-on to the target (e.g. a cloaked target, D17.221) or is under passive fire control (D19.11).
+  const effRange = o => { const tr = hexDistance(o, enemy); return (passiveFcOf(o) || !hasLockOn(lockOn, o.id, enemy.id)) ? 2 * tr : tr; };
+  const nearest = Math.min(...obs.map(effRange));
   let bestIdx = 0, via = null;                                      // everyone always has at least level A on a mapped unit
   for (const o of obs) {
-    const range = hexDistance(o, enemy), { col, shift } = observerColumn(o);
+    const range = effRange(o), { col, shift } = observerColumn(o);
     let idx = 0;
     for (let li = LVL_RANK.indexOf('L'); li > 0; li--) {            // deepest range-based level is L
       const rng = (D17_3[LVL_RANK[li]] || [])[col];

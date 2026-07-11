@@ -134,7 +134,7 @@ Source: `docs/adversarial-review.md` (96 confirmed findings). Strict TDD, one cl
 ## Remaining — ew
 
 - [x] 🟠 **D17.26** `ssd-pipeline/viewer/battle.html:1765` — Tactical-intel level ignores the target's ECM entirely — every ECM shift in the target's favor should drop the info level one step.
-- [ ] 🟠 **D17.22 / D17.221** `ssd-pipeline/viewer/battle.html:1768` — Tactical-intel level uses true hex distance, not effective direct-fire range, so intel is over-reported on cloaked targets (and observers using EM).
+- [x] 🟠 **D17.22 / D17.221** `ssd-pipeline/viewer/battle.html:1768` — Tactical-intel level uses true hex distance, not effective direct-fire range, so intel is over-reported on cloaked targets (and observers using EM).
 - [x] 🟠 **D6.11** `ssd-pipeline/viewer/lock-on.js:7` — The lock-on roll threshold is hardcoded to 6 and never uses the firer's current sensor rating, so a sensor-damaged ship still auto-locks.
 
 ## Remaining — mines
