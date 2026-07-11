@@ -903,7 +903,9 @@ function resolveFinalActivity(skLog) {   // Final Activity Phase (7): reload, no
     if (addRacksOf(s) > 0 && addAmmoOf(s) < addCapOf(s)) { const mag = s.addMag ?? (s.addMag = ADD_RELOAD_SETS * addCapOf(s)); const add = Math.min(ADD_RELOAD_RATE, addCapOf(s) - s.addAmmo, mag); s.addAmmo += add; s.addMag = mag - add; }   // E5.74/E5.71: reload ≤4 anti-drones/turn from two reload sets
     if (settings.d8crits && s.criticals && s.criticals.length) {   // D8.31: one repair attempt per turn — 1d6 ≤4 repairs, −1/−2 on repeat attempts of the same occurrence
       const crit = s.criticals[0], rr = makeRng((seed ^ 0x5EE9A12 ^ Math.imul(clock.turn, 0x85ebca6b) ^ hashId(s.id)) >>> 0), d = rr.d6();
-      if (critRepairs(d, crit.repairAttempts)) { s.criticals = s.criticals.slice(1); s.model = null; skLog.push({ kind: 'critRepair', ship: s.id, type: crit.type, roll: d, repaired: true }); }
+      if (critRepairs(d, crit.repairAttempts)) { s.criticals = s.criticals.slice(1); s.model = null;
+        if (crit.type === 'fireControl') s.fcReactAt = { turn: clock.turn, impulse: clock.impulse };   // D19.26: FC restored by repairing its crit reactivates from passive — it can't fire/guide for 4 impulses
+        skLog.push({ kind: 'critRepair', ship: s.id, type: crit.type, roll: d, repaired: true }); }
       else { crit.repairAttempts = (crit.repairAttempts || 0) + 1; skLog.push({ kind: 'critRepair', ship: s.id, type: crit.type, roll: d, repaired: false }); }
     }
     if (s.edr > 0 && !hasCrit(s.criticals, 'labs')) {   // D14 emergency damage repair (Final Activity Phase): one 1d6 per powered lab, ≤ DC rating repairs a box, up to the rating (D14.13/24)
