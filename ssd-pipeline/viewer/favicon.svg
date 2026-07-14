@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="40%" r="72%">
+      <stop offset="0%" stop-color="#1c3f63"/>
+      <stop offset="65%" stop-color="#0c1c31"/>
+      <stop offset="100%" stop-color="#050b14"/>
+    </radialGradient>
+    <linearGradient id="ship" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#eafaff"/>
+      <stop offset="100%" stop-color="#5fd0e6"/>
+    </linearGradient>
+  </defs>
+  <!-- tactical hex cell -->
+  <polygon points="16,1.2 29.4,8.6 29.4,23.4 16,30.8 2.6,23.4 2.6,8.6"
+           fill="url(#bg)" stroke="#3f8fca" stroke-width="1.6" stroke-linejoin="round"/>
+  <!-- phaser bolt streaking from the nose -->
+  <line x1="16" y1="7" x2="16" y2="1.6" stroke="#ff6a3d" stroke-width="3" stroke-linecap="round"/>
+  <line x1="16" y1="6" x2="16" y2="3" stroke="#ffe0c2" stroke-width="1.1" stroke-linecap="round"/>
+  <!-- bold arrowhead starship, pointing up -->
+  <path d="M16,6.2 L25.5,25 L16,20.2 L6.5,25 Z"
+        fill="url(#ship)" stroke="#13324b" stroke-width="1" stroke-linejoin="round"/>
+  <!-- bridge / core -->
+  <circle cx="16" cy="16.4" r="2.1" fill="#123049"/>
+  <circle cx="16" cy="16.4" r="0.9" fill="#7fe9ff"/>
+  <!-- engine glow at the wingtips -->
+  <circle cx="7.4" cy="24.2" r="1.15" fill="#ff6a3d"/>
+  <circle cx="24.6" cy="24.2" r="1.15" fill="#ff6a3d"/>
+</svg>
