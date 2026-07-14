@@ -21,8 +21,8 @@ export function arcCoversBearing(name, bearing) {
   if (SECTOR[name]) return inSector(name, b);
   if (name === 'FH' || name === 'FP') return b >= 270 || b <= 90;      // front hemisphere / front plasma
   if (name === 'RH' || name === 'AP') return b >= 90 && b <= 270;      // rear hemisphere / aft plasma
-  if (name === 'LP') return b >= 180;                                  // left plasma 180°
-  if (name === 'RP') return b <= 180;                                  // right plasma 180°
+  if (name === 'LP') return b >= 210 || b <= 30;                       // D2.34: left plasma — the front hemisphere rotated 60° left (centered on 300°)
+  if (name === 'RP') return b >= 330 || b <= 150;                      // D2.34: right plasma — the front hemisphere rotated 60° right (centered on 60°)
   if (name === 'LPR') return b >= 120 && b <= 300;                     // left plasma rear (D2.36)
   if (name === 'RPR') return b >= 60 && b <= 240;                      // right plasma rear (D2.36)
   if (COMBINED[name]) return COMBINED[name].some(s =>

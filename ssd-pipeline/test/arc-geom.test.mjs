@@ -1,8 +1,29 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { arcBearsToShield, shieldBearing } from '../viewer/arc-geom.js';
+import { arcBearsToShield, shieldBearing, arcCoversBearing } from '../viewer/arc-geom.js';
 
 const A = arcs => ({ arcs, paintAdd: [], paintRemove: [] });
+
+test('D2.34: LP/FP/RP plasma swivel arcs are the front hemisphere rotated ±60° (not the side hemispheres)', () => {
+  // bearings: 0 = forward, 90 = right/starboard, 180 = aft, 270 = left/port (clockwise).
+  // FP/FH: front 180° centered on 0°.  RP: rotated 60° right → centered 60°, covers [330°..150°].
+  // LP: rotated 60° left → centered 300°, covers [210°..30°].
+  assert.ok(arcCoversBearing('FH', 0) && arcCoversBearing('RP', 0) && arcCoversBearing('LP', 0), 'dead ahead is inside all three front plasma arcs');
+  // a target directly to starboard (90°): the RIGHT plasma bears, the LEFT does not
+  assert.equal(arcCoversBearing('RP', 90), true,  'right plasma covers a starboard target');
+  assert.equal(arcCoversBearing('LP', 90), false, 'left plasma does not reach far starboard');
+  // a target directly to port (270°): the LEFT plasma bears, the RIGHT does not
+  assert.equal(arcCoversBearing('LP', 270), true,  'left plasma covers a port target');
+  assert.equal(arcCoversBearing('RP', 270), false, 'right plasma does not reach far port');
+  // RP edges = [330, 150]
+  assert.equal(arcCoversBearing('RP', 150), true);  assert.equal(arcCoversBearing('RP', 160), false);
+  assert.equal(arcCoversBearing('RP', 330), true);  assert.equal(arcCoversBearing('RP', 320), false);
+  // LP edges = [210, 30]
+  assert.equal(arcCoversBearing('LP', 210), true);  assert.equal(arcCoversBearing('LP', 200), false);
+  assert.equal(arcCoversBearing('LP', 30),  true);  assert.equal(arcCoversBearing('LP', 40),  false);
+  // directly aft (180°) is outside every front-oriented plasma arc
+  assert.ok(!arcCoversBearing('FH', 180) && !arcCoversBearing('LP', 180) && !arcCoversBearing('RP', 180), 'aft is outside the front plasma arcs');
+});
 
 test('shield bearings: #1 front, #4 rear', () => {
   assert.equal(shieldBearing(1), 0);

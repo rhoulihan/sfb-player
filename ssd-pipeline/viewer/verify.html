@@ -476,8 +476,8 @@ function hexInNamed(q,r,arcs){if(q===0&&r===0)return false;const b=bearing(q,r);
   for(const n of arcs){
     if(n==="FH"||n==="FP"){if(b>=270||b<=90)return true;continue;}      // front hemisphere / front plasma
     if(n==="RH"||n==="AP"){if(b>=90&&b<=270)return true;continue;}      // rear hemisphere / aft plasma
-    if(n==="LP"){if(b>=180)return true;continue;}                       // left plasma 180°  [180,360)
-    if(n==="RP"){if(b<=180)return true;continue;}                       // right plasma 180° (0,180]
+    if(n==="LP"){if(b>=210||b<=30)return true;continue;}                // D2.34: left plasma — front hemisphere rotated 60° left (centered on 300°)
+    if(n==="RP"){if(b>=330||b<=150)return true;continue;}               // D2.34: right plasma — front hemisphere rotated 60° right (centered on 60°)
     if(n==="LPR"){if(b>=120&&b<=300)return true;continue;}              // left plasma rear (D2.36)
     if(n==="RPR"){if(b>=60&&b<=240)return true;continue;}               // right plasma rear (D2.36)
     const bases=COMBINED[n]||[n];if(bases.some(x=>ba.includes(x)))return true;
