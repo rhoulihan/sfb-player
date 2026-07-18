@@ -318,6 +318,7 @@ async function load(){
   prefillFromMSC();   // auto-populate stat fields from the Master Ship Chart when a ship is opened (fills only what is missing)
   counterOutline=(saved&&saved.counterOutline)||null; counterArt=(saved&&saved.counterArt)||null;
   ensureCounter();   // a new SSD with no hull-class drawing gets its counter outline traced now
+  statsLoaded=true; eafAutoselect();   // a ship without an assigned EAF layout picks up its race's saved layout + art
   syncStatsUI();
   reindex();fit();renderAll();
   fetch(`/api/labels/${ship}`).then(r=>r.json()).then(m=>{if(m&&!m.error){BOXLABELS=m;renderOverlay();}}).catch(()=>{});
@@ -601,10 +602,19 @@ function prefillFromMSC(){ const m=MSC_STATS[ship]; if(!m) return; let filled=fa
 const EAF_ARTS=["FedBatt_EAF","Fed_EAF","Klingon_EAF","newKlingon_EAF"];
 const eafSel=document.getElementById("eafSel"), eafArtSel=document.getElementById("eafArtSel");
 let eafLayouts=[], editLayout=null;
+// A ship with no assigned layout auto-selects its RACE's saved layout (and with it the form art) — fill-only-when-
+// missing, like the MSC stat prefill; Save persists it. Runs from both async loaders, no-ops until both are ready.
+const RACE_LAYOUT_HINT={FED:"fed",KLI:"klingon",ROM:"romulan",GOR:"gorn",KZIN:"kzinti"};
+let statsLoaded=false;
+function eafAutoselect(){ if(!statsLoaded||!eafLayouts.length)return;
+  if(stats.eafLayout){ eafSel.value=stats.eafLayout; return; }
+  const hint=RACE_LAYOUT_HINT[ship.split("-")[0]]; if(!hint)return;
+  const l=eafLayouts.find(x=>((x.id||"")+" "+(x.name||"")).toLowerCase().includes(hint));
+  if(l){ stats.eafLayout=l.id; eafSel.value=l.id; } }
 async function loadEafLayouts(){ try{ const j=await(await fetch("/api/eaf-layouts")).json(); eafLayouts=j.layouts||[]; }catch{ eafLayouts=[]; }
   eafSel.innerHTML=`<option value="">–</option>`+eafLayouts.map(l=>`<option value="${l.id}">${l.name||l.id}</option>`).join("")+`<option value="__new">＋ New layout…</option>`;
   eafArtSel.innerHTML=EAF_ARTS.map(a=>`<option>${a}</option>`).join("");
-  eafSel.value=stats.eafLayout||""; }
+  eafSel.value=stats.eafLayout||""; eafAutoselect(); }
 eafSel.onchange=async()=>{ if(eafSel.value==="__new"){ const nm=prompt("New EAF layout name (e.g. Romulan):"); if(!nm){ eafSel.value=stats.eafLayout||""; return; }
     const id=nm.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,""); const seed=eafLayouts.find(l=>l.id===(stats.eafLayout||"fed"))||eafLayouts[0];
     editLayout=JSON.parse(JSON.stringify(seed||{shields:{},bays:[],systems:{}})); editLayout.id=id; editLayout.name=nm; await saveEafLayout(); await loadEafLayouts(); stats.eafLayout=id; eafSel.value=id; return; }
