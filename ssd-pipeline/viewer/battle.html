@@ -325,7 +325,7 @@ const turnCategoryOf = code => SHIP_TURN_CATEGORY[code] || 'C';
 const turnModeOf = s => turnModeFor(s.turnCat || turnCategoryOf(s.code), s.speed) + (hasCrit(s.criticals, 'maneuver') ? 1 : 0);   // D8.2 maneuver crit: turn mode +1 at all speeds
 import { shipPower, newEafColumn, validateEaf, foldEaf, sinkMax, specReinfMax, plasmaClsOf, ewFieldMax, WW_COST } from './energy-model.js';   // ewFieldMax: D6.310 combined ECM+ECCM cap; WW_COST: J3.12 wild-weasel charge
 import { armLabel, isArmed, canHold, canRoll, armTurns, rollCost, reserveCompletionCost, firedThisTurn, refireReady, impulsesSince } from './weapon-arming.js';   // multi-turn arming: label, fire-gate, holdability, rolling delay (E4.21/E3.24/FP1.311/FP1.221); E2.23 frequency; E1.52 refire cadence
-import { ctl, stepPair, stackCtl, barCtl, sysCtl, batteryCtl, ewCtl, toggleCtl, shieldCtl, weaponCtl, capCtl, segCtl, ovDims, shieldOverlaySvg } from './eaf-controls.js';   // shared EA control renderers (also used by the verify.html EAF layout editor)
+import { ctl, stepPair, stackCtl, barCtl, sysCtl, batteryCtl, ewCtl, toggleCtl, shieldCtl, weaponCtl, capCtl, segCtl, ovDims, shieldOverlaySvg, applyCtlParts } from './eaf-controls.js';   // shared EA control renderers (also used by the verify.html EAF layout editor)
 import { reservePool as reservePoolOf, spendReserve, reserveCost } from './reserve-power.js';   // reactive power (H5/H7)
 import { legalNextHexes, tryStep, impulseTimeline, hexesInPlot, setSpeedChange, speedChangeLegal, speedAt, legalSideslips, trySideslip } from './course-plan.js';   // speedChangeLegal: C12.3 mid-turn speed-change limits
 import { family, segmentName, advance, hasLockOn } from './battle-phase.js';   // SFB Sequence-of-Play segment cursor + driver; D6.1 lock predicate
@@ -1578,6 +1578,13 @@ function renderEnergy() {
   if (s.course && s.course.steps.length) h += ctl(5, 5, `<button class="${s.autopilot ? 'on' : ''}" id="epAuto">🅰 AUTO</button>`);
   const hasOv = L.controls && [1, 2, 3, 4, 5, 6].some(n => L.controls['shield-ov-' + n]);   // overlay markers placed in the EAF editor
   ov.innerHTML = (hasOv ? kliShieldSvg(s, p, L) : theme === 'fed' ? fedShieldSvg(s, p) : kliShieldSvg(s, p, L)) + h;   // status SVG first → behind the shield controls
+  // per-part offsets authored in the EAF editor (layout.parts): re-apply so a repositioned label/button/counter
+  // arrangement renders here exactly as in the editor. Controls carry no data-cid in this panel, so match by anchor.
+  if (L.parts) for (const [cid, offs] of Object.entries(L.parts)) {
+    const pos = L.controls && L.controls[cid]; if (!pos) continue;
+    const el = [...ov.querySelectorAll('.ctl')].find(n2 => n2.style.left === pos[0] + '%' && n2.style.top === pos[1] + '%');
+    if (el) applyCtlParts(el, offs, ov.clientWidth, ov.clientHeight);
+  }
 }
 
 const healthColor = h => h > 0.6 ? '#16a34a' : h > 0.3 ? '#d97706' : '#C74634';

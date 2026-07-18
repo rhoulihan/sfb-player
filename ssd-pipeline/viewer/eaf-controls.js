@@ -107,3 +107,26 @@ export function shieldOverlaySvg(items, opts = {}) {
   }
   return `<svg class="shsvg" viewBox="0 0 2816 1536" preserveAspectRatio="none"><defs><filter id="shGlow" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="7"/></filter></defs>${fills}${glows}${hits}</svg>`;
 }
+
+// ---- per-control PART offsets (label / counters / ± buttons repositioned within one control set) ----
+// A layout may carry parts: { [controlId]: { pN: [dxPct, dyPct] } } — offsets in % of the ART, keyed by the
+// part's index in stable DOM order. Unlocking a control in the EAF editor lets each part be dragged
+// independently; locking it again moves the whole set (anchor + saved offsets) as one. Both hosts apply the
+// offsets through applyCtlParts so the editor preview stays pixel-identical to the battle EA panel.
+export function ctlParts(node) {
+  const out = [];
+  const walk = el => { for (const ch of el.children) {
+    if (ch.classList.contains('row') || ch.classList.contains('vstep')) walk(ch);
+    else out.push(ch);
+  } };
+  walk(node); return out;
+}
+export function applyCtlParts(node, offs, wrapW, wrapH) {
+  if (!offs) return;
+  const parts = ctlParts(node);
+  parts.forEach((el, i) => { const o = offs['p' + i]; if (!o) return;
+    el.style.position = 'relative';                       // shifted visually; its flow slot is preserved so siblings stay put
+    el.style.left = (o[0] / 100 * wrapW) + 'px';
+    el.style.top = (o[1] / 100 * wrapH) + 'px';
+  });
+}

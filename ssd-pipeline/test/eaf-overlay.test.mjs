@@ -74,3 +74,24 @@ test('ovDims: taper stored as the 7th element, default 0', () => {
   assert.equal(ovDims([10, 20, 0, 112, 70, 0]).taper, 0);
   assert.equal(ovDims([10, 20, 0, 112, 70, 0, 40]).taper, 40);
 });
+
+import { ctlParts, applyCtlParts } from '../viewer/eaf-controls.js';
+
+const mockEl = (cls = '', children = []) => ({ classList: { contains: c => cls.split(' ').includes(c) }, children, style: {} });
+
+test('ctlParts flattens a control into its parts in stable DOM order (rows/vsteps descended into)', () => {
+  const lab = mockEl('lab'), minus = mockEl('stepbtn'), val = mockEl('val'), plus = mockEl('stepbtn');
+  const node = mockEl('ctl', [lab, mockEl('row', [minus, val, plus])]);
+  const parts = ctlParts(node);
+  assert.equal(parts.length, 4, 'label + the three row children');
+  assert.equal(parts[0], lab); assert.equal(parts[1], minus); assert.equal(parts[2], val); assert.equal(parts[3], plus);
+});
+
+test('applyCtlParts offsets only the customized parts, in art-% converted to px', () => {
+  const lab = mockEl('lab'), btn = mockEl('stepbtn');
+  const node = mockEl('ctl', [lab, mockEl('row', [btn])]);
+  applyCtlParts(node, { p1: [10, 5] }, 700, 400);   // part index 1 = the button
+  assert.equal(btn.style.left, '70px'); assert.equal(btn.style.top, '20px'); assert.equal(btn.style.position, 'relative');
+  assert.equal(lab.style.left, undefined, 'uncustomized parts untouched');
+  applyCtlParts(node, null, 700, 400);   // no offsets → no-op, no crash
+});
