@@ -3,10 +3,10 @@ import assert from 'node:assert/strict';
 import { ovDims, shieldOverlaySvg } from '../viewer/eaf-controls.js';
 
 test('ovDims: stored overlay array → shape + dims with per-shape defaults', () => {
-  assert.deepEqual(ovDims([10, 20]), { deg: undefined, len: 112, wid: 70, shape: 'hex' }, 'bare [x,y] → default Klingon-style hex, no explicit facing');
-  assert.deepEqual(ovDims([10, 20, 60]), { deg: 60, len: 112, wid: 70, shape: 'hex' }, 'third element is the facing');
-  assert.deepEqual(ovDims([10, 20, 60, 140, 90, 0]), { deg: 60, len: 140, wid: 90, shape: 'hex' }, 'explicit hex dims');
-  assert.deepEqual(ovDims([10, 20, 0, 56, 154, 1]), { deg: 0, len: 56, wid: 154, shape: 'arc' }, 'shape 1 = arc (len = span°, wid = band thickness)');
+  assert.deepEqual(ovDims([10, 20]), { deg: undefined, len: 112, wid: 70, shape: 'hex', taper: 0 }, 'bare [x,y] → default Klingon-style hex, no explicit facing');
+  assert.deepEqual(ovDims([10, 20, 60]), { deg: 60, len: 112, wid: 70, shape: 'hex', taper: 0 }, 'third element is the facing');
+  assert.deepEqual(ovDims([10, 20, 60, 140, 90, 0]), { deg: 60, len: 140, wid: 90, shape: 'hex', taper: 0 }, 'explicit hex dims');
+  assert.deepEqual(ovDims([10, 20, 0, 56, 154, 1]), { deg: 0, len: 56, wid: 154, shape: 'arc', taper: 0 }, 'shape 1 = arc (len = span°, wid = band thickness)');
   assert.deepEqual(ovDims([10, 20, 0, undefined, undefined, 1]).len, 56, 'arc default span');
 });
 
@@ -58,4 +58,19 @@ test('interactive mode adds a rotation grip per shape', () => {
   assert.ok(svg.includes('data-ovrot="4"'), 'grip tagged with its shield number');
   const plain = shieldOverlaySvg([item]);
   assert.ok(!plain.includes('data-ovrot'), 'no grips in the battle render');
+});
+
+test('hex taper: the facing edge narrows/widens against the inner edge (irregular convex hexagon)', () => {
+  const base = { cx: 500, cy: 400, deg: 0, len: 100, wid: 50, shape: 'hex', t: 1, reinf: 0 };
+  const flat = shieldOverlaySvg([{ ...base }]);
+  const tapered = shieldOverlaySvg([{ ...base, taper: 40 }]);   // +40%: outer (facing) edge narrower, inner wider
+  assert.ok(flat !== tapered, 'taper changes the shape');
+  // deg 0, facing up: outer edge is −y. taper 40 → outer half-width 50·0.6=30 (y=370), inner 50·1.4=70 (y=470)
+  assert.ok(tapered.includes('370') && tapered.includes('470'), 'outer edge at cy−30, inner at cy+70');
+  assert.ok(flat.includes('350') && flat.includes('450'), 'untapered edges at ±50');
+});
+
+test('ovDims: taper stored as the 7th element, default 0', () => {
+  assert.equal(ovDims([10, 20, 0, 112, 70, 0]).taper, 0);
+  assert.equal(ovDims([10, 20, 0, 112, 70, 0, 40]).taper, 40);
 });

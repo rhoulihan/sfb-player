@@ -55,11 +55,16 @@ export function ovDims(raw) {
     len: (raw && raw[3] != null) ? raw[3] : (shape === 'arc' ? 56 : 112),
     wid: (raw && raw[4] != null) ? raw[4] : (shape === 'arc' ? 154 : 70),
     shape,
+    taper: (raw && raw[6]) || 0,   // hex only: % taper of the facing edge vs the inner edge (±, 0 = symmetric)
   };
 }
-const hexPath = (cx, cy, hl, hw, ti, deg) => {   // elongated hexagon rotated `deg` about (cx,cy); tips inset by ti
+// Elongated hexagon rotated `deg` about (cx,cy); tips inset by ti. `taper` (±%) makes it an irregular convex
+// hexagon: the facing (outer, −v) edge shrinks while the inner (+v) edge grows — taper 40 → outer at 60% width,
+// inner at 140% — matching SSD shield slots that narrow toward the shield face.
+const hexPath = (cx, cy, hl, hw, ti, deg, taper = 0) => {
   const th = deg * Math.PI / 180, c = Math.cos(th), s = Math.sin(th);
-  return 'M' + [[-hl, 0], [-hl + ti, -hw], [hl - ti, -hw], [hl, 0], [hl - ti, hw], [-hl + ti, hw]]
+  const t = Math.max(-0.9, Math.min(0.9, taper / 100)), ho = hw * (1 - t), hi = hw * (1 + t);
+  return 'M' + [[-hl, 0], [-hl + ti, -ho], [hl - ti, -ho], [hl, 0], [hl - ti, hi], [-hl + ti, hi]]
     .map(([u, v]) => `${(cx + u * c - v * s).toFixed(0)} ${(cy + u * s + v * c).toFixed(0)}`).join(' L') + ' Z';
 };
 // annular sector through (cx,cy) FACING deg (the band's outward direction; 0 = up, clockwise — the same facing
@@ -82,12 +87,12 @@ export function shieldOverlaySvg(items, opts = {}) {
     const rM = items.length >= 2 ? Math.max(60, Math.hypot(it.cx - rcx, it.cy - rcy)) : 480;   // curvature radius: distance to the marker centroid (fallback until ≥2 placed)
     const shape = it.shape === 'arc'
       ? arcPath(it.cx, it.cy, it.deg || 0, rM, it.len, it.wid)
-      : hexPath(it.cx, it.cy, it.len, it.wid, Math.round(it.len * 0.55), it.deg || 0);
+      : hexPath(it.cx, it.cy, it.len, it.wid, Math.round(it.len * 0.55), it.deg || 0, it.taper || 0);
     fills += `<path d="${shape}" fill="hsl(${Math.round(120 * Math.max(0, Math.min(1, it.t)))},85%,48%)" fill-opacity="0.4"/>`;
     if (it.reinf > 0) {
       const glow = it.shape === 'arc'
         ? arcPath(it.cx, it.cy, it.deg || 0, rM, it.len, it.wid, 14)
-        : hexPath(it.cx, it.cy, it.len + 12, it.wid + 12, Math.round(it.len * 0.55) + 6, it.deg || 0);
+        : hexPath(it.cx, it.cy, it.len + 12, it.wid + 12, Math.round(it.len * 0.55) + 6, it.deg || 0, it.taper || 0);
       glows += `<path d="${glow}" fill="none" stroke="#fde047" stroke-linejoin="round" filter="url(#shGlow)" stroke-width="${8 + it.reinf * 5}" stroke-opacity="${Math.min(0.95, 0.3 + it.reinf * 0.22)}"/>`;
     }
     if (opts.interactive) {

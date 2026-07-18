@@ -65,6 +65,7 @@
   /* EA control renderers (shared with the battle panel) — used to render real controls in the EAF editor */
   #eafArtWrap .ctl{position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:1px;text-align:center;text-shadow:0 1px 3px #000,0 0 5px #000;white-space:nowrap;z-index:2;cursor:grab}
   #eafArtWrap .ctl.sel{outline:2px dashed #d97706;outline-offset:3px;z-index:3}
+  #eafArtWrap .ctl.lockd::after{content:"🔒";position:absolute;top:-10px;right:-12px;font-size:9px;opacity:.85}
   #eafArtWrap .ctl.ov{gap:0}
   #eafArtWrap .shsvg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
   #eafArtWrap .shsvg [data-ovn]{pointer-events:stroke}
@@ -161,13 +162,14 @@
       </div>
     </div>
     <div class="foot">
-      <span class="hint" id="eafHint">Click selects · <b>Shift-click</b> adds to the selection · drag moves the selection · <b>arrows</b> nudge (Shift = coarse) · <b>right-click</b> aligns centres horizontally, <b>Shift-right-click</b> vertically (to the first-selected) · drag off the form to unplace · <b>[ ]</b> rotate a selected shield overlay (Shift = 30°) · <b>drag its outline</b> to resize · <b>drag its yellow grip</b> to rotate (Shift snaps 15°) · <b>S</b> toggles hex/arc shape · <b>double-click</b> a palette entry or placed control to edit exact position/size.</span>
+      <span class="hint" id="eafHint">Click selects · <b>Shift-click</b> adds to the selection · drag moves the selection · <b>arrows</b> nudge (Shift = coarse) · <b>right-click</b> aligns centres horizontally, <b>Shift-right-click</b> vertically (to the first-selected) · drag off the form to unplace · <b>[ ]</b> rotate a selected shield overlay (Shift = 30°) · <b>drag its outline</b> to resize · <b>drag its yellow grip</b> to rotate (Shift snaps 15°) · <b>S</b> toggles hex/arc shape · <b>double-click</b> a palette entry or placed control to edit exact position/size · <b>right-click</b> a control: lock/unlock its group (locked groups move together) · <b>Ctrl-Z</b>/<b>Ctrl-Shift-Z</b> undo/redo.</span>
       <span><button class="btn" id="eafCancel">Close</button> <button class="btn primary" id="eafSaveBtn">Save layout</button></span>
     </div>
   </div>
 </div>
 
 <!-- Firing-arc editor modal -->
+<div id="eafCtx" style="display:none;position:fixed;background:#fff;border:1px solid #cbd5e1;border-radius:8px;box-shadow:0 8px 28px rgba(0,0,0,.25);z-index:70;font-size:13px;min-width:180px;overflow:hidden"></div>
 <div class="modal" id="ctlEditModal" style="z-index:60">
   <div class="sheet" style="max-width:340px">
     <h2 style="font-size:15px;display:flex;align-items:center;gap:8px">⚙ <span id="ceTitle"></span></h2>
@@ -657,7 +659,8 @@ function eafControlList(p){ const L=[];
 async function openEafEditor(){ if(!stats.eafLayout){ alert("Assign an EAF layout for this ship first (the EAF selector), or pick ＋ New layout…"); return; }
   let L=eafLayouts.find(l=>l.id===stats.eafLayout); if(!L){ try{ L=await(await fetch(`/api/eaf-layout/${stats.eafLayout}`)).json(); }catch{} }
   if(!L||L.error){ alert("Layout not found."); return; }
-  editLayout=JSON.parse(JSON.stringify(L)); editLayout.controls=editLayout.controls||{};
+  editLayout=JSON.parse(JSON.stringify(L)); editLayout.controls=editLayout.controls||{}; editLayout.locks=editLayout.locks||{};
+  eafUndo=[]; eafRedo=[]; eafEditKind=null;
   document.getElementById("eafTitle").textContent=`${editLayout.name||editLayout.id} · ${ship}`;
   document.getElementById("eafModal").classList.add("open"); renderEafEditor(); }
 function renderEafEditor(){ const wrap=document.getElementById("eafArtWrap"); [...wrap.querySelectorAll(".ctl")].forEach(e=>e.remove());
@@ -666,20 +669,20 @@ function renderEafEditor(){ const wrap=document.getElementById("eafArtWrap"); [.
   const list=eafControlList(eafPowerModel());
   eafSelSet=eafSelSet.filter(id=>L.controls[id]);   // selection survives re-render; unplaced controls drop out
   for(const c of list){ const pos=L.controls[c.id]; if(!pos)continue; const tmp=document.createElement("div"); tmp.innerHTML=c.render(pos[0],pos[1],pos[2]); const node=tmp.firstElementChild; if(!node)continue;
-    node.dataset.cid=c.id; if(eafSelSet.includes(c.id))node.classList.add("sel"); node.addEventListener("mousedown",e=>eafDragCtl(e,c.id,node)); node.addEventListener("dblclick",()=>openCtlEdit(c.id)); wrap.appendChild(node); }
+    node.dataset.cid=c.id; if(eafSelSet.includes(c.id))node.classList.add("sel"); if(L.locks&&L.locks[eafParentOf(c.id)])node.classList.add("lockd"); node.addEventListener("mousedown",e=>eafDragCtl(e,c.id,node)); node.addEventListener("dblclick",()=>openCtlEdit(c.id)); wrap.appendChild(node); }
   document.getElementById("eafPalette").innerHTML=list.map(c=>`<div class="pal ${L.controls[c.id]?"placed":""}" data-cid="${c.id}" draggable="true">${c.label}</div>`).join("");
   eafOvPreview(); renderEafValid(); }
 // ---- shield-overlay live preview: the SHARED geometry renders the real shapes on the form (pixel-identical to
 // the battle EA panel); the outline of each shape is grabbable — drag it and the length/width follow the pointer.
 const eafOvIds=()=>editLayout?Object.keys(editLayout.controls).filter(id=>/^shield-ov-/.test(id)):[];
 function eafOvItems(interactive){ return eafOvIds().map(id=>{ const raw=editLayout.controls[id], d=ovDims(raw), n=+id.slice(10);
-  return { n, cx:raw[0]/100*2816, cy:raw[1]/100*1536, deg:d.deg||0, len:d.len, wid:d.wid, shape:d.shape, t:1, reinf:0 }; }); }
+  return { n, cx:raw[0]/100*2816, cy:raw[1]/100*1536, deg:d.deg||0, len:d.len, wid:d.wid, shape:d.shape, taper:d.taper||0, t:1, reinf:0 }; }); }
 function eafOvPreview(){ const wrap=document.getElementById("eafArtWrap"); if(!wrap)return;
   let pv=document.getElementById("eafOvPrev");
   if(!pv){ pv=document.createElement("div"); pv.id="eafOvPrev"; pv.style.cssText="position:absolute;inset:0;z-index:1;pointer-events:none"; wrap.appendChild(pv); }
   pv.innerHTML=eafOvIds().length?shieldOverlaySvg(eafOvItems(),{interactive:true}):""; }
 function eafOvLabelText(n){ const raw=editLayout&&editLayout.controls["shield-ov-"+n]; if(!raw)return`OV ${n}`;
-  const d=ovDims(raw); return d.shape==="arc"?`OV ${n} · ${Math.round(d.deg||0)}° · span ${Math.round(d.len)}° · ${Math.round(d.wid)}w`:`OV ${n} · ${Math.round(d.deg||0)}° · ${Math.round(d.len)}×${Math.round(d.wid)}`; }
+  const d=ovDims(raw); return d.shape==="arc"?`OV ${n} · ${Math.round(d.deg||0)}° · span ${Math.round(d.len)}° · ${Math.round(d.wid)}w`:`OV ${n} · ${Math.round(d.deg||0)}° · ${Math.round(d.len)}×${Math.round(d.wid)}${d.taper?` · t${Math.round(d.taper)}`:""}`; }
 function eafOvLabel(cid){ const el=document.querySelector(`#eafArtWrap .ctl[data-cid="${cid}"] .lab`); if(el)el.textContent=eafOvLabelText(+cid.slice(10)); }
 // grab the shape OUTLINE and drag: the size follows the pointer (hex: pointer offset in the shape frame sets the
 // half-length/half-width; arc: pointer angle about the ring centre sets the span, radial offset sets the band width)
@@ -689,15 +692,16 @@ document.getElementById("eafArtWrap").addEventListener("mousedown",e=>{ const hp
   const wrap=document.getElementById("eafArtWrap"), rect=wrap.getBoundingClientRect(), d0=ovDims(raw);
   const cx=raw[0]/100*2816, cy=raw[1]/100*1536;
   const its=eafOvItems(); let rcx=1408,rcy=768; if(its.length>=2){ rcx=its.reduce((a,i)=>a+i.cx,0)/its.length; rcy=its.reduce((a,i)=>a+i.cy,0)/its.length; }
-  const move=ev=>{ const px=(ev.clientX-rect.left)/rect.width*2816, py=(ev.clientY-rect.top)/rect.height*1536; let len,wid;
+  const preSnap=eafSnap(); let resized=false;
+  const move=ev=>{ resized=true; const px=(ev.clientX-rect.left)/rect.width*2816, py=(ev.clientY-rect.top)/rect.height*1536; let len,wid;
     if(d0.shape==="arc"){ const aM=Math.atan2(cy-rcy,cx-rcx), aP=Math.atan2(py-rcy,px-rcx); let da=(aP-aM)*180/Math.PI; da=((da+540)%360)-180;
       const rM=Math.hypot(cx-rcx,cy-rcy), rP=Math.hypot(px-rcx,py-rcy);
       len=Math.max(8,Math.min(120,Math.abs(da)*2)); wid=Math.max(16,Math.abs(rP-rM)*2); }
     else{ const th=(d0.deg||0)*Math.PI/180, c=Math.cos(th), sn=Math.sin(th), dx=px-cx, dy=py-cy;
       len=Math.max(20,Math.abs(dx*c+dy*sn)); wid=Math.max(12,Math.abs(-dx*sn+dy*c)); }
-    editLayout.controls[cid]=[raw[0],raw[1],d0.deg||0,Math.round(len),Math.round(wid),d0.shape==="arc"?1:0];
+    editLayout.controls[cid]=[raw[0],raw[1],d0.deg||0,Math.round(len),Math.round(wid),d0.shape==="arc"?1:0,d0.taper||0];
     eafOvPreview(); eafOvLabel(cid); };
-  const up=()=>{ document.removeEventListener("mousemove",move); document.removeEventListener("mouseup",up); };
+  const up=()=>{ document.removeEventListener("mousemove",move); document.removeEventListener("mouseup",up); if(typeof resized!=="undefined"?resized:rotated)pushUndoSnap(preSnap); };
   document.addEventListener("mousemove",move); document.addEventListener("mouseup",up); },true);
 // drag the rotation grip: the facing follows the pointer around the marker centre (Shift snaps to 15°)
 document.getElementById("eafArtWrap").addEventListener("mousedown",e=>{ const gp=e.target.closest&&e.target.closest("[data-ovrot]"); if(!gp||!editLayout)return;
@@ -705,12 +709,13 @@ document.getElementById("eafArtWrap").addEventListener("mousedown",e=>{ const gp
   const cid="shield-ov-"+gp.dataset.ovrot, raw=editLayout.controls[cid]; if(!raw)return;
   const wrap=document.getElementById("eafArtWrap"), rect=wrap.getBoundingClientRect(), d0=ovDims(raw);
   const cx=raw[0]/100*2816, cy=raw[1]/100*1536;
-  const move=ev=>{ const px=(ev.clientX-rect.left)/rect.width*2816, py=(ev.clientY-rect.top)/rect.height*1536;
+  const preSnap=eafSnap(); let rotated=false;
+  const move=ev=>{ rotated=true; const px=(ev.clientX-rect.left)/rect.width*2816, py=(ev.clientY-rect.top)/rect.height*1536;
     let deg=Math.atan2(px-cx,-(py-cy))*180/Math.PI; deg=((deg%360)+360)%360;   // 0 = up, clockwise — the shared facing convention
     if(ev.shiftKey)deg=Math.round(deg/15)*15%360;
-    editLayout.controls[cid]=[raw[0],raw[1],Math.round(deg),d0.len,d0.wid,d0.shape==="arc"?1:0];
+    editLayout.controls[cid]=[raw[0],raw[1],Math.round(deg),d0.len,d0.wid,d0.shape==="arc"?1:0,d0.taper||0];
     eafOvPreview(); eafOvLabel(cid); };
-  const up=()=>{ document.removeEventListener("mousemove",move); document.removeEventListener("mouseup",up); };
+  const up=()=>{ document.removeEventListener("mousemove",move); document.removeEventListener("mouseup",up); if(typeof resized!=="undefined"?resized:rotated)pushUndoSnap(preSnap); };
   document.addEventListener("mousemove",move); document.addEventListener("mouseup",up); },true);
 // ---- numeric control editor: double-click a palette entry (or a placed control) → edit position/dimensions.
 // Prefills the current values when placed; Apply places an unplaced control at the given position.
@@ -722,7 +727,8 @@ function openCtlEdit(cid){ if(!editLayout)return;
   const rows=[["X (%)","ceX",raw?raw[0]:50],["Y (%)","ceY",raw?raw[1]:50]];
   if(isOv){ rows.push(["Facing (°)","ceDeg",Math.round((d.deg||0))]);
     rows.push([d.shape==="arc"?"Span (°)":"Length","ceLen",Math.round(d.len)]);
-    rows.push([d.shape==="arc"?"Band width":"Width","ceWid",Math.round(d.wid)]); }
+    rows.push([d.shape==="arc"?"Band width":"Width","ceWid",Math.round(d.wid)]);
+    if(d.shape!=="arc")rows.push(["Taper (±%)","ceTaper",Math.round(d.taper||0)]); }
   document.getElementById("ceFields").innerHTML=
     rows.map(([lb,id,v])=>`<label id="${id}Lb" for="${id}" style="margin:0">${lb}</label><input id="${id}" type="number" step="0.1" value="${v}" style="padding:4px;border:1px solid #cbd5e1;border-radius:6px">`).join("")
     +(isOv?`<label style="margin:0">Shape</label><select id="ceShape" style="padding:4px;border:1px solid #cbd5e1;border-radius:6px"><option value="0"${d.shape!=="arc"?" selected":""}>Hex (Klingon-style)</option><option value="1"${d.shape==="arc"?" selected":""}>Arc (Federation-style)</option></select>`:"");
@@ -731,11 +737,11 @@ function openCtlEdit(cid){ if(!editLayout)return;
   document.getElementById("ctlEditModal").classList.add("open");
   document.getElementById("ceX").focus(); }
 document.getElementById("ceCancel").onclick=()=>document.getElementById("ctlEditModal").classList.remove("open");
-document.getElementById("ceApply").onclick=()=>{ if(!ceCid||!editLayout)return;
+document.getElementById("ceApply").onclick=()=>{ if(!ceCid||!editLayout)return; pushUndo(null);
   const num=id=>{const el=document.getElementById(id); return el?+el.value||0:0;};
   const x=+Math.max(0,Math.min(100,num("ceX"))).toFixed(1), y=+Math.max(0,Math.min(100,num("ceY"))).toFixed(1);
   if(/^shield-ov-/.test(ceCid))
-    editLayout.controls[ceCid]=[x,y,((Math.round(num("ceDeg"))%360)+360)%360,Math.max(4,Math.round(num("ceLen"))),Math.max(4,Math.round(num("ceWid"))),+document.getElementById("ceShape").value];
+    editLayout.controls[ceCid]=[x,y,((Math.round(num("ceDeg"))%360)+360)%360,Math.max(4,Math.round(num("ceLen"))),Math.max(4,Math.round(num("ceWid"))),+document.getElementById("ceShape").value,Math.max(-90,Math.min(90,Math.round(num("ceTaper"))))];
   else editLayout.controls[ceCid]=[x,y];
   document.getElementById("ctlEditModal").classList.remove("open");
   renderEafEditor(); };
@@ -744,10 +750,44 @@ document.getElementById("eafPalette").addEventListener("dblclick",e=>{ const pal
 // S toggles a selected overlay's shape between the Klingon-style hex and the Federation-style ring arc
 document.addEventListener("keydown",e=>{ if(!document.getElementById("eafModal").classList.contains("open"))return;
   if(/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName))return; if(e.key!=="s"&&e.key!=="S")return;
-  const ovs=eafSelSet.filter(id=>/^shield-ov-/.test(id)); if(!ovs.length||!editLayout)return; e.preventDefault();
+  const ovs=eafSelSet.filter(id=>/^shield-ov-/.test(id)); if(!ovs.length||!editLayout)return; e.preventDefault(); pushUndo(null);
   ovs.forEach(id=>{ const p0=editLayout.controls[id]; if(!p0)return; const d=ovDims(p0), toArc=d.shape!=="arc";
-    editLayout.controls[id]=[p0[0],p0[1],d.deg||0,toArc?56:112,toArc?154:70,toArc?1:0]; eafOvLabel(id); });
+    editLayout.controls[id]=[p0[0],p0[1],d.deg||0,toArc?56:112,toArc?154:70,toArc?1:0,toArc?0:(d.taper||0)]; eafOvLabel(id); });
   eafOvPreview(); });
+
+// ---- parent groups + lock: right-click a control → lock/unlock its parent group. While locked, dragging or
+// nudging ANY member moves the whole group together; unlocked members move independently. Lock state persists
+// in the layout (editLayout.locks; the battle panel ignores it).
+const eafParentOf=id=>/^shield-ov-/.test(id)?"overlays":/^shield-|^shields-toggle/.test(id)?"shields":/^weapon-|^phaser-cap|^fire-control|^gen-reinf/.test(id)?"weapons":/^batteries|^tractor|^transporter|^damage-control|^repair-target/.test(id)?"systems":/^movement|^reserve/.test(id)?"drive":"misc";
+const EAF_PARENT_NAME={overlays:"Shield overlays",shields:"Shields",weapons:"Weapons",systems:"Systems",drive:"Movement / Reserve",misc:"EW / misc"};
+const expandLocked=ids=>{ const L=(editLayout&&editLayout.locks)||{}; const out=new Set(ids);
+  ids.forEach(id=>{ const cat=eafParentOf(id); if(L[cat]) Object.keys(editLayout.controls).forEach(k=>{ if(eafParentOf(k)===cat) out.add(k); }); });
+  return [...out]; };
+// ---- undo/redo: 100-edit queues; a new edit clears the redo queue. Bursts of the same kind (arrow nudges,
+// [ ] rotation taps) within 1.2s coalesce into one undo step.
+let eafUndo=[],eafRedo=[],eafEditKind=null,eafEditAt=0;
+const eafSnap=()=>JSON.parse(JSON.stringify({controls:(editLayout&&editLayout.controls)||{},locks:(editLayout&&editLayout.locks)||{}}));
+function pushUndoSnap(sn){ eafEditKind=null; eafUndo.push(sn); if(eafUndo.length>100)eafUndo.shift(); eafRedo.length=0; }
+function pushUndo(kind){ if(!editLayout)return; const now=Date.now();
+  if(kind&&kind===eafEditKind&&now-eafEditAt<1200){ eafEditAt=now; return; }
+  const snap=eafSnap(); eafUndo.push(snap); if(eafUndo.length>100)eafUndo.shift(); eafRedo.length=0;
+  eafEditKind=kind; eafEditAt=now; }
+function eafApplySnap(sn){ editLayout.controls=JSON.parse(JSON.stringify(sn.controls)); editLayout.locks=JSON.parse(JSON.stringify(sn.locks)); renderEafEditor(); }
+function eafDoUndo(){ if(!eafUndo.length||!editLayout)return; eafRedo.push(eafSnap()); if(eafRedo.length>100)eafRedo.shift(); eafApplySnap(eafUndo.pop()); eafEditKind=null; }
+function eafDoRedo(){ if(!eafRedo.length||!editLayout)return; eafUndo.push(eafSnap()); if(eafUndo.length>100)eafUndo.shift(); eafApplySnap(eafRedo.pop()); eafEditKind=null; }
+document.addEventListener("keydown",e=>{ if(!document.getElementById("eafModal").classList.contains("open"))return;
+  if(/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName))return;
+  if((e.ctrlKey||e.metaKey)&&(e.key==="z"||e.key==="Z")&&!e.shiftKey){ e.preventDefault(); eafDoUndo(); return; }
+  if((e.ctrlKey||e.metaKey)&&(((e.key==="z"||e.key==="Z")&&e.shiftKey)||e.key==="y"||e.key==="Y")){ e.preventDefault(); eafDoRedo(); return; } });
+// context menu (single control / non-align right-click): lock or unlock the control's parent group
+function openEafCtx(cid,x,y){ const cat=eafParentOf(cid), locked=!!(editLayout.locks&&editLayout.locks[cat]);
+  const n=Object.keys(editLayout.controls).filter(k=>eafParentOf(k)===cat).length;
+  const m=document.getElementById("eafCtx");
+  m.innerHTML=`<div style="padding:7px 12px;background:#f1f5f9;color:#64748b;font-size:11px">${EAF_PARENT_NAME[cat]||cat} · ${n} placed</div>`+
+    `<div id="eafCtxLock" style="padding:9px 12px;cursor:pointer">${locked?"🔓 Unlock group":"🔒 Lock group"}<div style="font-size:10px;color:#94a3b8">${locked?"members move independently again":"members drag &amp; nudge together"}</div></div>`;
+  m.style.display="block"; m.style.left=Math.min(x,innerWidth-200)+"px"; m.style.top=Math.min(y,innerHeight-90)+"px";
+  document.getElementById("eafCtxLock").onclick=()=>{ pushUndo(null); editLayout.locks=editLayout.locks||{}; editLayout.locks[cat]=!locked; m.style.display="none"; renderEafEditor(); }; }
+document.addEventListener("click",()=>{ const m=document.getElementById("eafCtx"); if(m)m.style.display="none"; });
 
 // ---- selection model: click selects, Shift-click adds/toggles, drag moves the whole selection, arrows nudge,
 // right-click aligns the selected controls' CENTRES horizontally (Shift-right-click: vertically) to the first-selected.
@@ -758,7 +798,8 @@ function eafApplySel(){ const wrap=document.getElementById("eafArtWrap");
 function eafDragCtl(e,cid,node){ if(e.button!==0)return; e.preventDefault(); const wrap=document.getElementById("eafArtWrap"),rect=wrap.getBoundingClientRect();
   const wasSelected=eafSelSet.includes(cid);
   if(!wasSelected){ if(e.shiftKey)eafSelSet.push(cid); else eafSelSet=[cid]; eafApplySel(); }   // select on press; a no-move Shift-click on a selected control deselects on release
-  const members=eafSelSet.slice();
+  const members=expandLocked(eafSelSet.slice());   // a locked parent group drags as one
+  const preSnap=eafSnap();
   const start={x:e.clientX,y:e.clientY}, base={}; members.forEach(id=>base[id]=[...editLayout.controls[id]]);
   let moved=false;
   const move=ev=>{ const dxp=ev.clientX-start.x, dyp=ev.clientY-start.y; if(Math.abs(dxp)+Math.abs(dyp)>3)moved=true; if(!moved)return;
@@ -767,6 +808,7 @@ function eafDragCtl(e,cid,node){ if(e.button!==0)return; e.preventDefault(); con
       editLayout.controls[id]=[+nx.toFixed(1),+ny.toFixed(1),...base[id].slice(2)]; const el=wrap.querySelector(`.ctl[data-cid="${id}"]`); if(el){ el.style.left=nx+"%"; el.style.top=ny+"%"; } }); eafOvPreview(); };
   const up=ev=>{ document.removeEventListener("mousemove",move); document.removeEventListener("mouseup",up);
     if(!moved){ if(e.shiftKey&&wasSelected)eafSelSet=eafSelSet.filter(id=>id!==cid); else if(!e.shiftKey)eafSelSet=[cid]; eafApplySel(); return; }   // a plain click (no drag): select / Shift-toggle
+    pushUndoSnap(preSnap);   // one undo step per drag (covers the unplace below too)
     const off=ev&&(ev.clientX<rect.left||ev.clientX>rect.right||ev.clientY<rect.top||ev.clientY>rect.bottom);   // dropped off the form → unplace the selection
     if(off){ members.forEach(id=>delete editLayout.controls[id]); renderEafEditor(); } else renderEafValid(); };
   document.addEventListener("mousemove",move); document.addEventListener("mouseup",up); }
@@ -775,23 +817,24 @@ document.addEventListener("keydown",e=>{ if(!document.getElementById("eafModal")
   if(/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName))return;
   if(e.key==="Escape"){ const ce=document.getElementById("ctlEditModal"); if(ce.classList.contains("open")){ ce.classList.remove("open"); return; } eafSelSet=[]; eafApplySel(); return; }
   const d={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]}[e.key]; if(!d||!eafSelSet.length||!editLayout)return;
-  e.preventDefault(); const step=e.shiftKey?1:0.1, wrap=document.getElementById("eafArtWrap");
-  eafSelSet.forEach(id=>{ const p0=editLayout.controls[id]; if(!p0)return;
+  e.preventDefault(); pushUndo("nudge"); const step=e.shiftKey?1:0.1, wrap=document.getElementById("eafArtWrap");
+  expandLocked(eafSelSet).forEach(id=>{ const p0=editLayout.controls[id]; if(!p0)return;
     const nx=Math.max(0,Math.min(100,p0[0]+d[0]*step)), ny=Math.max(0,Math.min(100,p0[1]+d[1]*step));
     editLayout.controls[id]=[+nx.toFixed(1),+ny.toFixed(1),...p0.slice(2)]; const el=wrap.querySelector(`.ctl[data-cid="${id}"]`); if(el){ el.style.left=nx+"%"; el.style.top=ny+"%"; } }); eafOvPreview(); });
 // [ and ] rotate the selected shield overlays' FACING (5° per press, Shift = 30°) — same keys that turn a ship in battle
 document.addEventListener("keydown",e=>{ if(!document.getElementById("eafModal").classList.contains("open"))return;
   if(/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName))return;
   const rot=e.key==="["?-1:e.key==="]"?1:0; if(!rot||!eafSelSet.length||!editLayout)return;
-  e.preventDefault(); const step=e.shiftKey?30:5, wrap=document.getElementById("eafArtWrap");
+  e.preventDefault(); pushUndo("rot"); const step=e.shiftKey?30:5, wrap=document.getElementById("eafArtWrap");
   eafSelSet.filter(id=>/^shield-ov-/.test(id)).forEach(id=>{ const p0=editLayout.controls[id]; if(!p0)return;
     const deg=(((p0[2]||0)+rot*step)%360+360)%360; editLayout.controls[id]=[p0[0],p0[1],deg,...p0.slice(3)];
     eafOvLabel(id); }); eafOvPreview(); });
 // right-click a selected control: align every selected centre to the FIRST-selected — horizontally (same Y, X spacing
 // untouched); Shift-right-click: vertically (same X, Y spacing untouched)
 document.getElementById("eafArtWrap").addEventListener("contextmenu",e=>{ const el=e.target.closest(".ctl"); if(!el||!editLayout)return;
-  const cid=el.dataset.cid; if(!eafSelSet.includes(cid)||eafSelSet.length<2)return;
-  e.preventDefault(); const wrap=document.getElementById("eafArtWrap"), anchor=editLayout.controls[eafSelSet[0]]; if(!anchor)return;
+  const cid=el.dataset.cid;
+  if(!eafSelSet.includes(cid)||eafSelSet.length<2){ e.preventDefault(); openEafCtx(cid,e.clientX,e.clientY); return; }   // single control → lock/unlock menu; multi-select → align (below)
+  e.preventDefault(); pushUndo(null); const wrap=document.getElementById("eafArtWrap"), anchor=editLayout.controls[eafSelSet[0]]; if(!anchor)return;
   eafSelSet.slice(1).forEach(id=>{ const p0=editLayout.controls[id]; if(!p0)return;
     const np=e.shiftKey?[anchor[0],p0[1]]:[p0[0],anchor[1]];   // Shift = align vertically (same X); plain = horizontally (same Y)
     editLayout.controls[id]=[+np[0].toFixed(1),+np[1].toFixed(1),...p0.slice(2)]; const n2=wrap.querySelector(`.ctl[data-cid="${id}"]`); if(n2){ n2.style.left=np[0]+"%"; n2.style.top=np[1]+"%"; } });
@@ -802,6 +845,7 @@ document.getElementById("eafPalette").addEventListener("dragstart",e=>{ const pa
   wrap.addEventListener("dragover",e=>e.preventDefault());
   wrap.addEventListener("drop",e=>{ e.preventDefault(); const cid=e.dataTransfer.getData("text/cid"); if(!cid||!editLayout)return;
     const rect=wrap.getBoundingClientRect(), x=(e.clientX-rect.left)/rect.width*100, y=(e.clientY-rect.top)/rect.height*100;
+    pushUndo(null);
     const ovm=/^shield-ov-(\d)$/.exec(cid);   // a shield overlay starts at its slot's standard ring facing; [ ] rotate, S toggles hex/arc, drag its outline to resize
     const fedArc=/fed/i.test((editLayout.id||"")+(editLayout.art||""));   // Federation layouts default to the ring-arc shape
     editLayout.controls[cid]=ovm?(fedArc?[+x.toFixed(1),+y.toFixed(1),((+ovm[1]-1)*60)%360,56,154,1]:[+x.toFixed(1),+y.toFixed(1),((+ovm[1]-1)*60)%360,112,70,0]):[+x.toFixed(1),+y.toFixed(1)]; renderEafEditor(); }); })();
