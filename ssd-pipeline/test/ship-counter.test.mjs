@@ -120,3 +120,20 @@ test('COUNTER_ART: one tintable forward=up drawing per hull class, on the shared
     assert.ok(!/<svg|<script|href=/.test(art), `${cls}: inner markup only — no nested <svg>, scripts, or external refs`);
   }
 });
+
+import { counterSvg } from '../viewer/ship-counter.js';
+
+test('counterSvg: a rotating framed counter with the right content per source', () => {
+  const base = { cx: 100, cy: 200, size: 38, angle: 120, frameFill: '#2563eb', frameStroke: '#173e8f', color: '#fff' };
+  const art = counterSvg({ ...base, art: COUNTER_ART['fed-cruiser'] });
+  assert.ok(art.includes('translate(100,200) rotate(120)'), 'whole counter (frame included) rotates about the hex center');
+  assert.ok(art.includes('rect') && art.includes('#2563eb'), 'fleet-coloured square frame');
+  assert.ok(art.includes('currentColor') && art.includes('color="#fff"'), 'hull drawing tinted via currentColor');
+  const img = counterSvg({ ...base, imageHref: '../data/X/counter.png', art: COUNTER_ART['fed-cruiser'] });
+  assert.ok(img.includes('<image') && img.includes('counter.png'), 'custom art wins over the class drawing');
+  assert.ok(!img.includes('currentColor'), 'no drawing under the custom image');
+  const poly = counterSvg({ ...base, outline: [[0, 0], [100, 0], [100, 300], [0, 300]] });
+  assert.ok(/<path d="M[\d.]/.test(poly), 'fallback outline renders as a filled path');
+  const none = counterSvg(base);
+  assert.ok(none.includes('<path'), 'no source at all still renders a generic delta');
+});

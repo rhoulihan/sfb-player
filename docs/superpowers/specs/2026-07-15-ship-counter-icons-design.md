@@ -1,7 +1,16 @@
 # Rotating ship-counter icons — design
 
 **Date:** 2026-07-15
-**Status:** approved
+**Status:** implemented (2026-07-18)
+
+**Implementation deltas** (approved during the build):
+- **Custom counter art** (added at Rick's request): the verify UI uploads a per-ship image (🎨 art button →
+  `/api/counter-art/<ship>` → `data/<ship>/counter.png`, git-ignored like the SSD images). Resolution order is
+  custom art → hull-class drawing → fallback outline → generic delta, with a `counterArt` flag in verified.json.
+- The hand-drawn art lives as tintable inline-markup strings in `ship-counter-art.js` rather than `counters/<class>.svg`
+  files — an `<image href>` cannot be tinted by fleet color, inline markup can (currentColor).
+- The fallback outline persists as a `counterOutline` point ring in verified.json (verification owns ship data), not a
+  separate counter.svg file; it is re-traced on save for unknown-class ships so it tracks group edits.
 
 ## Purpose
 

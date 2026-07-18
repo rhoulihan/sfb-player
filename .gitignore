@@ -38,3 +38,6 @@ ssd-pipeline/data/_battle.json
 assets/*.png
 
 ssd-pipeline/viewer/assets/*.png
+
+# custom ship-counter art (user-provided images, possibly scanned counters — never committed)
+ssd-pipeline/data/*/counter.png

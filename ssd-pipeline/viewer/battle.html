@@ -297,6 +297,8 @@
 </div>
 <script type="module">
 import { hexCenter, headingDeg, GEOM, hexDistance, exposedShield, isInArc } from './battle-geom.js';   // isInArc: FP1.611 phaser-vs-seeker arc check
+import { counterClassFor, counterAngle, counterSvg } from './ship-counter.js';   // square rotating ship counters
+import { COUNTER_ART } from './ship-counter-art.js';
 import { shipLoadout } from './ship-loadout.js';
 import { buildShipModel } from './ship-model.js';
 import { newPlan, newGroup, assignMount, unassignMount, planEligibility, mountEligibility, combinedPreview } from './fire-plan.js';
@@ -1223,16 +1225,22 @@ function render() {
   for (const t of tractors) { const a = byId(t.from), b = byId(t.to); if (!a || !b) continue; const ca = hexCenter(a.q, a.r), cb = hexCenter(b.q, b.r); svg += `<line x1="${ca.x}" y1="${ca.y}" x2="${cb.x}" y2="${cb.y}" stroke="#a855f7" stroke-width="3" stroke-dasharray="5 4" opacity="0.8"/>`; }   // G7 tractor link
   for (const s of ships) {
     const c = hexCenter(s.q, s.r), fill = sideFill(s);
-    const nx = c.x + 27 * Math.cos(rad(s.facing)), ny = c.y + 27 * Math.sin(rad(s.facing));
     const g = groupOfShip(s.id);
-    const ring = s.id === ui.activeId ? `<circle cx="${c.x}" cy="${c.y}" r="27" fill="none" stroke="#d97706" stroke-width="3"/>`
-              : g ? `<circle cx="${c.x}" cy="${c.y}" r="26" fill="none" stroke="${g.color}" stroke-width="2.5"/>` : '';
+    const ring = s.id === ui.activeId ? `<circle cx="${c.x}" cy="${c.y}" r="28" fill="none" stroke="#d97706" stroke-width="3"/>`
+              : g ? `<circle cx="${c.x}" cy="${c.y}" r="27" fill="none" stroke="${g.color}" stroke-width="2.5"/>` : '';
     const dead = Object.keys(s.status).length ? 0.4 : (s.cloaked ? 0.4 : 1);
-    const cloakRing = s.cloaked ? `<circle cx="${c.x}" cy="${c.y}" r="24" fill="none" stroke="#a855f7" stroke-width="2" stroke-dasharray="3 4"/>` : '';
-    svg += `<g class="ship" data-id="${s.id}" style="cursor:grab" opacity="${dead}">${ring}${cloakRing}` +
-      `<line x1="${c.x}" y1="${c.y}" x2="${nx}" y2="${ny}" stroke="${fill}" stroke-width="4"/>` +
-      `<circle cx="${c.x}" cy="${c.y}" r="20" fill="${fill}" stroke="#fff" stroke-width="2"/>` +
-      `<text x="${c.x}" y="${c.y + 4}" text-anchor="middle" fill="#fff" font-size="12" font-weight="700" style="pointer-events:none">${s.id}</text></g>`;
+    const cloakRing = s.cloaked ? `<circle cx="${c.x}" cy="${c.y}" r="25" fill="none" stroke="#a855f7" stroke-width="2" stroke-dasharray="3 4"/>` : '';
+    // square game counter: whole counter (frame + hull drawing) rotates to the ship's heading; the id label
+    // rides above it, un-rotated, so it stays readable at every facing. Content: custom uploaded art →
+    // hull-class line drawing → verified fallback outline → generic delta.
+    const cls = counterClassFor(s.code);
+    const counter = counterSvg({ cx: c.x, cy: c.y, size: 38, angle: counterAngle(s.facing),
+      frameFill: fill, frameStroke: isMine(s) ? '#173e8f' : '#7f2d21', color: '#fff',
+      imageHref: s._ver && s._ver.counterArt ? `../data/${s.code}/${s._ver.counterArt}` : null,
+      art: cls ? COUNTER_ART[cls] : null,
+      outline: (s._ver && s._ver.counterOutline) || null });
+    svg += `<g class="ship" data-id="${s.id}" style="cursor:grab" opacity="${dead}">${ring}${cloakRing}${counter}` +
+      `<text x="${c.x}" y="${c.y - 24}" text-anchor="middle" fill="${fill}" stroke="#fff" stroke-width="3" paint-order="stroke" font-size="12" font-weight="700" style="pointer-events:none">${s.id}</text></g>`;
   }
   for (const sk of seekers) {   // seeking-weapon tokens: drones, plasma, shuttles, wild-weasel decoys
     const c = hexCenter(sk.q, sk.r), owner = byId(sk.owner), fill = owner ? sideFill(owner) : '#C74634';

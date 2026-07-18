@@ -154,3 +154,25 @@ export function counterOutlineFromBoxes(boxes, opts = {}) {
   const dir = (a, b) => `${Math.sign(b[0] - a[0])},${Math.sign(b[1] - a[1])}`;
   return pts.filter((p, i) => dir(pts[(i + pts.length - 1) % pts.length], p) !== dir(p, pts[(i + 1) % pts.length]));
 }
+
+import { COUNTER_VIEW } from './ship-counter-art.js';
+
+// Render one square game counter as an SVG fragment. The WHOLE counter (frame included) is translated to the
+// hex centre and rotated to the ship's heading — like turning a physical cardboard counter on the map. Content
+// precedence: custom uploaded art (imageHref) → hull-class line drawing (art, tinted via currentColor) →
+// fallback outline polygon (outline, from counterOutlineFromBoxes) → a generic delta. The ship-id label is NOT
+// part of this group — callers draw it separately, un-rotated, so it stays screen-upright at every heading.
+export function counterSvg({ cx, cy, size = 38, angle = 0, frameFill = '#2563eb', frameStroke = '#173e8f', color = '#fff', art = null, outline = null, imageHref = null }) {
+  const h = size / 2, rx = size * 0.14, inner = size * 0.92, k = inner / COUNTER_VIEW;
+  const toView = `scale(${k}) translate(${-COUNTER_VIEW / 2},${-COUNTER_VIEW / 2})`;   // COUNTER_VIEW-space content, centred on the origin
+  let content;
+  if (imageHref) content = `<image x="${-inner / 2}" y="${-inner / 2}" width="${inner}" height="${inner}" href="${imageHref}" preserveAspectRatio="xMidYMid meet"/>`;
+  else if (art) content = `<g color="${color}" transform="${toView}">${art}</g>`;
+  else if (outline && outline.length >= 3) {
+    const pts = fitPointsToBox(outline, COUNTER_VIEW, 6);
+    content = `<g transform="${toView}"><path d="M${pts.map(p => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join('L')}Z" fill="${color}" opacity="0.92"/></g>`;
+  } else content = `<g transform="${toView}"><path d="M32,10 L52,52 L32,42 L12,52 Z" fill="none" stroke="${color}" stroke-width="3" stroke-linejoin="round"/></g>`;
+  return `<g transform="translate(${cx},${cy}) rotate(${angle})">` +
+    `<rect x="${-h}" y="${-h}" width="${size}" height="${size}" rx="${rx}" fill="${frameFill}" stroke="${frameStroke}" stroke-width="2"/>` +
+    content + `</g>`;
+}

@@ -113,6 +113,10 @@
     <label style="font-size:12px;color:#64748b;display:flex;align-items:center;gap:4px" title="Basic Explosion Strength from the Master Ship Chart (D5.2) — the self-destruction / excess-damage blast, 0 if none — saved into verified.json">BES <input id="besInp" type="number" min="0" style="width:44px;padding:3px;border:1px solid #cbd5e1;border-radius:6px"></label>
     <label style="font-size:12px;color:#64748b;display:flex;align-items:center;gap:4px" title="Breakdown rating from the Master Ship Chart (C6.5) — a High Energy Turn breaks down on a die roll at or above this number (e.g. 5 for a 5-6 rating) — saved into verified.json">Brk <input id="breakdownInp" type="number" min="1" max="6" style="width:44px;padding:3px;border:1px solid #cbd5e1;border-radius:6px"></label>
     <label style="font-size:12px;color:#64748b;display:flex;align-items:center;gap:4px" title="EAF layout this ship uses (shared per race) — its control positions drive the battle Energy Allocation panel">EAF <select id="eafSel" style="padding:3px;border:1px solid #cbd5e1;border-radius:6px"><option value="">–</option></select></label>
+    <span id="counterPrev" title="Ship map counter — custom art if uploaded, else the hull-class drawing, else the outline traced from this SSD" style="display:inline-flex;align-items:center"></span>
+    <button id="counterArtBtn" title="Upload custom counter art for this ship (stored locally, never committed)" style="font-size:11px;padding:3px 7px;border:1px solid #cbd5e1;border-radius:6px;background:#fff;cursor:pointer">🎨 art</button>
+    <button id="counterArtClear" title="Remove the custom counter art (revert to the drawing/outline)" style="display:none;font-size:11px;padding:3px 6px;border:1px solid #cbd5e1;border-radius:6px;background:#fff;cursor:pointer">✕</button>
+    <input id="counterArtFile" type="file" accept="image/png,image/jpeg,image/webp" style="display:none">
     <button class="btn" id="eafEditBtn" title="Drag the control positions for this EAF layout">Edit EAF</button>
     <button class="btn" id="auditBtn">Audit</button>
     <button class="btn primary" id="saveBtn">Save</button>
@@ -193,6 +197,8 @@
 <script type="module">
 import * as E from "./ssd-engine.js";
 import { shipPower } from "./energy-model.js";   // build the ship's power model → real control set for the EAF editor
+import { counterClassFor, counterSvg, counterOutlineFromBoxes, shipBodyBoxes } from "./ship-counter.js";   // ship map counter: preview + fallback outline
+import { COUNTER_ART } from "./ship-counter-art.js";
 import { ctl, capCtl, weaponCtl, segCtl, stackCtl, toggleCtl, shieldCtl, sysCtl, batteryCtl, ewCtl } from "./eaf-controls.js";   // render the exact in-game controls
 const SVGNS="http://www.w3.org/2000/svg";
 const el=(t,a)=>{const e=document.createElementNS(SVGNS,t);for(const k in a)e.setAttribute(k,a[k]);return e;};
@@ -282,6 +288,7 @@ const COMBINED={FA:["RF","LF"],FX:["L","LF","RF","R"],RA:["LR","RR"],RX:["L","LR
 const PLASMA=["FP","LP","RP","AP","LPR","RPR"];   // 180° swivel arcs (D2.34/D2.36)
 const ship=new URLSearchParams(location.search).get("ship")||"FED-CA";
 let DET,IMGW,IMGH,groups=[],extraBoxes=[],boxIndex={},groupOf={},sel=new Set(),curG=null,mode="select",deleted=new Set(),stats={};   // stats = rule/chart-derived ship data (turn category, …) saved into verified.json
+let counterOutline=null,counterArt=null;   // ship map counter: fallback outline (unknown hull class, traced from the SSD boxes) + custom-art flag
 
 // ---------- load ----------
 async function load(){
@@ -304,6 +311,8 @@ async function load(){
   deleted=new Set((saved&&saved.deleted)||[]);
   stats=(saved&&saved.stats)||{};
   prefillFromMSC();   // auto-populate stat fields from the Master Ship Chart when a ship is opened (fills only what is missing)
+  counterOutline=(saved&&saved.counterOutline)||null; counterArt=(saved&&saved.counterArt)||null;
+  ensureCounter();   // a new SSD with no hull-class drawing gets its counter outline traced now
   syncStatsUI();
   reindex();fit();renderAll();
   fetch(`/api/labels/${ship}`).then(r=>r.json()).then(m=>{if(m&&!m.error){BOXLABELS=m;renderOverlay();}}).catch(()=>{});
@@ -522,7 +531,8 @@ document.getElementById("arcSave").onclick=()=>{arcDef.note=document.getElementB
 document.getElementById("paintMode").onchange=drawHex;
 
 // ---------- save / audit / modes ----------
-function state(){return {ship,groups:groups.map(g=>({id:g.id,boxIds:g.boxIds,family:g.family,type:g.type,arc:g.arc,arcDef:g.arcDef,verified:g.verified})),extraBoxes,labels:labelOv,deleted:[...deleted],stats,pass:"b4-verify"};}
+function state(){ if(!counterClassFor(ship)) counterOutline=computeCounterOutline()||counterOutline;   // keep the traced outline in sync with group edits
+  return {ship,groups:groups.map(g=>({id:g.id,boxIds:g.boxIds,family:g.family,type:g.type,arc:g.arc,arcDef:g.arcDef,verified:g.verified})),extraBoxes,labels:labelOv,deleted:[...deleted],stats,counterOutline,counterArt,pass:"b4-verify"};}
 async function save(){const r=await fetch(`/api/save/${ship}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(state())});const j=await r.json();const b=document.getElementById("saveBtn");b.textContent=j.ok?"Saved ✓":"Failed";setTimeout(()=>b.textContent="Save",1400);}
 async function runAudit(){await save();const r=await fetch(`/api/audit/${ship}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(state())});const rep=await r.json();const el=document.getElementById("auditOut");if(!el)return;
   let h=`<div class="aline"><span>Status</span><b class="${rep.clean?'ok':'err'}">${rep.clean?'CLEAN ✓':'ISSUES'}</b></div>`
@@ -554,6 +564,30 @@ const MSC_STATS={
   "GOR-CA":{turnCategory:"D",sizeClass:3,moveCost:1,bes:19,breakdownRating:5,dcRating:4},
 };
 // fill any stat field that is not already set from the MSC table (never clobbers an existing/manual value)
+// ---- ship map counter: preview + custom art + traced-outline fallback ----
+function computeCounterOutline(){ try{
+  const pts=counterOutlineFromBoxes(shipBodyBoxes({groups},boxIndex));
+  return pts.length>=3?pts:null;
+}catch(e){ return null; } }
+function ensureCounter(){ if(!counterClassFor(ship)&&!counterOutline) counterOutline=computeCounterOutline(); renderCounterPrev(); }
+function renderCounterPrev(){
+  const el=document.getElementById("counterPrev"); if(!el)return;
+  const cls=counterClassFor(ship);
+  const inner=counterSvg({cx:26,cy:26,size:44,angle:0,frameFill:"#2563eb",frameStroke:"#173e8f",color:"#fff",
+    imageHref:counterArt?`../data/${ship}/${counterArt}?t=${Date.now()}`:null,
+    art:cls?COUNTER_ART[cls]:null, outline:counterOutline});
+  el.innerHTML=`<svg width="34" height="34" viewBox="0 0 52 52">${inner}</svg>`;
+  document.getElementById("counterArtClear").style.display=counterArt?"":"none";
+}
+document.getElementById("counterArtBtn").onclick=()=>document.getElementById("counterArtFile").click();
+document.getElementById("counterArtFile").onchange=e=>{ const f=e.target.files[0]; if(!f)return;
+  const rd=new FileReader(); rd.onload=async()=>{ try{
+    const j=await(await fetch(`/api/counter-art/${ship}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({dataUrl:rd.result})})).json();
+    if(j.ok){ counterArt=j.file; renderCounterPrev(); save(); } else alert(j.error||"upload failed");
+  }catch{ alert("upload failed"); } e.target.value=""; };
+  rd.readAsDataURL(f); };
+document.getElementById("counterArtClear").onclick=()=>{ counterArt=null; renderCounterPrev(); save(); };
+
 function prefillFromMSC(){ const m=MSC_STATS[ship]; if(!m) return; let filled=false; for(const k in m){ if(stats[k]===undefined||stats[k]===""){ stats[k]=m[k]; filled=true; } } if(filled&&!stats.statsSource) stats.statsSource="MSC (Module G3, Annex R2-R6)"; }
 
 // ---------- EAF layout editor ----------

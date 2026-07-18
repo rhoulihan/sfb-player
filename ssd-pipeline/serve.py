@@ -486,6 +486,14 @@ class H(http.server.SimpleHTTPRequestHandler):
                 d = os.path.join(ROOT, "data", "eaf-layouts"); os.makedirs(d, exist_ok=True)
                 open(os.path.join(d, lid + ".json"), "wb").write(body)
                 return self._json(200, {"ok": True, "id": lid})
+            if self.path.startswith("/api/counter-art/"):   # upload custom ship-counter art (user-provided image, git-ignored) into data/<ship>/
+                import base64, re as _re
+                name = _re.sub(r"[^A-Za-z0-9_-]", "", self.path.rsplit("/", 1)[-1])
+                ship_dir = os.path.join(ROOT, "data", name)
+                if not name or not os.path.isdir(ship_dir): return self._json(404, {"error": "unknown ship"})
+                data = payload.get("dataUrl", ""); data = data.split(",", 1)[1] if "," in data else data
+                open(os.path.join(ship_dir, "counter.png"), "wb").write(base64.b64decode(data))
+                return self._json(200, {"ok": True, "file": "counter.png"})
             if self.path.startswith("/api/eaf-art/"):   # upload a new EAF form image (for a new race) into viewer/assets
                 import base64, re as _re
                 name = _re.sub(r"[^A-Za-z0-9_-]", "", self.path.rsplit("/", 1)[-1])
