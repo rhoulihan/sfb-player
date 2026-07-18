@@ -106,3 +106,17 @@ test('REAL DATA: the FED-CA fallback outline encloses the drawn ship body and ex
   assert.equal(pointInPolygon(centerOfFam('sensor'), pts), false, 'the sensor track column is excluded');
   assert.equal(pointInPolygon(centerOfFam('shield'), pts), false, 'shield rows are excluded');
 });
+
+import { COUNTER_ART, COUNTER_VIEW } from '../viewer/ship-counter-art.js';
+
+test('COUNTER_ART: one tintable forward=up drawing per hull class, on the shared square viewBox', () => {
+  const classes = new Set(Object.values(COUNTER_CLASS));
+  assert.deepEqual(new Set(Object.keys(COUNTER_ART)), classes, 'exactly the four hull classes, no extras');
+  assert.equal(typeof COUNTER_VIEW, 'number');
+  for (const [cls, art] of Object.entries(COUNTER_ART)) {
+    assert.ok(art.length > 100, `${cls}: substantial drawing`);
+    assert.ok(/currentColor/.test(art), `${cls}: tintable — strokes/fills use currentColor`);
+    assert.ok(!/#[0-9a-fA-F]{3,6}|rgb\(/.test(art), `${cls}: no hard-coded colors (would defeat fleet tinting)`);
+    assert.ok(!/<svg|<script|href=/.test(art), `${cls}: inner markup only — no nested <svg>, scripts, or external refs`);
+  }
+});
