@@ -161,13 +161,23 @@
       </div>
     </div>
     <div class="foot">
-      <span class="hint" id="eafHint">Click selects · <b>Shift-click</b> adds to the selection · drag moves the selection · <b>arrows</b> nudge (Shift = coarse) · <b>right-click</b> aligns centres horizontally, <b>Shift-right-click</b> vertically (to the first-selected) · drag off the form to unplace · <b>[ ]</b> rotate a selected shield overlay (Shift = 30°) · <b>drag its outline</b> to resize · <b>drag its yellow grip</b> to rotate (Shift snaps 15°) · <b>S</b> toggles hex/arc shape.</span>
+      <span class="hint" id="eafHint">Click selects · <b>Shift-click</b> adds to the selection · drag moves the selection · <b>arrows</b> nudge (Shift = coarse) · <b>right-click</b> aligns centres horizontally, <b>Shift-right-click</b> vertically (to the first-selected) · drag off the form to unplace · <b>[ ]</b> rotate a selected shield overlay (Shift = 30°) · <b>drag its outline</b> to resize · <b>drag its yellow grip</b> to rotate (Shift snaps 15°) · <b>S</b> toggles hex/arc shape · <b>double-click</b> a palette entry or placed control to edit exact position/size.</span>
       <span><button class="btn" id="eafCancel">Close</button> <button class="btn primary" id="eafSaveBtn">Save layout</button></span>
     </div>
   </div>
 </div>
 
 <!-- Firing-arc editor modal -->
+<div class="modal" id="ctlEditModal" style="z-index:60">
+  <div class="sheet" style="max-width:340px">
+    <h2 style="font-size:15px;display:flex;align-items:center;gap:8px">⚙ <span id="ceTitle"></span></h2>
+    <div id="ceFields" style="display:grid;grid-template-columns:auto 1fr;gap:8px;align-items:center;font-size:13px;margin-top:8px"></div>
+    <div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end">
+      <button class="btn" id="ceCancel">Cancel</button>
+      <button class="btn" id="ceApply" style="background:#2563eb;color:#fff;border-color:#1d4ed8">Apply</button>
+    </div>
+  </div>
+</div>
 <div class="modal" id="arcModal">
   <div class="sheet">
     <h2>⌖ Firing arc — <span id="arcTitle"></span> <span class="sp" style="flex:1"></span>
@@ -656,7 +666,7 @@ function renderEafEditor(){ const wrap=document.getElementById("eafArtWrap"); [.
   const list=eafControlList(eafPowerModel());
   eafSelSet=eafSelSet.filter(id=>L.controls[id]);   // selection survives re-render; unplaced controls drop out
   for(const c of list){ const pos=L.controls[c.id]; if(!pos)continue; const tmp=document.createElement("div"); tmp.innerHTML=c.render(pos[0],pos[1],pos[2]); const node=tmp.firstElementChild; if(!node)continue;
-    node.dataset.cid=c.id; if(eafSelSet.includes(c.id))node.classList.add("sel"); node.addEventListener("mousedown",e=>eafDragCtl(e,c.id,node)); wrap.appendChild(node); }
+    node.dataset.cid=c.id; if(eafSelSet.includes(c.id))node.classList.add("sel"); node.addEventListener("mousedown",e=>eafDragCtl(e,c.id,node)); node.addEventListener("dblclick",()=>openCtlEdit(c.id)); wrap.appendChild(node); }
   document.getElementById("eafPalette").innerHTML=list.map(c=>`<div class="pal ${L.controls[c.id]?"placed":""}" data-cid="${c.id}" draggable="true">${c.label}</div>`).join("");
   eafOvPreview(); renderEafValid(); }
 // ---- shield-overlay live preview: the SHARED geometry renders the real shapes on the form (pixel-identical to
@@ -702,6 +712,35 @@ document.getElementById("eafArtWrap").addEventListener("mousedown",e=>{ const gp
     eafOvPreview(); eafOvLabel(cid); };
   const up=()=>{ document.removeEventListener("mousemove",move); document.removeEventListener("mouseup",up); };
   document.addEventListener("mousemove",move); document.addEventListener("mouseup",up); },true);
+// ---- numeric control editor: double-click a palette entry (or a placed control) → edit position/dimensions.
+// Prefills the current values when placed; Apply places an unplaced control at the given position.
+let ceCid=null;
+function openCtlEdit(cid){ if(!editLayout)return;
+  const c=eafControlList(eafPowerModel()).find(x=>x.id===cid); if(!c)return; ceCid=cid;
+  const raw=editLayout.controls[cid], isOv=/^shield-ov-/.test(cid), d=isOv?ovDims(raw||[50,50,0]):null;
+  document.getElementById("ceTitle").textContent=c.label+(raw?"":" — not placed yet");
+  const rows=[["X (%)","ceX",raw?raw[0]:50],["Y (%)","ceY",raw?raw[1]:50]];
+  if(isOv){ rows.push(["Facing (°)","ceDeg",Math.round((d.deg||0))]);
+    rows.push([d.shape==="arc"?"Span (°)":"Length","ceLen",Math.round(d.len)]);
+    rows.push([d.shape==="arc"?"Band width":"Width","ceWid",Math.round(d.wid)]); }
+  document.getElementById("ceFields").innerHTML=
+    rows.map(([lb,id,v])=>`<label id="${id}Lb" for="${id}" style="margin:0">${lb}</label><input id="${id}" type="number" step="0.1" value="${v}" style="padding:4px;border:1px solid #cbd5e1;border-radius:6px">`).join("")
+    +(isOv?`<label style="margin:0">Shape</label><select id="ceShape" style="padding:4px;border:1px solid #cbd5e1;border-radius:6px"><option value="0"${d.shape!=="arc"?" selected":""}>Hex (Klingon-style)</option><option value="1"${d.shape==="arc"?" selected":""}>Arc (Federation-style)</option></select>`:"");
+  const sh=document.getElementById("ceShape"); if(sh)sh.onchange=()=>{ const arc=sh.value==="1";
+    document.getElementById("ceLenLb").textContent=arc?"Span (°)":"Length"; document.getElementById("ceWidLb").textContent=arc?"Band width":"Width"; };
+  document.getElementById("ctlEditModal").classList.add("open");
+  document.getElementById("ceX").focus(); }
+document.getElementById("ceCancel").onclick=()=>document.getElementById("ctlEditModal").classList.remove("open");
+document.getElementById("ceApply").onclick=()=>{ if(!ceCid||!editLayout)return;
+  const num=id=>{const el=document.getElementById(id); return el?+el.value||0:0;};
+  const x=+Math.max(0,Math.min(100,num("ceX"))).toFixed(1), y=+Math.max(0,Math.min(100,num("ceY"))).toFixed(1);
+  if(/^shield-ov-/.test(ceCid))
+    editLayout.controls[ceCid]=[x,y,((Math.round(num("ceDeg"))%360)+360)%360,Math.max(4,Math.round(num("ceLen"))),Math.max(4,Math.round(num("ceWid"))),+document.getElementById("ceShape").value];
+  else editLayout.controls[ceCid]=[x,y];
+  document.getElementById("ctlEditModal").classList.remove("open");
+  renderEafEditor(); };
+document.getElementById("eafPalette").addEventListener("dblclick",e=>{ const pal=e.target.closest(".pal"); if(pal)openCtlEdit(pal.dataset.cid); });
+
 // S toggles a selected overlay's shape between the Klingon-style hex and the Federation-style ring arc
 document.addEventListener("keydown",e=>{ if(!document.getElementById("eafModal").classList.contains("open"))return;
   if(/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName))return; if(e.key!=="s"&&e.key!=="S")return;
@@ -734,7 +773,7 @@ function eafDragCtl(e,cid,node){ if(e.button!==0)return; e.preventDefault(); con
 // arrow keys nudge the selection (0.1% per press, 1% with Shift); Escape clears the selection
 document.addEventListener("keydown",e=>{ if(!document.getElementById("eafModal").classList.contains("open"))return;
   if(/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName))return;
-  if(e.key==="Escape"){ eafSelSet=[]; eafApplySel(); return; }
+  if(e.key==="Escape"){ const ce=document.getElementById("ctlEditModal"); if(ce.classList.contains("open")){ ce.classList.remove("open"); return; } eafSelSet=[]; eafApplySel(); return; }
   const d={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]}[e.key]; if(!d||!eafSelSet.length||!editLayout)return;
   e.preventDefault(); const step=e.shiftKey?1:0.1, wrap=document.getElementById("eafArtWrap");
   eafSelSet.forEach(id=>{ const p0=editLayout.controls[id]; if(!p0)return;
