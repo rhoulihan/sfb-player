@@ -64,6 +64,9 @@
   .sw2{display:inline-block;width:12px;height:12px;border-radius:2px;vertical-align:-1px;margin-right:3px}
   /* EA control renderers (shared with the battle panel) — used to render real controls in the EAF editor */
   #eafArtWrap .ctl{position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:1px;text-align:center;text-shadow:0 1px 3px #000,0 0 5px #000;white-space:nowrap;z-index:2;cursor:grab}
+  #eafArtWrap .ctl.sel{outline:2px dashed #d97706;outline-offset:3px;z-index:3}
+  #eafArtWrap .ctl.ov{gap:0}
+  #eafArtWrap .ctl.ov .lab{font-size:8px;margin-top:-7px;opacity:.85}
   #eafArtWrap .ctl .lab{font-size:8.5px;letter-spacing:.3px;opacity:.92}
   #eafArtWrap .ctl .val{font-weight:800;font-size:13px;line-height:1}
   #eafArtWrap .ctl.reinf .lab,#eafArtWrap .ctl.reinf .val{color:#fde047;text-shadow:0 0 6px #facc15,0 0 12px #f59e0b,0 1px 3px #000}
@@ -156,7 +159,7 @@
       </div>
     </div>
     <div class="foot">
-      <span class="hint" id="eafHint">Drag to move; <b>Shift-drag</b> moves the whole group; <b>drag off the form</b> to unplace. Positions save as % of the art and drive the battle EA panel.</span>
+      <span class="hint" id="eafHint">Click selects · <b>Shift-click</b> adds to the selection · drag moves the selection · <b>arrows</b> nudge (Shift = coarse) · <b>right-click</b> aligns centres horizontally, <b>Shift-right-click</b> vertically (to the first-selected) · drag off the form to unplace · <b>[ ]</b> rotate a selected shield overlay (Shift = 30°).</span>
       <span><button class="btn" id="eafCancel">Close</button> <button class="btn primary" id="eafSaveBtn">Save layout</button></span>
     </div>
   </div>
@@ -608,6 +611,11 @@ function eafPowerModel(){ try{ return shipPower(ship, {groups, stats, labels:lab
 // The ship's control set (named, per its power model) — each entry renders the exact in-game control.
 function eafControlList(p){ const L=[];
   for(let n=1;n<=6;n++){ const mx=p.shields[n-1]||4; L.push({id:"shield-"+n,label:"Shield "+n,render:(x,y)=>shieldCtl(n,x,y,mx,0,mx)}); }
+  // draggable shield strength/reinforcement OVERLAY markers — the coloured status hex the battle EA panel draws per
+  // shield (green→red by strength + yellow reinforcement glow). Place one per shield; battle.html renders the live
+  // overlay at these positions for every race (they replace the Fed's hardcoded ring once placed).
+  const ovHex=(hl,hw,ti)=>`M${-hl},0 L${-hl+ti},${-hw} L${hl-ti},${-hw} L${hl},0 L${hl-ti},${hw} L${-hl+ti},${hw} Z`;
+  for(let n=1;n<=6;n++) L.push({id:"shield-ov-"+n,label:"Shield "+n+" overlay",render:(x,y,deg)=>`<div class="ctl ov" style="left:${x}%;top:${y}%"><svg width="64" height="64" viewBox="-32 -32 64 64" style="transform:rotate(${deg||0}deg)"><path d="${ovHex(28,15,14)}" fill="hsl(120,85%,48%)" fill-opacity="0.45" stroke="#fde047" stroke-width="3" stroke-opacity="0.8"/></svg><div class="lab">OV ${n} · ${Math.round(deg||0)}°</div></div>`});
   L.push({id:"shields-toggle",label:"Shields toggle",render:(x,y)=>toggleCtl(x,y,"SHIELDS","shieldsActive",true)});
   L.push({id:"phaser-cap",label:"Phaser Capacitor",render:(x,y)=>capCtl(x,y,0,0,p.capacitorCap||10)});
   for(const w of p.weapons){ const nm=(w.cls==="DISR"?"Disruptor":w.cls==="PHOTON"?"Photon":w.cls)+" "+(w.label||""); L.push({id:"weapon-"+(w.label||""),label:nm,render:(x,y)=>weaponCtl(x,y,w,{armed:true,progress:0})}); }
@@ -635,29 +643,66 @@ function renderEafEditor(){ const wrap=document.getElementById("eafArtWrap"); [.
   const L=editLayout; L.controls=L.controls||{}; document.getElementById("eafArtImg").src=`assets/${L.art}.png`; eafArtSel.value=L.art;
   wrap.className=(/fed/i.test(L.id||"")||/Fed/.test(L.art||""))?"con-fed":"";   // theme → button colours
   const list=eafControlList(eafPowerModel());
-  for(const c of list){ const pos=L.controls[c.id]; if(!pos)continue; const tmp=document.createElement("div"); tmp.innerHTML=c.render(pos[0],pos[1]); const node=tmp.firstElementChild; if(!node)continue;
-    node.dataset.cid=c.id; node.addEventListener("mousedown",e=>eafDragCtl(e,c.id,node)); wrap.appendChild(node); }
+  eafSelSet=eafSelSet.filter(id=>L.controls[id]);   // selection survives re-render; unplaced controls drop out
+  for(const c of list){ const pos=L.controls[c.id]; if(!pos)continue; const tmp=document.createElement("div"); tmp.innerHTML=c.render(pos[0],pos[1],pos[2]); const node=tmp.firstElementChild; if(!node)continue;
+    node.dataset.cid=c.id; if(eafSelSet.includes(c.id))node.classList.add("sel"); node.addEventListener("mousedown",e=>eafDragCtl(e,c.id,node)); wrap.appendChild(node); }
   document.getElementById("eafPalette").innerHTML=list.map(c=>`<div class="pal ${L.controls[c.id]?"placed":""}" data-cid="${c.id}" draggable="true">${c.label}</div>`).join("");
   renderEafValid(); }
-const eafCategory=id=>/^shield-|^shields-toggle/.test(id)?"shield":/^weapon-|^phaser-cap|^fire-control|^gen-reinf/.test(id)?"weapon":/^batteries|^tractor|^transporter|^damage-control|^ew$|^repair-target/.test(id)?"system":"misc";
-// drag one control, or Shift-drag to move its whole category group (shields / weapons / systems / misc) together
-function eafDragCtl(e,cid,node){ e.preventDefault(); const wrap=document.getElementById("eafArtWrap"),rect=wrap.getBoundingClientRect();
-  const grp=e.shiftKey?eafCategory(cid):null, members=grp?Object.keys(editLayout.controls).filter(id=>eafCategory(id)===grp):[cid];
+// ---- selection model: click selects, Shift-click adds/toggles, drag moves the whole selection, arrows nudge,
+// right-click aligns the selected controls' CENTRES horizontally (Shift-right-click: vertically) to the first-selected.
+// Stored [x,y] positions ARE the centre points (.ctl is translate(-50%,-50%)), so alignment is exact.
+let eafSelSet=[];   // ordered — eafSelSet[0] is the alignment anchor
+function eafApplySel(){ const wrap=document.getElementById("eafArtWrap");
+  [...wrap.querySelectorAll(".ctl")].forEach(el=>el.classList.toggle("sel",eafSelSet.includes(el.dataset.cid))); }
+function eafDragCtl(e,cid,node){ if(e.button!==0)return; e.preventDefault(); const wrap=document.getElementById("eafArtWrap"),rect=wrap.getBoundingClientRect();
+  const wasSelected=eafSelSet.includes(cid);
+  if(!wasSelected){ if(e.shiftKey)eafSelSet.push(cid); else eafSelSet=[cid]; eafApplySel(); }   // select on press; a no-move Shift-click on a selected control deselects on release
+  const members=eafSelSet.slice();
   const start={x:e.clientX,y:e.clientY}, base={}; members.forEach(id=>base[id]=[...editLayout.controls[id]]);
-  const move=ev=>{ const dx=(ev.clientX-start.x)/rect.width*100, dy=(ev.clientY-start.y)/rect.height*100;
+  let moved=false;
+  const move=ev=>{ const dxp=ev.clientX-start.x, dyp=ev.clientY-start.y; if(Math.abs(dxp)+Math.abs(dyp)>3)moved=true; if(!moved)return;
+    const dx=dxp/rect.width*100, dy=dyp/rect.height*100;
     members.forEach(id=>{ const nx=Math.max(0,Math.min(100,base[id][0]+dx)), ny=Math.max(0,Math.min(100,base[id][1]+dy));
-      editLayout.controls[id]=[+nx.toFixed(1),+ny.toFixed(1)]; const el=wrap.querySelector(`.ctl[data-cid="${id}"]`); if(el){ el.style.left=nx+"%"; el.style.top=ny+"%"; } }); };
+      editLayout.controls[id]=[+nx.toFixed(1),+ny.toFixed(1),...base[id].slice(2)]; const el=wrap.querySelector(`.ctl[data-cid="${id}"]`); if(el){ el.style.left=nx+"%"; el.style.top=ny+"%"; } }); };
   const up=ev=>{ document.removeEventListener("mousemove",move); document.removeEventListener("mouseup",up);
-    const off=ev&&(ev.clientX<rect.left||ev.clientX>rect.right||ev.clientY<rect.top||ev.clientY>rect.bottom);   // dropped off the form → unplace
+    if(!moved){ if(e.shiftKey&&wasSelected)eafSelSet=eafSelSet.filter(id=>id!==cid); else if(!e.shiftKey)eafSelSet=[cid]; eafApplySel(); return; }   // a plain click (no drag): select / Shift-toggle
+    const off=ev&&(ev.clientX<rect.left||ev.clientX>rect.right||ev.clientY<rect.top||ev.clientY>rect.bottom);   // dropped off the form → unplace the selection
     if(off){ members.forEach(id=>delete editLayout.controls[id]); renderEafEditor(); } else renderEafValid(); };
   document.addEventListener("mousemove",move); document.addEventListener("mouseup",up); }
+// arrow keys nudge the selection (0.1% per press, 1% with Shift); Escape clears the selection
+document.addEventListener("keydown",e=>{ if(!document.getElementById("eafModal").classList.contains("open"))return;
+  if(/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName))return;
+  if(e.key==="Escape"){ eafSelSet=[]; eafApplySel(); return; }
+  const d={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]}[e.key]; if(!d||!eafSelSet.length||!editLayout)return;
+  e.preventDefault(); const step=e.shiftKey?1:0.1, wrap=document.getElementById("eafArtWrap");
+  eafSelSet.forEach(id=>{ const p0=editLayout.controls[id]; if(!p0)return;
+    const nx=Math.max(0,Math.min(100,p0[0]+d[0]*step)), ny=Math.max(0,Math.min(100,p0[1]+d[1]*step));
+    editLayout.controls[id]=[+nx.toFixed(1),+ny.toFixed(1),...p0.slice(2)]; const el=wrap.querySelector(`.ctl[data-cid="${id}"]`); if(el){ el.style.left=nx+"%"; el.style.top=ny+"%"; } }); });
+// [ and ] rotate the selected shield overlays' FACING (5° per press, Shift = 30°) — same keys that turn a ship in battle
+document.addEventListener("keydown",e=>{ if(!document.getElementById("eafModal").classList.contains("open"))return;
+  if(/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName))return;
+  const rot=e.key==="["?-1:e.key==="]"?1:0; if(!rot||!eafSelSet.length||!editLayout)return;
+  e.preventDefault(); const step=e.shiftKey?30:5, wrap=document.getElementById("eafArtWrap");
+  eafSelSet.filter(id=>/^shield-ov-/.test(id)).forEach(id=>{ const p0=editLayout.controls[id]; if(!p0)return;
+    const deg=(((p0[2]||0)+rot*step)%360+360)%360; editLayout.controls[id]=[p0[0],p0[1],deg];
+    const el=wrap.querySelector(`.ctl[data-cid="${id}"]`); if(el){ const sv=el.querySelector("svg"); if(sv)sv.style.transform=`rotate(${deg}deg)`; const lb=el.querySelector(".lab"); if(lb)lb.textContent=lb.textContent.replace(/·.*$/,`· ${Math.round(deg)}°`); } }); });
+// right-click a selected control: align every selected centre to the FIRST-selected — horizontally (same Y, X spacing
+// untouched); Shift-right-click: vertically (same X, Y spacing untouched)
+document.getElementById("eafArtWrap").addEventListener("contextmenu",e=>{ const el=e.target.closest(".ctl"); if(!el||!editLayout)return;
+  const cid=el.dataset.cid; if(!eafSelSet.includes(cid)||eafSelSet.length<2)return;
+  e.preventDefault(); const wrap=document.getElementById("eafArtWrap"), anchor=editLayout.controls[eafSelSet[0]]; if(!anchor)return;
+  eafSelSet.slice(1).forEach(id=>{ const p0=editLayout.controls[id]; if(!p0)return;
+    const np=e.shiftKey?[anchor[0],p0[1]]:[p0[0],anchor[1]];   // Shift = align vertically (same X); plain = horizontally (same Y)
+    editLayout.controls[id]=[+np[0].toFixed(1),+np[1].toFixed(1),...p0.slice(2)]; const n2=wrap.querySelector(`.ctl[data-cid="${id}"]`); if(n2){ n2.style.left=np[0]+"%"; n2.style.top=np[1]+"%"; } });
+  renderEafValid(); });
 // palette → drop a control onto the form to place it
 document.getElementById("eafPalette").addEventListener("dragstart",e=>{ const pal=e.target.closest(".pal"); if(pal)e.dataTransfer.setData("text/cid",pal.dataset.cid); });
 (()=>{ const wrap=document.getElementById("eafArtWrap");
   wrap.addEventListener("dragover",e=>e.preventDefault());
   wrap.addEventListener("drop",e=>{ e.preventDefault(); const cid=e.dataTransfer.getData("text/cid"); if(!cid||!editLayout)return;
     const rect=wrap.getBoundingClientRect(), x=(e.clientX-rect.left)/rect.width*100, y=(e.clientY-rect.top)/rect.height*100;
-    editLayout.controls[cid]=[+x.toFixed(1),+y.toFixed(1)]; renderEafEditor(); }); })();
+    const ovm=/^shield-ov-(\d)$/.exec(cid);   // a shield overlay starts at its slot's standard ring facing; [ ] rotate it
+    editLayout.controls[cid]=ovm?[+x.toFixed(1),+y.toFixed(1),((+ovm[1]-1)*60)%360]:[+x.toFixed(1),+y.toFixed(1)]; renderEafEditor(); }); })();
 function renderEafValid(){ const L=editLayout, list=eafControlList(eafPowerModel());
   const missing=list.filter(c=>!(L.controls&&L.controls[c.id]));
   document.getElementById("eafValid").innerHTML=missing.length

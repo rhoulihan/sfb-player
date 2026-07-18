@@ -1491,14 +1491,16 @@ const rotHexPath = (cx, cy, hl, hw, ti, deg) => {
 function kliShieldSvg(s, p, L) {
   const sn = shieldsNow(s), col = eaColOf(s), genPts = Math.floor((col.genReinf || 0) / 2);
   const C = L.controls || {}, sh = L.shields || {};   // saved layout keys shields under controls['shield-N']; legacy CONSOLE uses shields[N]
-  const posOf = n => { const q = C['shield-' + n] || sh[n]; return q ? [q[0] / 100 * 2816, q[1] / 100 * 1536] : null; };
+  const posOf = n => { const q = C['shield-ov-' + n] || C['shield-' + n] || sh[n]; return q ? [q[0] / 100 * 2816, q[1] / 100 * 1536] : null; };   // dedicated draggable overlay markers (verify.html) win; stepper positions are the fallback
   const cen = [1, 2, 3, 4, 5, 6].map(posOf).filter(Boolean);
   if (!cen.length) return '<svg class="shsvg" viewBox="0 0 2816 1536" preserveAspectRatio="none"></svg>';
   const rcx = cen.reduce((a, q) => a + q[0], 0) / cen.length, rcy = cen.reduce((a, q) => a + q[1], 0) / cen.length;   // ring centre → each hex orients tangent to the ring, matching the SSD's rotated shield boxes
   let fills = '', glows = '';
+  const rawOf = n => C['shield-ov-' + n] || C['shield-' + n] || sh[n];
   for (const n of [1, 2, 3, 4, 5, 6]) {
     const q = posOf(n); if (!q) continue;
-    const [cx, cy] = q, deg = Math.atan2(cy - rcy, cx - rcx) * 180 / Math.PI + 90;
+    const raw = rawOf(n);   // the editor stores an explicit facing as the 3rd element ([x, y, deg]) — it wins over the ring inference
+    const [cx, cy] = q, deg = (raw && raw.length > 2) ? raw[2] : Math.atan2(cy - rcy, cx - rcx) * 180 / Math.PI + 90;
     const max = p.shields[n - 1] || 1, t = Math.max(0, Math.min(1, (sn[n - 1] || 0) / max));   // 1=full→green, 0=down→red
     fills += `<path d="${rotHexPath(cx, cy, 112, 70, 62, deg)}" fill="hsl(${Math.round(120 * t)},85%,48%)" fill-opacity="0.4"/>`;
     const reinf = (col.specReinf[n] || 0) + genPts;   // specific + general (general glows all 6 — Rick)
@@ -1580,7 +1582,8 @@ function renderEnergy() {
     if (L.edr && p.systems.labs && !hasCrit(s.criticals, 'labs')) h += stackCtl(L.edr[0], L.edr[1], 'EDR (labs)', 'edr', col.edr, sinkMax(p, 'edr'));
   }
   if (s.course && s.course.steps.length) h += ctl(5, 5, `<button class="${s.autopilot ? 'on' : ''}" id="epAuto">🅰 AUTO</button>`);
-  ov.innerHTML = (theme === 'fed' ? fedShieldSvg(s, p) : kliShieldSvg(s, p, L)) + h;   // status SVG first → behind the shield controls
+  const hasOv = L.controls && [1, 2, 3, 4, 5, 6].some(n => L.controls['shield-ov-' + n]);   // overlay markers placed in the EAF editor
+  ov.innerHTML = (hasOv ? kliShieldSvg(s, p, L) : theme === 'fed' ? fedShieldSvg(s, p) : kliShieldSvg(s, p, L)) + h;   // status SVG first → behind the shield controls
 }
 
 const healthColor = h => h > 0.6 ? '#16a34a' : h > 0.3 ? '#d97706' : '#C74634';
