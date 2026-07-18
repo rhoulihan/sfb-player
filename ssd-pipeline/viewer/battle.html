@@ -325,7 +325,7 @@ const turnCategoryOf = code => SHIP_TURN_CATEGORY[code] || 'C';
 const turnModeOf = s => turnModeFor(s.turnCat || turnCategoryOf(s.code), s.speed) + (hasCrit(s.criticals, 'maneuver') ? 1 : 0);   // D8.2 maneuver crit: turn mode +1 at all speeds
 import { shipPower, newEafColumn, validateEaf, foldEaf, sinkMax, specReinfMax, plasmaClsOf, ewFieldMax, WW_COST } from './energy-model.js';   // ewFieldMax: D6.310 combined ECM+ECCM cap; WW_COST: J3.12 wild-weasel charge
 import { armLabel, isArmed, canHold, canRoll, armTurns, rollCost, reserveCompletionCost, firedThisTurn, refireReady, impulsesSince } from './weapon-arming.js';   // multi-turn arming: label, fire-gate, holdability, rolling delay (E4.21/E3.24/FP1.311/FP1.221); E2.23 frequency; E1.52 refire cadence
-import { ctl, stepPair, stackCtl, barCtl, sysCtl, batteryCtl, ewCtl, toggleCtl, shieldCtl, weaponCtl, capCtl, segCtl } from './eaf-controls.js';   // shared EA control renderers (also used by the verify.html EAF layout editor)
+import { ctl, stepPair, stackCtl, barCtl, sysCtl, batteryCtl, ewCtl, toggleCtl, shieldCtl, weaponCtl, capCtl, segCtl, ovDims, shieldOverlaySvg } from './eaf-controls.js';   // shared EA control renderers (also used by the verify.html EAF layout editor)
 import { reservePool as reservePoolOf, spendReserve, reserveCost } from './reserve-power.js';   // reactive power (H5/H7)
 import { legalNextHexes, tryStep, impulseTimeline, hexesInPlot, setSpeedChange, speedChangeLegal, speedAt, legalSideslips, trySideslip } from './course-plan.js';   // speedChangeLegal: C12.3 mid-turn speed-change limits
 import { family, segmentName, advance, hasLockOn } from './battle-phase.js';   // SFB Sequence-of-Play segment cursor + driver; D6.1 lock predicate
@@ -1480,33 +1480,27 @@ function fedShieldSvg(s, p) {
   }
   return `<svg class="shsvg" viewBox="0 0 2816 1536" preserveAspectRatio="none"><defs><filter id="shGlow" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="7"/></filter></defs>${fills}${glows}</svg>`;
 }
-// Klingon shield overlay — same idea as the Fed CA (green→red by strength + a yellow reinforcement glow), but the
-// Klingon shields are discrete hexes, so a coloured hexagon is drawn on each shield slot from the layout positions.
-// Elongated hexagon rotated `deg` (about cx,cy): hl along the long axis, hw perpendicular, ti the pointed-tip inset.
-const rotHexPath = (cx, cy, hl, hw, ti, deg) => {
-  const th = deg * Math.PI / 180, c = Math.cos(th), s = Math.sin(th);
-  return 'M' + [[-hl, 0], [-hl + ti, -hw], [hl - ti, -hw], [hl, 0], [hl - ti, hw], [-hl + ti, hw]]
-    .map(([u, v]) => `${(cx + u * c - v * s).toFixed(0)} ${(cy + u * s + v * c).toFixed(0)}`).join(' L') + ' Z';
-};
+// Layout-driven shield overlay (Klingon hexes / Fed arcs / any race): each placed marker stores
+// [x%, y%, facingDeg, len, wid, shape] from the EAF editor; rendering goes through the SHARED
+// shieldOverlaySvg (eaf-controls.js) so the editor preview is pixel-identical to this panel. Markers
+// without an explicit facing (legacy stepper positions) orient tangent to the ring centroid, as before.
 function kliShieldSvg(s, p, L) {
   const sn = shieldsNow(s), col = eaColOf(s), genPts = Math.floor((col.genReinf || 0) / 2);
   const C = L.controls || {}, sh = L.shields || {};   // saved layout keys shields under controls['shield-N']; legacy CONSOLE uses shields[N]
-  const posOf = n => { const q = C['shield-ov-' + n] || C['shield-' + n] || sh[n]; return q ? [q[0] / 100 * 2816, q[1] / 100 * 1536] : null; };   // dedicated draggable overlay markers (verify.html) win; stepper positions are the fallback
+  const rawOf = n => C['shield-ov-' + n] || C['shield-' + n] || sh[n];
+  const posOf = n => { const q = rawOf(n); return q ? [q[0] / 100 * 2816, q[1] / 100 * 1536] : null; };
   const cen = [1, 2, 3, 4, 5, 6].map(posOf).filter(Boolean);
   if (!cen.length) return '<svg class="shsvg" viewBox="0 0 2816 1536" preserveAspectRatio="none"></svg>';
-  const rcx = cen.reduce((a, q) => a + q[0], 0) / cen.length, rcy = cen.reduce((a, q) => a + q[1], 0) / cen.length;   // ring centre → each hex orients tangent to the ring, matching the SSD's rotated shield boxes
-  let fills = '', glows = '';
-  const rawOf = n => C['shield-ov-' + n] || C['shield-' + n] || sh[n];
+  const rcx = cen.reduce((a, q) => a + q[0], 0) / cen.length, rcy = cen.reduce((a, q) => a + q[1], 0) / cen.length;
+  const items = [];
   for (const n of [1, 2, 3, 4, 5, 6]) {
     const q = posOf(n); if (!q) continue;
-    const raw = rawOf(n);   // the editor stores an explicit facing as the 3rd element ([x, y, deg]) — it wins over the ring inference
-    const [cx, cy] = q, deg = (raw && raw.length > 2) ? raw[2] : Math.atan2(cy - rcy, cx - rcx) * 180 / Math.PI + 90;
-    const max = p.shields[n - 1] || 1, t = Math.max(0, Math.min(1, (sn[n - 1] || 0) / max));   // 1=full→green, 0=down→red
-    fills += `<path d="${rotHexPath(cx, cy, 112, 70, 62, deg)}" fill="hsl(${Math.round(120 * t)},85%,48%)" fill-opacity="0.4"/>`;
-    const reinf = (col.specReinf[n] || 0) + genPts;   // specific + general (general glows all 6 — Rick)
-    if (reinf > 0) glows += `<path d="${rotHexPath(cx, cy, 124, 82, 68, deg)}" fill="none" stroke="#fde047" stroke-linejoin="round" filter="url(#shGlow)" stroke-width="${8 + reinf * 5}" stroke-opacity="${Math.min(0.95, 0.3 + reinf * 0.22)}"/>`;
+    const raw = rawOf(n), d = ovDims(raw);
+    const deg = (raw.length > 2 && d.deg != null) ? d.deg : Math.atan2(q[1] - rcy, q[0] - rcx) * 180 / Math.PI + 90;   // explicit editor facing wins
+    const max = p.shields[n - 1] || 1, t = Math.max(0, Math.min(1, (sn[n - 1] || 0) / max));
+    items.push({ n, cx: q[0], cy: q[1], deg, len: d.len, wid: d.wid, shape: d.shape, t, reinf: (col.specReinf[n] || 0) + genPts });
   }
-  return `<svg class="shsvg" viewBox="0 0 2816 1536" preserveAspectRatio="none"><defs><filter id="shGlow" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="7"/></filter></defs>${fills}${glows}</svg>`;
+  return shieldOverlaySvg(items);
 }
 function renderEnergy() {
   const mine = ships.filter(isMine);   // allocate the fleet you currently command (switch perspective for the other)

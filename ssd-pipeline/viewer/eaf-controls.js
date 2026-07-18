@@ -41,3 +41,51 @@ export function capCtl(x, y, carried, charging, cap) {
 }
 export const segCtl = (x, y, label, key, val) =>
   ctl(x, y, `<div class="lab">${label}</div><div class="row">${[['OFF', 0], ['LO', 0.5], ['FUL', 1]].map(([t, v]) => `<button class="${val === v ? 'on' : ''}" data-ea="seg" data-key="${key}" data-val="${v}">${t}</button>`).join('')}</div>`);
+
+// ---- shield strength/reinforcement overlay geometry (shared: battle EA panel + EAF editor preview) ----
+// A placed overlay marker stores [x%, y%, facingDeg, len, wid, shape] in the layout. Shape 0 = elongated hexagon
+// (Klingon-style SSD shield slot; len/wid are half-length/half-width in art px), shape 1 = annular ARC sector
+// (Federation-style ring band; len = angular span in degrees, wid = band thickness in art px, curved about the
+// ring centre = centroid of the placed markers). Both hosts render through shieldOverlaySvg so the editor
+// preview is pixel-identical to the game.
+export function ovDims(raw) {
+  const shape = raw && raw[5] === 1 ? 'arc' : 'hex';
+  return {
+    deg: raw ? raw[2] : undefined,
+    len: (raw && raw[3] != null) ? raw[3] : (shape === 'arc' ? 56 : 112),
+    wid: (raw && raw[4] != null) ? raw[4] : (shape === 'arc' ? 154 : 70),
+    shape,
+  };
+}
+const hexPath = (cx, cy, hl, hw, ti, deg) => {   // elongated hexagon rotated `deg` about (cx,cy); tips inset by ti
+  const th = deg * Math.PI / 180, c = Math.cos(th), s = Math.sin(th);
+  return 'M' + [[-hl, 0], [-hl + ti, -hw], [hl - ti, -hw], [hl, 0], [hl - ti, hw], [-hl + ti, hw]]
+    .map(([u, v]) => `${(cx + u * c - v * s).toFixed(0)} ${(cy + u * s + v * c).toFixed(0)}`).join(' L') + ' Z';
+};
+const arcPath = (cx, cy, rcx, rcy, spanDeg, wid, grow = 0) => {   // annular sector centred on the ray ring-centre → marker
+  const aC = Math.atan2(cy - rcy, cx - rcx), rM = Math.max(30, Math.hypot(cx - rcx, cy - rcy));
+  const ri = Math.max(10, rM - wid / 2 - grow), ro = rM + wid / 2 + grow, half = (spanDeg / 2 + grow / 8) * Math.PI / 180;
+  const pt = (r, a) => `${(rcx + r * Math.cos(a)).toFixed(0)} ${(rcy + r * Math.sin(a)).toFixed(0)}`;
+  return `M${pt(ro, aC - half)} A${ro.toFixed(0)} ${ro.toFixed(0)} 0 0 1 ${pt(ro, aC + half)} L${pt(ri, aC + half)} A${ri.toFixed(0)} ${ri.toFixed(0)} 0 0 0 ${pt(ri, aC - half)} Z`;
+};
+// items: [{ n, cx, cy (art px), deg, len, wid, shape, t (0..1 strength), reinf (points) }]
+export function shieldOverlaySvg(items, opts = {}) {
+  const arcs = items.filter(i => i.shape === 'arc');
+  let rcx = 1408, rcy = 768;   // ring centre for arc sectors: centroid of the placed markers (art-centre fallback until ≥2 are placed)
+  if (items.length >= 2) { rcx = items.reduce((a, i) => a + i.cx, 0) / items.length; rcy = items.reduce((a, i) => a + i.cy, 0) / items.length; }
+  let fills = '', glows = '', hits = '';
+  for (const it of items) {
+    const shape = it.shape === 'arc'
+      ? arcPath(it.cx, it.cy, rcx, rcy, it.len, it.wid)
+      : hexPath(it.cx, it.cy, it.len, it.wid, Math.round(it.len * 0.55), it.deg || 0);
+    fills += `<path d="${shape}" fill="hsl(${Math.round(120 * Math.max(0, Math.min(1, it.t)))},85%,48%)" fill-opacity="0.4"/>`;
+    if (it.reinf > 0) {
+      const glow = it.shape === 'arc'
+        ? arcPath(it.cx, it.cy, rcx, rcy, it.len, it.wid, 14)
+        : hexPath(it.cx, it.cy, it.len + 12, it.wid + 12, Math.round(it.len * 0.55) + 6, it.deg || 0);
+      glows += `<path d="${glow}" fill="none" stroke="#fde047" stroke-linejoin="round" filter="url(#shGlow)" stroke-width="${8 + it.reinf * 5}" stroke-opacity="${Math.min(0.95, 0.3 + it.reinf * 0.22)}"/>`;
+    }
+    if (opts.interactive) hits += `<path d="${shape}" fill="none" stroke="#000" stroke-opacity="0" stroke-width="22" pointer-events="stroke" data-ovn="${it.n}" style="cursor:nwse-resize"/>`;
+  }
+  return `<svg class="shsvg" viewBox="0 0 2816 1536" preserveAspectRatio="none"><defs><filter id="shGlow" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="7"/></filter></defs>${fills}${glows}${hits}</svg>`;
+}
