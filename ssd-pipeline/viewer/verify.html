@@ -161,7 +161,7 @@
       </div>
     </div>
     <div class="foot">
-      <span class="hint" id="eafHint">Click selects · <b>Shift-click</b> adds to the selection · drag moves the selection · <b>arrows</b> nudge (Shift = coarse) · <b>right-click</b> aligns centres horizontally, <b>Shift-right-click</b> vertically (to the first-selected) · drag off the form to unplace · <b>[ ]</b> rotate a selected shield overlay (Shift = 30°) · <b>drag its outline</b> to resize · <b>S</b> toggles hex/arc shape.</span>
+      <span class="hint" id="eafHint">Click selects · <b>Shift-click</b> adds to the selection · drag moves the selection · <b>arrows</b> nudge (Shift = coarse) · <b>right-click</b> aligns centres horizontally, <b>Shift-right-click</b> vertically (to the first-selected) · drag off the form to unplace · <b>[ ]</b> rotate a selected shield overlay (Shift = 30°) · <b>drag its outline</b> to resize · <b>drag its yellow grip</b> to rotate (Shift snaps 15°) · <b>S</b> toggles hex/arc shape.</span>
       <span><button class="btn" id="eafCancel">Close</button> <button class="btn primary" id="eafSaveBtn">Save layout</button></span>
     </div>
   </div>
@@ -669,7 +669,7 @@ function eafOvPreview(){ const wrap=document.getElementById("eafArtWrap"); if(!w
   if(!pv){ pv=document.createElement("div"); pv.id="eafOvPrev"; pv.style.cssText="position:absolute;inset:0;z-index:1;pointer-events:none"; wrap.appendChild(pv); }
   pv.innerHTML=eafOvIds().length?shieldOverlaySvg(eafOvItems(),{interactive:true}):""; }
 function eafOvLabelText(n){ const raw=editLayout&&editLayout.controls["shield-ov-"+n]; if(!raw)return`OV ${n}`;
-  const d=ovDims(raw); return d.shape==="arc"?`OV ${n} · span ${Math.round(d.len)}° · ${Math.round(d.wid)}w`:`OV ${n} · ${Math.round(d.deg||0)}° · ${Math.round(d.len)}×${Math.round(d.wid)}`; }
+  const d=ovDims(raw); return d.shape==="arc"?`OV ${n} · ${Math.round(d.deg||0)}° · span ${Math.round(d.len)}° · ${Math.round(d.wid)}w`:`OV ${n} · ${Math.round(d.deg||0)}° · ${Math.round(d.len)}×${Math.round(d.wid)}`; }
 function eafOvLabel(cid){ const el=document.querySelector(`#eafArtWrap .ctl[data-cid="${cid}"] .lab`); if(el)el.textContent=eafOvLabelText(+cid.slice(10)); }
 // grab the shape OUTLINE and drag: the size follows the pointer (hex: pointer offset in the shape frame sets the
 // half-length/half-width; arc: pointer angle about the ring centre sets the span, radial offset sets the band width)
@@ -686,6 +686,19 @@ document.getElementById("eafArtWrap").addEventListener("mousedown",e=>{ const hp
     else{ const th=(d0.deg||0)*Math.PI/180, c=Math.cos(th), sn=Math.sin(th), dx=px-cx, dy=py-cy;
       len=Math.max(20,Math.abs(dx*c+dy*sn)); wid=Math.max(12,Math.abs(-dx*sn+dy*c)); }
     editLayout.controls[cid]=[raw[0],raw[1],d0.deg||0,Math.round(len),Math.round(wid),d0.shape==="arc"?1:0];
+    eafOvPreview(); eafOvLabel(cid); };
+  const up=()=>{ document.removeEventListener("mousemove",move); document.removeEventListener("mouseup",up); };
+  document.addEventListener("mousemove",move); document.addEventListener("mouseup",up); },true);
+// drag the rotation grip: the facing follows the pointer around the marker centre (Shift snaps to 15°)
+document.getElementById("eafArtWrap").addEventListener("mousedown",e=>{ const gp=e.target.closest&&e.target.closest("[data-ovrot]"); if(!gp||!editLayout)return;
+  e.preventDefault(); e.stopPropagation();
+  const cid="shield-ov-"+gp.dataset.ovrot, raw=editLayout.controls[cid]; if(!raw)return;
+  const wrap=document.getElementById("eafArtWrap"), rect=wrap.getBoundingClientRect(), d0=ovDims(raw);
+  const cx=raw[0]/100*2816, cy=raw[1]/100*1536;
+  const move=ev=>{ const px=(ev.clientX-rect.left)/rect.width*2816, py=(ev.clientY-rect.top)/rect.height*1536;
+    let deg=Math.atan2(px-cx,-(py-cy))*180/Math.PI; deg=((deg%360)+360)%360;   // 0 = up, clockwise — the shared facing convention
+    if(ev.shiftKey)deg=Math.round(deg/15)*15%360;
+    editLayout.controls[cid]=[raw[0],raw[1],Math.round(deg),d0.len,d0.wid,d0.shape==="arc"?1:0];
     eafOvPreview(); eafOvLabel(cid); };
   const up=()=>{ document.removeEventListener("mousemove",move); document.removeEventListener("mouseup",up); };
   document.addEventListener("mousemove",move); document.addEventListener("mouseup",up); },true);

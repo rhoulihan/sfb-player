@@ -62,11 +62,15 @@ const hexPath = (cx, cy, hl, hw, ti, deg) => {   // elongated hexagon rotated `d
   return 'M' + [[-hl, 0], [-hl + ti, -hw], [hl - ti, -hw], [hl, 0], [hl - ti, hw], [-hl + ti, hw]]
     .map(([u, v]) => `${(cx + u * c - v * s).toFixed(0)} ${(cy + u * s + v * c).toFixed(0)}`).join(' L') + ' Z';
 };
-const arcPath = (cx, cy, rcx, rcy, spanDeg, wid, grow = 0) => {   // annular sector centred on the ray ring-centre → marker
-  const aC = Math.atan2(cy - rcy, cx - rcx), rM = Math.max(30, Math.hypot(cx - rcx, cy - rcy));
+// annular sector through (cx,cy) FACING deg (the band's outward direction; 0 = up, clockwise — the same facing
+// convention as the hex). The ring centre sits opposite the facing at radius rM, so rotating deg swings the band
+// around the marker in place.
+const arcPath = (cx, cy, deg, rM, spanDeg, wid, grow = 0) => {
+  const th = (deg - 90) * Math.PI / 180;                                        // facing 0=up → outward normal at −90° in the atan2 screen frame
+  const rcx = cx - rM * Math.cos(th), rcy = cy - rM * Math.sin(th);
   const ri = Math.max(10, rM - wid / 2 - grow), ro = rM + wid / 2 + grow, half = (spanDeg / 2 + grow / 8) * Math.PI / 180;
   const pt = (r, a) => `${(rcx + r * Math.cos(a)).toFixed(0)} ${(rcy + r * Math.sin(a)).toFixed(0)}`;
-  return `M${pt(ro, aC - half)} A${ro.toFixed(0)} ${ro.toFixed(0)} 0 0 1 ${pt(ro, aC + half)} L${pt(ri, aC + half)} A${ri.toFixed(0)} ${ri.toFixed(0)} 0 0 0 ${pt(ri, aC - half)} Z`;
+  return `M${pt(ro, th - half)} A${ro.toFixed(0)} ${ro.toFixed(0)} 0 0 1 ${pt(ro, th + half)} L${pt(ri, th + half)} A${ri.toFixed(0)} ${ri.toFixed(0)} 0 0 0 ${pt(ri, th - half)} Z`;
 };
 // items: [{ n, cx, cy (art px), deg, len, wid, shape, t (0..1 strength), reinf (points) }]
 export function shieldOverlaySvg(items, opts = {}) {
@@ -75,17 +79,26 @@ export function shieldOverlaySvg(items, opts = {}) {
   if (items.length >= 2) { rcx = items.reduce((a, i) => a + i.cx, 0) / items.length; rcy = items.reduce((a, i) => a + i.cy, 0) / items.length; }
   let fills = '', glows = '', hits = '';
   for (const it of items) {
+    const rM = items.length >= 2 ? Math.max(60, Math.hypot(it.cx - rcx, it.cy - rcy)) : 480;   // curvature radius: distance to the marker centroid (fallback until ≥2 placed)
     const shape = it.shape === 'arc'
-      ? arcPath(it.cx, it.cy, rcx, rcy, it.len, it.wid)
+      ? arcPath(it.cx, it.cy, it.deg || 0, rM, it.len, it.wid)
       : hexPath(it.cx, it.cy, it.len, it.wid, Math.round(it.len * 0.55), it.deg || 0);
     fills += `<path d="${shape}" fill="hsl(${Math.round(120 * Math.max(0, Math.min(1, it.t)))},85%,48%)" fill-opacity="0.4"/>`;
     if (it.reinf > 0) {
       const glow = it.shape === 'arc'
-        ? arcPath(it.cx, it.cy, rcx, rcy, it.len, it.wid, 14)
+        ? arcPath(it.cx, it.cy, it.deg || 0, rM, it.len, it.wid, 14)
         : hexPath(it.cx, it.cy, it.len + 12, it.wid + 12, Math.round(it.len * 0.55) + 6, it.deg || 0);
       glows += `<path d="${glow}" fill="none" stroke="#fde047" stroke-linejoin="round" filter="url(#shGlow)" stroke-width="${8 + it.reinf * 5}" stroke-opacity="${Math.min(0.95, 0.3 + it.reinf * 0.22)}"/>`;
     }
-    if (opts.interactive) hits += `<path d="${shape}" fill="none" stroke="#000" stroke-opacity="0" stroke-width="22" pointer-events="stroke" data-ovn="${it.n}" style="cursor:nwse-resize"/>`;
+    if (opts.interactive) {
+      hits += `<path d="${shape}" fill="none" stroke="#000" stroke-opacity="0" stroke-width="22" pointer-events="stroke" data-ovn="${it.n}" style="cursor:nwse-resize"/>`;
+      // rotation grip: a dot on a stalk off the shape's facing edge — drag it around the marker centre to rotate
+      const th = ((it.deg || 0) - 90) * Math.PI / 180, ext = (it.shape === 'arc' ? it.wid / 2 : it.wid) + 64;
+      const gx = it.cx + ext * Math.cos(th), gy = it.cy + ext * Math.sin(th);
+      const ex = it.cx + (ext - 36) * Math.cos(th), ey = it.cy + (ext - 36) * Math.sin(th);
+      hits += `<line x1="${ex.toFixed(0)}" y1="${ey.toFixed(0)}" x2="${gx.toFixed(0)}" y2="${gy.toFixed(0)}" stroke="#fde047" stroke-width="5" pointer-events="none"/>` +
+        `<circle cx="${gx.toFixed(0)}" cy="${gy.toFixed(0)}" r="28" fill="#fde047" fill-opacity="0.9" stroke="#7c5e00" stroke-width="4" pointer-events="all" data-ovrot="${it.n}" style="cursor:grab"/>`;
+    }
   }
   return `<svg class="shsvg" viewBox="0 0 2816 1536" preserveAspectRatio="none"><defs><filter id="shGlow" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="7"/></filter></defs>${fills}${glows}${hits}</svg>`;
 }

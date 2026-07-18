@@ -41,3 +41,21 @@ test('shieldOverlaySvg interactive mode adds outline hit paths for click-resize'
   const plain = shieldOverlaySvg([item]);
   assert.ok(!plain.includes('data-ovn'), 'battle (non-interactive) render has no hit paths');
 });
+
+test('an arc honors its EXPLICIT facing: rotating deg swings the band around the marker in place', () => {
+  const mk = deg => ({ cx: 1408, cy: 900, deg, len: 56, wid: 154, shape: 'arc', t: 1, reinf: 0 });
+  const up = shieldOverlaySvg([mk(0)]), right = shieldOverlaySvg([mk(90)]), down = shieldOverlaySvg([mk(180)]);
+  assert.ok(up !== right && right !== down && up !== down, 'each facing renders a different band');
+  // deg 0 = band faces up → ring centre sits BELOW the marker → the outer arc reaches above cy=900
+  const yNums = svg => [...svg.matchAll(/M(\d+) (\d+)/g)].map(m => +m[2]);
+  assert.ok(yNums(up).some(y => y < 900), 'facing up: outer edge above the marker');
+  assert.ok(yNums(down).some(y => y > 900), 'facing down: outer edge below the marker');
+});
+
+test('interactive mode adds a rotation grip per shape', () => {
+  const item = { cx: 500, cy: 400, deg: 0, len: 100, wid: 50, shape: 'hex', t: 1, reinf: 0, n: 4 };
+  const svg = shieldOverlaySvg([item], { interactive: true });
+  assert.ok(svg.includes('data-ovrot="4"'), 'grip tagged with its shield number');
+  const plain = shieldOverlaySvg([item]);
+  assert.ok(!plain.includes('data-ovrot'), 'no grips in the battle render');
+});
