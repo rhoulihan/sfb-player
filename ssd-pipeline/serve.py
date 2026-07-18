@@ -484,7 +484,7 @@ class H(http.server.SimpleHTTPRequestHandler):
             if self.path.startswith("/api/eaf-layout/"):   # save a shared EAF layout (drag-authored in verify.html)
                 lid = self.path.rsplit("/", 1)[-1].lower()
                 d = os.path.join(ROOT, "data", "eaf-layouts"); os.makedirs(d, exist_ok=True)
-                open(os.path.join(d, lid + ".json"), "wb").write(body)
+                json.dump(payload, open(os.path.join(d, lid + ".json"), "w"), indent=2)   # pretty-printed — keeps the committed layout diffs reviewable
                 return self._json(200, {"ok": True, "id": lid})
             if self.path.startswith("/api/counter-art/"):   # upload custom ship-counter art (user-provided image, git-ignored) into data/<ship>/
                 import base64, re as _re
