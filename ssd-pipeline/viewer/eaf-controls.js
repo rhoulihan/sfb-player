@@ -130,3 +130,11 @@ export function applyCtlParts(node, offs, wrapW, wrapH) {
     el.style.top = (o[1] / 100 * wrapH) + 'px';
   });
 }
+
+// Custom part TEXT (edited labels): layout.partText = { [controlId]: { pN: "text" } }, same stable part
+// indexing as applyCtlParts. Both hosts apply it so an edited label reads identically in editor and game.
+export function applyCtlText(node, texts) {
+  if (!texts) return;
+  const parts = ctlParts(node);
+  parts.forEach((el, i) => { const t = texts['p' + i]; if (t != null && t !== '') el.textContent = t; });
+}

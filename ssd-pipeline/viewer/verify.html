@@ -162,7 +162,7 @@
       </div>
     </div>
     <div class="foot">
-      <span class="hint" id="eafHint">Click selects · <b>Shift-click</b> adds to the selection · drag moves the selection · <b>arrows</b> nudge (Shift = coarse) · <b>right-click</b> aligns centres horizontally, <b>Shift-right-click</b> vertically (to the first-selected) · drag off the form to unplace · <b>[ ]</b> rotate a selected shield overlay (Shift = 30°) · <b>drag its outline</b> to resize · <b>drag its yellow grip</b> to rotate (Shift snaps 15°) · <b>S</b> toggles hex/arc shape · <b>double-click</b> a palette entry or placed control to edit exact position/size · <b>right-click</b> a control: unlock/lock its parts — unlocked, the label/counters/± buttons drag individually; locked, the set moves as one with its offsets kept · <b>Ctrl-Z</b>/<b>Ctrl-Shift-Z</b> undo/redo.</span>
+      <span class="hint" id="eafHint">Click selects · <b>Shift-click</b> adds to the selection · drag moves the selection · <b>arrows</b> nudge (Shift = coarse) · <b>right-click</b> aligns centres horizontally, <b>Shift-right-click</b> vertically (to the first-selected) · drag off the form to unplace · <b>[ ]</b> rotate a selected shield overlay (Shift = 30°) · <b>drag its outline</b> to resize · <b>drag its yellow grip</b> to rotate (Shift snaps 15°) · <b>S</b> toggles hex/arc shape · <b>double-click</b> a palette entry or placed control to edit exact position/size · <b>right-click</b> a control: unlock/lock its parts — unlocked, the label/counters/± buttons drag individually and <b>double-clicking a label edits its text</b>; locked, the set moves as one with its offsets kept · <b>Ctrl-Z</b>/<b>Ctrl-Shift-Z</b> undo/redo.</span>
       <span><button class="btn" id="eafCancel">Close</button> <button class="btn primary" id="eafSaveBtn">Save layout</button></span>
     </div>
   </div>
@@ -216,7 +216,7 @@ import * as E from "./ssd-engine.js";
 import { shipPower } from "./energy-model.js";   // build the ship's power model → real control set for the EAF editor
 import { counterClassFor, counterSvg, counterOutlineFromBoxes, shipBodyBoxes } from "./ship-counter.js";   // ship map counter: preview + fallback outline
 import { COUNTER_ART } from "./ship-counter-art.js";
-import { ctl, capCtl, weaponCtl, segCtl, stackCtl, toggleCtl, shieldCtl, sysCtl, batteryCtl, ewCtl, ovDims, shieldOverlaySvg, ctlParts, applyCtlParts } from "./eaf-controls.js";   // render the exact in-game controls + shared shield-overlay geometry + per-part offsets
+import { ctl, capCtl, weaponCtl, segCtl, stackCtl, toggleCtl, shieldCtl, sysCtl, batteryCtl, ewCtl, ovDims, shieldOverlaySvg, ctlParts, applyCtlParts, applyCtlText } from "./eaf-controls.js";   // render the exact in-game controls + shared shield-overlay geometry + per-part offsets
 const SVGNS="http://www.w3.org/2000/svg";
 const el=(t,a)=>{const e=document.createElementNS(SVGNS,t);for(const k in a)e.setAttribute(k,a[k]);return e;};
 let overlayOpacity=1;                 // 1 = fully opaque (uniform recolor); slider can lower to peek at labels
@@ -659,7 +659,7 @@ function eafControlList(p){ const L=[];
 async function openEafEditor(){ if(!stats.eafLayout){ alert("Assign an EAF layout for this ship first (the EAF selector), or pick ＋ New layout…"); return; }
   let L=eafLayouts.find(l=>l.id===stats.eafLayout); if(!L){ try{ L=await(await fetch(`/api/eaf-layout/${stats.eafLayout}`)).json(); }catch{} }
   if(!L||L.error){ alert("Layout not found."); return; }
-  editLayout=JSON.parse(JSON.stringify(L)); editLayout.controls=editLayout.controls||{}; editLayout.parts=editLayout.parts||{};
+  editLayout=JSON.parse(JSON.stringify(L)); editLayout.controls=editLayout.controls||{}; editLayout.parts=editLayout.parts||{}; editLayout.partText=editLayout.partText||{};
   eafUndo=[]; eafRedo=[]; eafEditKind=null; eafPartsOpen=new Set();
   document.getElementById("eafTitle").textContent=`${editLayout.name||editLayout.id} · ${ship}`;
   document.getElementById("eafModal").classList.add("open"); renderEafEditor(); }
@@ -670,9 +670,13 @@ function renderEafEditor(){ const wrap=document.getElementById("eafArtWrap"); [.
   eafSelSet=eafSelSet.filter(id=>L.controls[id]);   // selection survives re-render; unplaced controls drop out
   for(const c of list){ const pos=L.controls[c.id]; if(!pos)continue; const tmp=document.createElement("div"); tmp.innerHTML=c.render(pos[0],pos[1],pos[2]); const node=tmp.firstElementChild; if(!node)continue;
     node.dataset.cid=c.id; if(eafSelSet.includes(c.id))node.classList.add("sel");
+    node.querySelectorAll("button[disabled]").forEach(b=>b.removeAttribute("disabled"));   // disabled buttons swallow mouse events — in the editor every part must be grabbable
     applyCtlParts(node,L.parts&&L.parts[c.id],wrap.clientWidth,wrap.clientHeight);   // saved per-part offsets
+    applyCtlText(node,L.partText&&L.partText[c.id]);                                 // edited labels
     if(eafPartsOpen.has(c.id)){ node.classList.add("partsopen"); ctlParts(node).forEach(el=>{ el.style.outline="1px dashed #38bdf8"; el.style.cursor="move"; }); }
-    node.addEventListener("mousedown",e=>eafDragCtl(e,c.id,node)); node.addEventListener("dblclick",()=>openCtlEdit(c.id)); wrap.appendChild(node); }
+    node.addEventListener("mousedown",e=>eafDragCtl(e,c.id,node));
+    node.addEventListener("dblclick",e=>{ const t=e.target.closest(".lab"); if(eafPartsOpen.has(c.id)&&t){ e.stopPropagation(); eafEditLabel(c.id,node,t); return; } openCtlEdit(c.id); });
+    wrap.appendChild(node); }
   document.getElementById("eafPalette").innerHTML=list.map(c=>`<div class="pal ${L.controls[c.id]?"placed":""}" data-cid="${c.id}" draggable="true">${c.label}</div>`).join("");
   eafOvPreview(); renderEafValid(); }
 // ---- shield-overlay live preview: the SHARED geometry renders the real shapes on the form (pixel-identical to
@@ -687,8 +691,23 @@ function eafOvPreview(){ const wrap=document.getElementById("eafArtWrap"); if(!w
 function eafOvLabelText(n){ const raw=editLayout&&editLayout.controls["shield-ov-"+n]; if(!raw)return`OV ${n}`;
   const d=ovDims(raw); return d.shape==="arc"?`OV ${n} · ${Math.round(d.deg||0)}° · span ${Math.round(d.len)}° · ${Math.round(d.wid)}w`:`OV ${n} · ${Math.round(d.deg||0)}° · ${Math.round(d.len)}×${Math.round(d.wid)}${d.taper?` · t${Math.round(d.taper)}`:""}`; }
 function eafOvLabel(cid){ const el=document.querySelector(`#eafArtWrap .ctl[data-cid="${cid}"] .lab`); if(el)el.textContent=eafOvLabelText(+cid.slice(10)); }
+// double-click a LABEL while parts are unlocked → edit its text inline (Enter/blur commits, Escape cancels);
+// the override is stored in layout.partText[cid] and applied by both hosts. Empty text reverts to the default.
+function eafEditLabel(cid,node,labEl){
+  const parts=ctlParts(node); const idx=parts.findIndex(el=>el===labEl||el.contains(labEl)); if(idx<0)return;
+  const orig=labEl.textContent;
+  labEl.contentEditable="true"; labEl.style.outline="2px solid #d97706"; labEl.focus();
+  document.getSelection().selectAllChildren(labEl);
+  const done=commit=>{ labEl.contentEditable="false"; labEl.style.outline=""; labEl.onblur=labEl.onkeydown=null;
+    const txt=labEl.textContent.trim();
+    if(!commit||txt===orig){ labEl.textContent=orig; return; }
+    pushUndo(null); editLayout.partText=editLayout.partText||{}; const T=editLayout.partText[cid]=editLayout.partText[cid]||{};
+    if(txt)T["p"+idx]=txt; else { delete T["p"+idx]; renderEafEditor(); } };   // empty → back to the renderer's default
+  labEl.onblur=()=>done(true);
+  labEl.onkeydown=e=>{ e.stopPropagation(); if(e.key==="Enter"){ e.preventDefault(); labEl.blur(); } if(e.key==="Escape"){ done(false); labEl.blur(); } }; }
 // drag one PART (label / counter / ± button) of an unlocked control; its offset is stored in % of the art
 function eafPartDrag(e,cid,node){
+  if(e.target.isContentEditable)return true;   // label being edited — let text selection work, no drag
   const parts=ctlParts(node); const idx=parts.findIndex(el=>el===e.target||el.contains(e.target)); if(idx<0)return false;
   e.preventDefault(); e.stopPropagation();
   const wrap=document.getElementById("eafArtWrap"), rect=wrap.getBoundingClientRect();
@@ -778,13 +797,13 @@ let eafPartsOpen=new Set();   // controls currently in parts-editing mode (edito
 // ---- undo/redo: 100-edit queues; a new edit clears the redo queue. Bursts of the same kind (arrow nudges,
 // [ ] rotation taps) within 1.2s coalesce into one undo step.
 let eafUndo=[],eafRedo=[],eafEditKind=null,eafEditAt=0;
-const eafSnap=()=>JSON.parse(JSON.stringify({controls:(editLayout&&editLayout.controls)||{},parts:(editLayout&&editLayout.parts)||{}}));
+const eafSnap=()=>JSON.parse(JSON.stringify({controls:(editLayout&&editLayout.controls)||{},parts:(editLayout&&editLayout.parts)||{},partText:(editLayout&&editLayout.partText)||{}}));
 function pushUndoSnap(sn){ eafEditKind=null; eafUndo.push(sn); if(eafUndo.length>100)eafUndo.shift(); eafRedo.length=0; }
 function pushUndo(kind){ if(!editLayout)return; const now=Date.now();
   if(kind&&kind===eafEditKind&&now-eafEditAt<1200){ eafEditAt=now; return; }
   const snap=eafSnap(); eafUndo.push(snap); if(eafUndo.length>100)eafUndo.shift(); eafRedo.length=0;
   eafEditKind=kind; eafEditAt=now; }
-function eafApplySnap(sn){ editLayout.controls=JSON.parse(JSON.stringify(sn.controls)); editLayout.parts=JSON.parse(JSON.stringify(sn.parts||{})); renderEafEditor(); }
+function eafApplySnap(sn){ editLayout.controls=JSON.parse(JSON.stringify(sn.controls)); editLayout.parts=JSON.parse(JSON.stringify(sn.parts||{})); editLayout.partText=JSON.parse(JSON.stringify(sn.partText||{})); renderEafEditor(); }
 function eafDoUndo(){ if(!eafUndo.length||!editLayout)return; eafRedo.push(eafSnap()); if(eafRedo.length>100)eafRedo.shift(); eafApplySnap(eafUndo.pop()); eafEditKind=null; }
 function eafDoRedo(){ if(!eafRedo.length||!editLayout)return; eafUndo.push(eafSnap()); if(eafUndo.length>100)eafUndo.shift(); eafApplySnap(eafRedo.pop()); eafEditKind=null; }
 document.addEventListener("keydown",e=>{ if(!document.getElementById("eafModal").classList.contains("open"))return;

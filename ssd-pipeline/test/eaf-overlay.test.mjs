@@ -95,3 +95,16 @@ test('applyCtlParts offsets only the customized parts, in art-% converted to px'
   assert.equal(lab.style.left, undefined, 'uncustomized parts untouched');
   applyCtlParts(node, null, 700, 400);   // no offsets → no-op, no crash
 });
+
+import { applyCtlText } from '../viewer/eaf-controls.js';
+
+test('applyCtlText overrides part text by index (custom labels), leaving others untouched', () => {
+  const lab = { ...mockEl('lab'), textContent: 'GEN REINF' };
+  const val = { ...mockEl('val'), textContent: '0' };
+  const node = mockEl('ctl', [lab, mockEl('row', [val])]);
+  applyCtlText(node, { p0: 'REINFORCE' });
+  assert.equal(lab.textContent, 'REINFORCE');
+  assert.equal(val.textContent, '0', 'non-overridden parts keep their text');
+  applyCtlText(node, null);   // no overrides → no-op
+  assert.equal(lab.textContent, 'REINFORCE');
+});
