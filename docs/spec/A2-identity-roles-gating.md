@@ -4,7 +4,7 @@
 
 This subsystem owns *who a request is* and *what that identity is allowed to do*. It provides account
 registration and login, mints and rotates the credentials carried by every REST call and Socket.IO
-connection, and gates entry to the SFB Online portal. It then layers three orthogonal authorization
+connection, and gates entry to the SFB Player portal. It then layers three orthogonal authorization
 domains on top of identity: (1) **global account roles** (`admin`, plus ordinary `member`); (2)
 **per-game roles** (`gm`/host, `commander`, `player`, `spectator`) granted through game memberships and
 invitations; and (3) **content entitlements** — the verified-owner gate that unlocks full-text rules

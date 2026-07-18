@@ -1,6 +1,6 @@
 # SFB Player — Completion Plan
 
-> **Purpose.** Analyze the current SFB Player build against the SFB Online specs and lay out a
+> **Purpose.** Analyze the current SFB Player build against the SFB Player specs and lay out a
 > reviewable, phased plan to **finish the game mechanics inside the existing framework**. **Status:
 > fully implemented** — every item in §2 is shipped (strict TDD, browser-verified, committed one at a time).
 

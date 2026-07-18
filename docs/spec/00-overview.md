@@ -1,12 +1,12 @@
-# 00 — SFB Online: Master Overview & Specification Index
+# 00 — SFB Player: Master Overview & Specification Index
 
-> Canonical index for the SFB Online spec. Read this first, then read the per-subsystem
+> Canonical index for the SFB Player spec. Read this first, then read the per-subsystem
 > docs in the order of the [Subsystem Map](#subsystem-map). Every subsystem doc conforms to
 > the 11-section template described in [How to Read This Spec](#how-to-read-this-spec).
 
 ## Executive Summary
 
-**SFB Online** is a web platform that hosts faithful, multiplayer games of *Star Fleet Battles*
+**SFB Player** is a web platform that hosts faithful, multiplayer games of *Star Fleet Battles*
 (Captain's Edition Master Rulebook). Two or more sides — each with one or more commanders, each
 commander controlling one or more ships — play the tabletop game over the network. The platform
 automates the *drudgery* (rolling dice, tracking energy, decrementing shield boxes, totaling damage,
@@ -36,7 +36,7 @@ Four architecture decisions are **locked** and bind every document in this spec:
 
 ## System Architecture
 
-SFB Online is an **event-sourced** system with an **authoritative referee** at its core. Per game,
+SFB Player is an **event-sourced** system with an **authoritative referee** at its core. Per game,
 an append-only log (`gameEvents`) is the single source of truth; current game state is a deterministic
 **fold** (reducer) over that log, checkpointed periodically into `gameSnapshots` for fast load. Players
 issue **commands** (PascalCase, imperative — `PlotMovement`, `AllocateEnergy`, `DeclareFire`); the

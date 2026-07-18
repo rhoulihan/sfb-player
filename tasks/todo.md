@@ -1,4 +1,4 @@
-# SFB Online — Spec Build TODO
+# SFB Player — Spec Build TODO
 
 ## Locked decisions (2026-06-29)
 - Scope v1: **Advanced Missions tournament play**; architect for full Master Rulebook.
