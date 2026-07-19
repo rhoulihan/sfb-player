@@ -2301,6 +2301,18 @@ createBattleMap({
   openSeekerMenu: (seekerId, e) => {   // FP1.611: fire the SELECTED ship's phasers at the right-clicked drone/plasma
     const sk = seekers.find(x => x.id === seekerId); const ship = selectedShip();
     if (!sk) return;
+    if (sk.type === 'shuttle' && !sk.warhead && (h => h && isMine(h))(byId(sk.owner))) {   // my admin shuttle → recovery (J1.52)
+      const carrier = ships.filter(s2 => isMine(s2) && !isDead(s2) && (s2.shuttlesGone || 0) > 0 && hexDistance(s2, sk) <= 1)
+        .sort((a, b) => hexDistance(a, sk) - hexDistance(b, sk))[0];
+      if (!carrier) { alert('No adjacent ship of yours with bay space to recover this shuttle (J1.52).'); return; }
+      if (confirm(`Recover this shuttle aboard ${carrier.id}? It needs servicing and re-enters inventory next turn (J1.52/J1.869).`)) {
+        seekers = seekers.filter(x => x !== sk);
+        carrier.shuttlesGone = Math.max(0, (carrier.shuttlesGone || 0) - 1);   // back in the bay; the turn-end replenish restores it to inventory (≈ the 32-impulse service)
+        renderLog({ log: [{ kind: 'recover', ship: carrier.id }] }, true);
+        saveSoon(carrier.id); render();
+      }
+      return;
+    }
     if (!ship || !isMine(ship)) { alert('Select one of your ships first, then right-click the drone/plasma to fire at it (FP1.611).'); return; }
     if (getPhase() !== 'impulse') { alert('Direct phaser fire at seeking weapons happens during the impulse phase.'); return; }
     const range = hexDistance(ship, sk), bearing = phasersBearingSeeker(ship, sk);
@@ -2554,6 +2566,8 @@ function renderLog(res, append) {
     ? `<div class="miss">🛑 ${l.ship} declares Emergency Deceleration (C8.10) — will stop in 2 impulses</div>`
     : l.kind === 'emdecel-stop'
     ? `<div class="hit">🛑 ${l.ship} halts (Emergency Deceleration, C8.101) — now at Speed 0</div>`
+    : l.kind === 'recover'
+    ? `<div class="miss">🛰 ${l.ship} recovers a shuttle — serviced and back in inventory next turn (J1.52/J1.869)</div>`
     : l.kind === 'raidbp'
     ? `<div class="${l.destroyed ? 'hit' : 'miss'}">⚔ ${l.firer} boarding party raids ${l.target}: ${l.destroyed ? 'system DESTROYED' : 'no effect'}${l.lost ? ' — party lost (D7.81)' : ' — party returns'}</div>`
     : l.kind === 'hetFail'

@@ -30,19 +30,20 @@ Lower-priority polish. None block normal cruiser play.
 ## Suicide-shuttle variable arming energy — DONE 2026-07-18 (EAF shuttle-arming controls)
 - ~~Fixed 3 points/turn~~ → the combined `shuttles` EAF control's SUI counter now commits 0–3 points/turn (J2.2211) with the turn-4+ hold
   (first point holds, extras keep arming to the 9-point cap, J2.2212). Remaining refinements:
-  - [ ] **Half-point arming increments** (J2.2211 allows 1.0–3.0 in 0.5 steps; the stepper is integer-only — a legal subset).
-  - [ ] **Reserve-power arming starts** — J2.2213 (suicide: reserve on any arming/hold turn) and J3.122 (weasel: reserve may
-    BEGIN a charge, then EAF-only, 32-impulse minimum before launch). Currently EAF-allocation-only.
-  - [ ] **Multiple simultaneous weasel charges** (J3.123) — one `wwArm` track per ship today.
-  - [ ] **Shuttle recovery restoring inventory** (J1.86x) — `shuttlesGone` only ever grows; recovered/landed shuttles
-    should decrement it (needs a recovery flow first).
+  - [x] Half-point arming increments (J2.2211) — DONE 2026-07-19.
+  - [x] Reserve-power arming starts (J2.2213 / J3.122, incl. the 32-impulse weasel launch gate) — DONE 2026-07-19.
+  - [x] Multiple simultaneous weasel charges (J3.123, wwCharges tracks) — DONE 2026-07-19.
+  - [x] Admin-shuttle recovery restoring inventory (right-click an own shuttle beside a carrier; serviced → next turn) — DONE 2026-07-19.
+  - [ ] Recovery of INERT weasel/suicide shuttles (J1.864/J1.865 fine points: boarding, 32-impulse weapon servicing).
 
-## Boarding-party count (from D7/D15 fix)
-- A hit-and-run raid currently commits a single boarding party per transporter. Add a control to choose HOW MANY boarding
-  parties to commit per raid (D7.8x), affecting the odds/effect. Target selection is done (right-click the target).
+## Boarding-party count — DONE 2026-07-19
+- The raid asks how many parties to commit; each rolls the D7.81 chart separately with its own transporter; casualties
+  persist (bpLost). Remaining nicety: designating a SPECIFIC target box instead of a random eligible one (D7.81).
 
-## Multiplayer reactive reinforcement — defender-not-resolver handshake (from H7.134 fix)
-- H7.134 reactive reserve reinforcement now prompts the defender for their own ships when THEY are the fire resolver
+## Multiplayer reactive reinforcement — DONE 2026-07-19
+- H7.134 defender-not-resolver handshake implemented: the resolver posts reinfAsk, the defending commander's client
+  prompts THEM (decide-only) and answers, the resolver applies authoritatively; fireResult clears; ~84s timeout → no
+  reinforcement.
   (last to commit). When the ATTACKER is the resolver, the defending player is not local and cannot be prompted. The full
   fix is a networked mid-resolution handshake: the resolver pauses on each penetrating hit, requests the defending
   commander's reserve-reinforcement decision over the save/poll channel, waits, then applies it. Needs 2-player testing.
