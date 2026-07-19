@@ -23,6 +23,15 @@ export const batteryCtl = (x, y, charge, recharge, max) => {   // BATTERIES: cur
 };
 export const ewCtl = (x, y, ecm, eccm, max) =>   // EW box: ECM/ECCM label, value/value counter, a −/+ pair on either side
   ctl(x, y, `<div class="lab">ECM/ECCM</div><div class="row">${stepPair('ecm', ecm, max)}<span class="val">${ecm}/${eccm}</span>${stepPair('eccm', eccm, max)}</div>`);
+// Combined shuttle-bay control set: inventory + power summary header, then one counter row each for the
+// wild-weasel charge (J3.12, 0/1 point) and suicide-shuttle arming (J2.2211, 0-3 points). o = {inv, bays,
+// pw, ww, wwMax, wwStat, sui, suiMax, suiStat} — the stat strings carry cross-turn arming progress
+// ("1/2", "✓", "2/3", "✓W18") and are empty when nothing is banked.
+export const shuttleCtl = (x, y, o) => {
+  const row = (tag, key, val, max, stat) =>
+    `<div class="row"><span class="lab">${tag}</span><button class="stepbtn" data-ea="step" data-key="${key}" data-d="-1"${val <= 0 ? ' disabled' : ''}>−</button><span class="val">${val}</span><button class="stepbtn" data-ea="step" data-key="${key}" data-d="1"${val >= max ? ' disabled' : ''}>+</button>${stat ? `<span class="lab">${stat}</span>` : ''}</div>`;
+  return ctl(x, y, `<div class="lab">SHUTTLES ${o.inv}/${o.bays} · ⚡${o.pw}</div>${row('WW', 'wildWeasel', o.ww, o.wwMax, o.wwStat)}${row('SUI', 'suicide', o.sui, o.suiMax, o.suiStat)}`);
+};
 export const toggleCtl = (x, y, label, key, on, num) =>
   ctl(x, y, `<div class="lab">${label}</div><button class="${on ? 'on' : ''}" data-ea="toggle" data-key="${key}"${num ? ' data-num="1"' : ''}>${on ? 'ON' : 'OFF'}</button>`);
 export function shieldCtl(n, x, y, strength, reinf, max, gen = 0) {

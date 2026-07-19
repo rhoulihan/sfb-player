@@ -325,7 +325,7 @@ const turnCategoryOf = code => SHIP_TURN_CATEGORY[code] || 'C';
 const turnModeOf = s => turnModeFor(s.turnCat || turnCategoryOf(s.code), s.speed) + (hasCrit(s.criticals, 'maneuver') ? 1 : 0);   // D8.2 maneuver crit: turn mode +1 at all speeds
 import { shipPower, newEafColumn, validateEaf, foldEaf, sinkMax, specReinfMax, plasmaClsOf, ewFieldMax } from './energy-model.js';   // ewFieldMax: D6.310 combined ECM+ECCM cap
 import { armLabel, isArmed, canHold, canRoll, armTurns, rollCost, reserveCompletionCost, firedThisTurn, refireReady, impulsesSince } from './weapon-arming.js';   // multi-turn arming: label, fire-gate, holdability, rolling delay (E4.21/E3.24/FP1.311/FP1.221); E2.23 frequency; E1.52 refire cadence
-import { ctl, stepPair, stackCtl, barCtl, sysCtl, batteryCtl, ewCtl, toggleCtl, shieldCtl, weaponCtl, capCtl, segCtl, ovDims, shieldOverlaySvg, applyCtlParts, applyCtlText } from './eaf-controls.js';   // shared EA control renderers (also used by the verify.html EAF layout editor)
+import { ctl, stepPair, stackCtl, barCtl, sysCtl, batteryCtl, ewCtl, toggleCtl, shuttleCtl, shieldCtl, weaponCtl, capCtl, segCtl, ovDims, shieldOverlaySvg, applyCtlParts, applyCtlText } from './eaf-controls.js';   // shared EA control renderers (also used by the verify.html EAF layout editor)
 import { reservePool as reservePoolOf, spendReserve, reserveCost } from './reserve-power.js';   // reactive power (H5/H7)
 import { legalNextHexes, tryStep, impulseTimeline, hexesInPlot, setSpeedChange, speedChangeLegal, speedAt, legalSideslips, trySideslip } from './course-plan.js';   // speedChangeLegal: C12.3 mid-turn speed-change limits
 import { family, segmentName, advance, hasLockOn } from './battle-phase.js';   // SFB Sequence-of-Play segment cursor + driver; D6.1 lock predicate
@@ -1559,15 +1559,15 @@ function renderEnergy() {
     if (at('erratic') && !hasCrit(s.criticals, 'maneuver')) h += toggleCtl(at('erratic')[0], at('erratic')[1], 'ERRATIC', 'em', col.em);
     if (at('fc-passive')) h += toggleCtl(at('fc-passive')[0], at('fc-passive')[1], 'FC PASSIVE', 'fcPassive', col.fcPassive);
     if (at('emergency-decel')) h += toggleCtl(at('emergency-decel')[0], at('emergency-decel')[1], 'EMERG DECEL', 'emDecel', !!s.emDecelAt);   // C8.10: declared during impulse play; lit while the stop is pending
-    const shLeft = shuttlesLeftOf(s);   // J1.868: shuttle-arming allocations need a shuttle in the bay
-    if (at('ww-arm') && p.systems.shuttles) {   // J3.12: 1 point/turn on two consecutive turns; J3.121 rolling delay keeps it ready
+    if (at('shuttles') && p.systems.shuttles) {   // combined shuttle-bay control: inventory + power summary + WW (J3.12) and suicide (J2.2211) arming counters
+      const shLeft = shuttlesLeftOf(s);   // J1.868: shuttle-arming allocations need a shuttle in the bay
       const ww = (s.wwArm && s.wwArm.lastTurn >= clock.turn - 1) ? s.wwArm : null;
-      h += toggleCtl(at('ww-arm')[0], at('ww-arm')[1], `WEASEL ${ww ? (ww.turns >= 2 ? '✓' : ww.turns + '/2') + ' · ' : ''}${shLeft}sh`, 'wildWeasel', col.wildWeasel);
-    }
-    if (at('suicide-arm') && p.systems.shuttles) {   // J2.2211: 1-3 points/turn, three consecutive turns; warhead = 2 × energy
       const sa = (s.suicideArm && s.suicideArm.lastTurn >= clock.turn - 1) ? s.suicideArm : null;
-      const lab = sa ? (sa.turns >= 3 ? `SUICIDE ✓ W${Math.max(6, Math.min(18, 2 * sa.energy))}` : `SUICIDE ${sa.turns}/3`) : 'SUICIDE ARM';
-      h += stackCtl(at('suicide-arm')[0], at('suicide-arm')[1], `${lab} · ${shLeft}sh`, 'suicide', col.suicide || 0, shLeft > 0 ? 3 : 0);
+      h += shuttleCtl(at('shuttles')[0], at('shuttles')[1], {
+        inv: shLeft, bays: shuttleBaysOf(s), pw: (col.wildWeasel ? 1 : 0) + (col.suicide || 0),
+        ww: col.wildWeasel ? 1 : 0, wwMax: shLeft > 0 ? 1 : 0, wwStat: ww ? (ww.turns >= 2 ? '✓' : ww.turns + '/2') : '',
+        sui: col.suicide || 0, suiMax: shLeft > 0 ? 3 : 0, suiStat: sa ? (sa.turns >= 3 ? `✓W${Math.max(6, Math.min(18, 2 * sa.energy))}` : sa.turns + '/3') : '',
+      });
     }
     if (at('edr') && p.systems.labs && !hasCrit(s.criticals, 'labs')) h += stackCtl(at('edr')[0], at('edr')[1], 'EDR (labs)', 'edr', col.edr, sinkMax(p, 'edr'));
   } else {   // legacy layout: shields map + ordered bay slots + fixed system strip
@@ -1852,11 +1852,9 @@ epanel.addEventListener('click', e => {
     if (what === 'prox' && st.prox) { st.overload = false; st.armed = true; }
     render(); return; }
   const seg = e.target.closest('[data-ea="seg"]'); if (seg) { col[seg.dataset.key] = +seg.dataset.val; render(); return; }
-  const tg = e.target.closest('[data-ea="toggle"]'); if (tg) {
-    if (tg.dataset.key === 'wildWeasel' && !col.wildWeasel && shuttlesLeftOf(s) <= 0) { alert('No shuttle in the bay to charge as a wild weasel (J1.868).'); return; }
-    col[tg.dataset.key] = tg.dataset.num ? (col[tg.dataset.key] ? 0 : 1) : !col[tg.dataset.key]; render(); return; }
+  const tg = e.target.closest('[data-ea="toggle"]'); if (tg) { col[tg.dataset.key] = tg.dataset.num ? (col[tg.dataset.key] ? 0 : 1) : !col[tg.dataset.key]; render(); return; }
   const dct = e.target.closest('[data-ea="dctarget"]'); if (dct) { col.repairShield = ((col.repairShield || 0) + 1) % 7; render(); return; }   // D9.21: cycle the damage-control repair target (SYS / SH 1-6)
-  const stp = e.target.closest('[data-ea="step"]'); if (stp) { const k = stp.dataset.key, max = k === 'phaserCap' ? p.capacitorCap - carriedOf(s) : k === 'recharge' ? p.batteries - batteryOf(s) : (k === 'ecm' || k === 'eccm') ? ewFieldMax(sensorRating(s), col[k === 'ecm' ? 'eccm' : 'ecm'] || 0) : k === 'suicide' ? (shuttlesLeftOf(s) > 0 ? 3 : 0) : sinkMax(p, k); col[k] = Math.max(0, Math.min(max, (col[k] || 0) + (+stp.dataset.d))); render(); return; }   // D6.310: ECM+ECCM combined ≤ sensor rating
+  const stp = e.target.closest('[data-ea="step"]'); if (stp) { const k = stp.dataset.key, max = k === 'phaserCap' ? p.capacitorCap - carriedOf(s) : k === 'recharge' ? p.batteries - batteryOf(s) : (k === 'ecm' || k === 'eccm') ? ewFieldMax(sensorRating(s), col[k === 'ecm' ? 'eccm' : 'ecm'] || 0) : k === 'suicide' ? (shuttlesLeftOf(s) > 0 ? 3 : 0) : k === 'wildWeasel' ? (shuttlesLeftOf(s) > 0 ? 1 : 0) : sinkMax(p, k); col[k] = Math.max(0, Math.min(max, (col[k] || 0) + (+stp.dataset.d))); render(); return; }   // D6.310: ECM+ECCM combined ≤ sensor rating
   const sp = e.target.closest('[data-ea="specstep"]'); if (sp) { const n = +sp.dataset.shield, max = specReinfMax(p, n, shieldsNow(s)[n - 1]); col.specReinf[n] = Math.max(0, Math.min(max, (col.specReinf[n] || 0) + (+sp.dataset.d))); render(); return; }   // D3.343: a down shield can't be specific-reinforced (max 0)
 });
 function onEaInput(e) {   // range sliders: live-update value + header meter without rebuilding (would kill the drag)

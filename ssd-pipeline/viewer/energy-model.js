@@ -85,6 +85,7 @@ export function sinkMax(p, key) {
     case 'damageControl': return p.dcRating || (p.systems.damageControl || 0);// D9.21: ceiling = highest number on the DC track (the rating); fall back to intact-box count until captured (D14.13)
     case 'genReinf': return p.total + p.batteries;            // limited only by available power (D3.341)
     case 'suicide': return (p.systems.shuttles || 0) > 0 ? 3 : 0;   // J2.2211: 1-3 warp points/turn; J1.868: nothing to arm without a shuttle in the bay
+    case 'wildWeasel': return (p.systems.shuttles || 0) > 0 ? 1 : 0;   // J3.12: one point per turn charges the weasel (single track; J3.123 multiples backlogged)
     default: return p.total + p.batteries;
   }
 }

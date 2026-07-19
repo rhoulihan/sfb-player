@@ -216,7 +216,7 @@ import * as E from "./ssd-engine.js";
 import { shipPower } from "./energy-model.js";   // build the ship's power model → real control set for the EAF editor
 import { counterClassFor, counterSvg, counterOutlineFromBoxes, shipBodyBoxes } from "./ship-counter.js";   // ship map counter: preview + fallback outline
 import { COUNTER_ART } from "./ship-counter-art.js";
-import { ctl, capCtl, weaponCtl, segCtl, stackCtl, toggleCtl, shieldCtl, sysCtl, batteryCtl, ewCtl, ovDims, shieldOverlaySvg, ctlParts, applyCtlParts, applyCtlText } from "./eaf-controls.js";   // render the exact in-game controls + shared shield-overlay geometry + per-part offsets
+import { ctl, capCtl, weaponCtl, segCtl, stackCtl, toggleCtl, shuttleCtl, shieldCtl, sysCtl, batteryCtl, ewCtl, ovDims, shieldOverlaySvg, ctlParts, applyCtlParts, applyCtlText } from "./eaf-controls.js";   // render the exact in-game controls + shared shield-overlay geometry + per-part offsets
 const SVGNS="http://www.w3.org/2000/svg";
 const el=(t,a)=>{const e=document.createElementNS(SVGNS,t);for(const k in a)e.setAttribute(k,a[k]);return e;};
 let overlayOpacity=1;                 // 1 = fully opaque (uniform recolor); slider can lower to peek at labels
@@ -654,10 +654,8 @@ function eafControlList(p){ const L=[];
   L.push({id:"erratic",label:"Erratic (EM)",render:(x,y)=>toggleCtl(x,y,"ERRATIC","em",false)});
   L.push({id:"fc-passive",label:"FC Passive",render:(x,y)=>toggleCtl(x,y,"FC PASSIVE","fcPassive",false)});
   L.push({id:"emergency-decel",label:"Emergency Decel",render:(x,y)=>toggleCtl(x,y,"EMERG DECEL","emDecel",false)});   // C8.10: declared during impulse play from the console
-  if(p.systems.shuttles){   // J1.868: shuttle-arming controls only make sense on a ship with a shuttle bay
-    L.push({id:"ww-arm",label:"Weasel Arm",render:(x,y)=>toggleCtl(x,y,`WEASEL ${p.systems.shuttles}sh`,"wildWeasel",false)});   // J3.12: 1 point/turn × 2 consecutive turns
-    L.push({id:"suicide-arm",label:"Suicide Arm",render:(x,y)=>stackCtl(x,y,`SUICIDE ARM · ${p.systems.shuttles}sh`,"suicide",0,3)});   // J2.2211: 1-3 points/turn × 3 turns
-  }
+  if(p.systems.shuttles)   // J1.868: shuttle arming only makes sense on a ship with a shuttle bay
+    L.push({id:"shuttles",label:"Shuttle Bay",render:(x,y)=>shuttleCtl(x,y,{inv:p.systems.shuttles,bays:p.systems.shuttles,pw:0,ww:0,wwMax:1,wwStat:"",sui:0,suiMax:3,suiStat:""})});   // combined WW (J3.12) + suicide (J2.2211) arming counters
   if(p.systems.labs) L.push({id:"edr",label:"EDR (labs)",render:(x,y)=>stackCtl(x,y,"EDR (labs)","edr",0,p.systems.labs)});
   L.push({id:"repair-target",label:"Repair Target",render:(x,y)=>ctl(x,y,`<button data-ea="dctarget">🛠 SYS</button>`)});
   return L; }

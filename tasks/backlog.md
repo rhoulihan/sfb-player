@@ -28,7 +28,7 @@ Lower-priority polish. None block normal cruiser play.
 - [ ] **Extract EA control CSS** to a shared `eaf-panel.css`. **Deliberately deferred:** low value (DRY on ~25 lines that rarely change), the two copies intentionally differ (editor uses `cursor:grab` + `#eafArtWrap` scope; game uses `cursor:pointer`), and — decisively — the live game EA panel can't be visually regression-checked without standing up a full battle, so a blind extraction to the primary UI fails the "prove it works" bar. Do it when a live battle is up to screenshot-compare before/after.
 
 ## Suicide-shuttle variable arming energy — DONE 2026-07-18 (EAF shuttle-arming controls)
-- ~~Fixed 3 points/turn~~ → the EAF `suicide-arm` stepper now commits 0–3 points/turn (J2.2211) with the turn-4+ hold
+- ~~Fixed 3 points/turn~~ → the combined `shuttles` EAF control's SUI counter now commits 0–3 points/turn (J2.2211) with the turn-4+ hold
   (first point holds, extras keep arming to the 9-point cap, J2.2212). Remaining refinements:
   - [ ] **Half-point arming increments** (J2.2211 allows 1.0–3.0 in 0.5 steps; the stepper is integer-only — a legal subset).
   - [ ] **Reserve-power arming starts** — J2.2213 (suicide: reserve on any arming/hold turn) and J3.122 (weasel: reserve may

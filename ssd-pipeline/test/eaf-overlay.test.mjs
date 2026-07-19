@@ -108,3 +108,19 @@ test('applyCtlText overrides part text by index (custom labels), leaving others 
   applyCtlText(node, null);   // no overrides → no-op
   assert.equal(lab.textContent, 'REINFORCE');
 });
+
+test('shuttleCtl: one control set — inventory header, power summary, WW + SUI counters with arming status', async () => {
+  const { shuttleCtl } = await import('../viewer/eaf-controls.js');
+  const h = shuttleCtl(40, 90, { inv: 3, bays: 4, pw: 4, ww: 1, wwMax: 1, wwStat: '1/2', sui: 3, suiMax: 3, suiStat: '2/3' });
+  assert.match(h, /SHUTTLES 3\/4/, 'inventory summary');
+  assert.match(h, /⚡\s*4/, 'power allocation summary');
+  assert.match(h, /data-key="wildWeasel"/, 'WW stepper bound to the column');
+  assert.match(h, /data-key="suicide"/, 'suicide stepper bound to the column');
+  assert.match(h, /1\/2/, 'weasel arming status');
+  assert.match(h, /2\/3/, 'suicide arming status');
+  // at max, the + buttons disable; at 0, the − buttons disable
+  assert.equal((h.match(/data-d="1" disabled|data-d="1"[^>]*disabled/g) || []).length, 2, 'both + disabled at max');
+  const h0 = shuttleCtl(40, 90, { inv: 0, bays: 4, pw: 0, ww: 0, wwMax: 0, wwStat: '', sui: 0, suiMax: 0, suiStat: '' });
+  assert.match(h0, /SHUTTLES 0\/4/);
+  assert.equal((h0.match(/data-d="-1"[^>]*disabled/g) || []).length, 2, 'both − disabled at 0');
+});
