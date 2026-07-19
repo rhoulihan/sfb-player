@@ -611,7 +611,7 @@ async function boardingRaid(ship, enemy) {   // D7.8: hit-and-run raids — EACH
     if (res.partyLost) ship.bpLost = (ship.bpLost || 0) + 1;
     let box = null;
     if (res.systemDestroyed) {
-      const boxes = (enemy._ver.groups || []).filter(g => !['shield', 'excess-damage', 'markers', 'crew', 'rating-track', 'ammo-track', 'hull', 'damage-control'].includes(g.family)).flatMap(g => g.boxIds || []).filter(id => !enemy.status[id]);   // D7.823: no damage-control or excess-damage boxes
+      const boxes = (enemy._ver.groups || []).filter(g => !['shield', 'excess-damage', 'markers', 'crew', 'boarding-party', 'rating-track', 'ammo-track', 'hull', 'damage-control'].includes(g.family)).flatMap(g => g.boxIds || []).filter(id => !enemy.status[id]);   // D7.823/D7.826: no damage-control, excess-damage, crew, or boarding-party boxes
       box = boxes.length ? boxes[Math.floor(rng.next() * boxes.length)] : null;
       if (box) enemy.status[box] = 'destroyed';
     }
