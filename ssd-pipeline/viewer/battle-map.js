@@ -70,7 +70,7 @@ export function pathFrom(s, base, startSteps, targetHex) {
     tmp.course.steps.push(bestSlip ? { q: best.hex.q, r: best.hex.r, facing: best.facing, slip: true }
                                    : { q: best.hex.q, r: best.hex.r, facing: best.facing });
   }
-  return tmp.course.steps;
+  return tmp.course.steps.slice(0, impulseTimeline(speedPlotOf(s, base)).length);   // C1.32: never plot past impulse 32
 }
 
 // SVG overlay for the energy-phase planning map: plotted courses + impulse labels + speed-change markers
@@ -235,6 +235,30 @@ export function createBattleMap(ctx) {
     if (!(hex.q === s.q && hex.r === s.r)) { ui.ghosts[s.id] = { q: hex.q, r: hex.r, facing: s.facing }; ui.selectedGhost = s.id; joinFireGroup(s); }   // dropped elsewhere → ghost (a same-hex near-click release is a no-op)
     suppressClick = true; render();
   });
+  // small floating chooser at the click point: when a hex is reachable BOTH by a turn and a sideslip,
+  // the player picks the maneuver (Rick's rule); with only one legal option there is no prompt.
+  let manChooser = null;
+  const closeManChooser = () => { if (manChooser) { manChooser.remove(); manChooser = null; } };
+  function openManChooser(e, choices) {
+    closeManChooser();
+    const m = document.createElement('div');
+    m.style.cssText = 'position:fixed;background:#fff;border:1px solid #cbd5e1;border-radius:8px;box-shadow:0 8px 28px rgba(0,0,0,.25);z-index:80;font-size:13px;overflow:hidden;min-width:120px';
+    for (const ch of choices) {
+      const it = document.createElement('div');
+      it.textContent = ch.label;
+      it.style.cssText = 'padding:8px 14px;cursor:pointer;white-space:nowrap';
+      it.onmouseenter = () => { it.style.background = '#f1f5f9'; };
+      it.onmouseleave = () => { it.style.background = ''; };
+      it.onclick = ev => { ev.stopPropagation(); closeManChooser(); ch.apply(); };
+      m.appendChild(it);
+    }
+    m.style.left = Math.min(e.clientX + 4, innerWidth - 150) + 'px';
+    m.style.top = Math.min(e.clientY + 4, innerHeight - 40 * choices.length - 10) + 'px';
+    document.body.appendChild(m);
+    manChooser = m;
+    setTimeout(() => document.addEventListener('click', closeManChooser, { once: true }), 0);
+  }
+
   // energy phase clicks: plot courses (snap) / speed-change on a path hex / shift-click to measure range
   map.addEventListener('click', e => {
     if (suppressClick) { suppressClick = false; return; }   // a drag-sideslip just happened; don't also turn
@@ -246,10 +270,28 @@ export function createBattleMap(ctx) {
     if (hasGhosts()) return;   // nav plotting is blocked while a ghost what-if is open (fire-group + ghosting are not)
     if (ui.plotShipId && byId(ui.plotShipId)) {   // click a legal candidate hex → extend the course one step (drag re-routes; right-click a nav hex = speed change)
       const s = byId(ui.plotShipId), c = courseOf(s), cur = plotCursor(s, plotBase(s));
+      // click a hex already ON the plotted path → offer to re-plan the route from that point (Rick's rule)
+      const navIdx = navIdxAt(s, hex);
+      if (navIdx >= 0 && navIdx < c.steps.length - 1) {
+        if (ph !== 'energy' && navIdx < (s._autoIdx || 0)) return;   // executed steps are history — no rerouting behind the ship
+        if (confirm(`Re-plan ${s.id}'s route from this hex? The path after it is discarded.`)) {
+          const cutTl = impulseTimeline(speedPlotOf(s, plotBase(s)));
+          const cutImp = cutTl[navIdx] ? cutTl[navIdx].impulse : 33;
+          c.steps = c.steps.slice(0, navIdx + 1);
+          // EA phase: speed changes beyond the cut are re-planned too; impulse play: locked speed plots are immutable (C12.3)
+          if (ph === 'energy' && s.speedPlot) s.speedPlot.changes = (s.speedPlot.changes || []).filter(ch => ch.announceImpulse <= cutImp);
+          saveSoon(ui.plotShipId); render();
+        }
+        return;
+      }
+      if (!impulseTimeline(speedPlotOf(s, plotBase(s)))[c.steps.length]) return;   // C1.32: a plot cannot extend past impulse 32 (the turn's end)
       const step = tryStep(cur.pos, cur.facing, cur.speed, cur.hst, cur.slip, hex, cur.category);   // C3.3: turn-mode legality by ship category
-      if (step) { c.steps.push({ q: step.pos.q, r: step.pos.r, facing: step.facing }); saveSoon(ui.plotShipId); render(); return; }
-      const slip = cur.speed > 0 ? trySideslip(cur.pos, cur.facing, cur.hst, cur.slip, hex) : null;   // turn illegal → a click on a purple hex still sideslips
-      if (slip) { c.steps.push({ q: slip.pos.q, r: slip.pos.r, facing: slip.facing, slip: true }); saveSoon(ui.plotShipId); render(); }
+      const slip = cur.speed > 0 ? trySideslip(cur.pos, cur.facing, cur.hst, cur.slip, hex) : null;
+      const doTurn = step ? () => { c.steps.push({ q: step.pos.q, r: step.pos.r, facing: step.facing }); saveSoon(ui.plotShipId); render(); } : null;
+      const doSlip = slip ? () => { c.steps.push({ q: slip.pos.q, r: slip.pos.r, facing: slip.facing, slip: true }); saveSoon(ui.plotShipId); render(); } : null;
+      if (doTurn && doSlip && step.facing !== cur.facing) { openManChooser(e, [{ label: '↻ Turn', apply: doTurn }, { label: '⇢ Sideslip', apply: doSlip }]); return; }   // both maneuvers legal → the player picks
+      if (doTurn) { doTurn(); return; }
+      if (doSlip) doSlip();
     }
   });
   // impulse phase: drag a ship to move it (snaps to nearest hex); a plain click selects it
