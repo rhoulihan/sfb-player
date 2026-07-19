@@ -495,7 +495,7 @@ function launchWeasel(ship) {   // wild weasel (J3): a stationary decoy that div
   // J3.12/J3.121: the weasel must have been charged on the EAF — 1 point on each of two consecutive turns (the second
   // can be this turn), and the rolling delay maintained through the current turn. Reserve power may only BEGIN a charge
   // (J3.122), so there is no pay-at-launch path.
-  const ready = (ship.wwCharges || []).find(w => w.turns >= 2 && w.lastTurn === clock.turn);
+  const ready = (ship.wwCharges || []).find(w => w.turns >= 2 && w.lastTurn === clock.turn && (!w.startAt || impulsesSince(w.startAt, clock.turn, clock.impulse) >= 32));   // J3.122: no launch within 32 impulses of the charge start
   if (!ready) {
     alert((ship.wwCharges || []).length ? 'The wild weasel is still charging (turn 1 of 2, J3.12) — keep the WW point allocated next turn.'
             : 'No charged wild weasel — allocate WW points on the EAF (1 point/turn on two consecutive turns, J3.12/J3.121).');
@@ -1210,6 +1210,32 @@ async function postSeekerResult() {   // 6A4 (designated finisher): seekers adva
   pruneUnavailable(); render(); if (seqLog.length) renderLog({ log: seqLog }, true);
   await postRound('seekerResult', { ships: ships.map(s => ({ ...serializeShip(s), rev: shipRev[s.id] ?? 0 })), seekers, rngCursor });
 }
+const payReserveS = (ship, n) => { const src = (ship.reserveWarp || 0) >= n ? 'warp' : 'battery'; const np = spendReserve(ship.reserveWarp || 0, batteryOf(ship), n, src); ship.reserveWarp = np.reserveWarp; ship.batteryCharge = np.battery; };
+function reserveArm(ship, key) {   // impulse-play reserve arming: J2.2213 (suicide — begin, feed, or top up any turn) / J3.122 (weasel — BEGIN only)
+  if (reservePoolS(ship) < 1) { alert('No reserve/battery power available (H7).'); return; }
+  if (key === 'suicide') {
+    const arm = ship.suicideArm;
+    if (arm && arm.lastTurn === clock.turn) {   // top up this turn's bank
+      if ((arm.addedThisTurn || 0) >= 3) { alert('No more than 3 points of arming energy per turn (J2.2211).'); return; }
+      if (arm.energy >= 9) { alert('A suicide shuttle holds at most 9 points total (J2.2212).'); return; }
+      payReserveS(ship, 1); arm.energy = Math.min(9, arm.energy + 1); arm.addedThisTurn = (arm.addedThisTurn || 0) + 1;
+    } else if (arm && arm.lastTurn === clock.turn - 1) {   // J2.2213: reserve provides this turn's feed (continuing or holding)
+      const holding = arm.turns >= 3;
+      payReserveS(ship, 1);
+      ship.suicideArm = { turns: arm.turns + 1, energy: holding ? arm.energy : Math.min(9, arm.energy + 1), lastTurn: clock.turn, addedThisTurn: 1 };
+    } else {
+      if (shuttlesLeftOf(ship) <= 0) { alert('No shuttle in the bay to arm (J1.868).'); return; }
+      payReserveS(ship, 1);
+      ship.suicideArm = { turns: 1, energy: 1, lastTurn: clock.turn, addedThisTurn: 1 };   // J2.2213: reserve BEGINS the arming cycle mid-turn
+    }
+  } else {   // wild weasel: reserve may only BEGIN a charge (J3.122); later turns are EAF-fed
+    const tracks = ship.wwCharges || (ship.wwCharges = []);
+    if (tracks.filter(w => w.lastTurn >= clock.turn - 1).length >= shuttlesLeftOf(ship)) { alert('No free shuttle in the bay for another weasel charge (J1.868/J3.123).'); return; }
+    payReserveS(ship, 1);
+    tracks.push({ turns: 1, lastTurn: clock.turn, startAt: { turn: clock.turn, impulse: clock.impulse } });   // ready no sooner than 32 impulses from here (J3.122)
+  }
+  saveSoon(ship.id); render();
+}
 async function autoCommitEmpty() {   // B2.4: a fleet that declared no fire auto-commits an empty plan so the exchange can resolve
   myCommitted = true; render();
   try {
@@ -1776,7 +1802,7 @@ function renderEnergy() {
         inv: shLeft, bays: shuttleBaysOf(s), pw: (+col.wildWeasel || 0) + (col.suicide || 0),   // J3.123: each charging weasel costs its point
         ww: +col.wildWeasel || 0, wwMax: Math.min(shLeft, sinkMax(p, 'wildWeasel')), wwStat: [wwReady ? '✓' + (wwReady > 1 ? '×' + wwReady : '') : '', wwMid ? wwMid + '·1/2' : ''].filter(Boolean).join(' '),
         sui: col.suicide || 0, suiMax: shLeft > 0 ? 3 : 0, suiStat: sa ? (sa.turns >= 3 ? `✓W${Math.max(6, Math.min(18, 2 * sa.energy))}` : sa.turns + '/3') : '',
-        wwLaunch: launchOk && (s.wwCharges || []).some(w => w.turns >= 2 && w.lastTurn === clock.turn) && !hasActiveWeasel(s),   // J3.12 charged + J3.116 one active weasel
+        wwLaunch: launchOk && (s.wwCharges || []).some(w => w.turns >= 2 && w.lastTurn === clock.turn && (!w.startAt || impulsesSince(w.startAt, clock.turn, clock.impulse) >= 32)) && !hasActiveWeasel(s),   // J3.12 charged + J3.122 ≥32 impulses since charging began + J3.116 one active weasel
         suiLaunch: launchOk && sa && sa.turns >= 3 && sa.lastTurn === clock.turn,                          // J2.2211 armed through this turn
         variant: at('shuttles')[2] | 0,   // authored layout shape: 0 default / 1 wide / 2 tall
         mode: (ui.shutMode || {})[s.id] || 'ww',   // compact variants: which shuttle type the shared stepper/launch drive
@@ -2063,6 +2089,11 @@ epanel.addEventListener('click', e => {
   if (edc) { const s2 = ui.eaSelected ? byId(ui.eaSelected) : null; if (s2 && isMine(s2)) emergencyDecel(s2); return; }
   const smb = e.target.closest('[data-ea="shmode"]');   // compact shuttle control: WW/SUI mode toggle is view state, live in every phase
   if (smb) { const s2 = ui.eaSelected ? byId(ui.eaSelected) : null; if (s2) { (ui.shutMode = ui.shutMode || {})[s2.id] = smb.dataset.mode; render(); } return; }
+  const rstep = e.target.closest('[data-ea="step"]');   // impulse play: the shuttle control's + spends RESERVE into the arming banks (J2.2213 / J3.122)
+  if (rstep && ui.viewEA && getPhase() === 'impulse' && (rstep.dataset.key === 'suicide' || rstep.dataset.key === 'wildWeasel') && +rstep.dataset.d > 0) {
+    const s2 = ui.eaSelected ? byId(ui.eaSelected) : null; if (s2 && isMine(s2)) reserveArm(s2, rstep.dataset.key);
+    return;
+  }
   const shl = e.target.closest('[data-ea="shlaunch"]');   // shuttle-bay launch buttons work in the read-only view too (impulse-play actions)
   if (shl) {
     const s2 = ui.eaSelected ? byId(ui.eaSelected) : null; if (!s2 || !isMine(s2)) return;
@@ -2140,14 +2171,15 @@ async function resolveEnergy(allEaf) {                        // fold each locke
     { const sAll = +ts.suicide || 0, prevSA = (s.suicideArm && s.suicideArm.lastTurn === clock.turn - 1) ? s.suicideArm : null;
       if (sAll > 0 && shuttlesLeftOf(s) > 0) {
         const holding = prevSA && prevSA.turns >= 3;
-        s.suicideArm = { turns: (prevSA ? prevSA.turns : 0) + 1, energy: Math.min(9, (prevSA ? prevSA.energy : 0) + (holding ? sAll - 1 : sAll)), lastTurn: clock.turn };
-      } else s.suicideArm = null;
+        s.suicideArm = { turns: (prevSA ? prevSA.turns : 0) + 1, energy: Math.min(9, (prevSA ? prevSA.energy : 0) + (holding ? sAll - 1 : sAll)), lastTurn: clock.turn, addedThisTurn: sAll };
+      } else if (prevSA) s.suicideArm = prevSA;   // not fed by the EAF — reserve may still feed it during impulse play (J2.2213); still unfed at the next fold → discarded (J2.2211)
+      else s.suicideArm = null;
       // J3.12/J3.121/J3.123: each allocated point feeds one weasel track for the turn (most-advanced first);
       // unfed tracks lapse (energy lost), extra points start new charges. Any number may charge at once.
       { const alloc = Math.min(+ts.wildWeasel || 0, shuttlesLeftOf(s));
         const prevW = (s.wwCharges || (s.wwArm ? [s.wwArm] : [])).filter(w => w.lastTurn === clock.turn - 1).sort((a, b) => b.turns - a.turns);
-        const fed = prevW.slice(0, alloc).map(w => ({ turns: w.turns + 1, lastTurn: clock.turn }));
-        while (fed.length < alloc) fed.push({ turns: 1, lastTurn: clock.turn });
+        const fed = prevW.slice(0, alloc).map(w => ({ turns: w.turns + 1, lastTurn: clock.turn, startAt: w.startAt }));
+        while (fed.length < alloc) fed.push({ turns: 1, lastTurn: clock.turn, startAt: { turn: clock.turn, impulse: 1 } });
         s.wwCharges = fed; s.wwArm = null; } }
     // movement: the plotted speed schedule (base + mid-turn changes) drives execution; no plot → constant speed
     s.speedPlot = s.speedPlot ? { base: s.speedPlot.base, changes: s.speedPlot.changes } : { base: ts.speed, changes: [] };
