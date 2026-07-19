@@ -59,3 +59,5 @@ Lower-priority polish. None block normal cruiser play.
 - [ ] **Annex #2 exact 6B activity sub-order**: the OCR'd rulebook text lacks Annex #2 (the expanded Sequence of Play).
   The impulse engine maps B2.3's activity list onto the 6B1–6B8 slots; refine the in-segment ordering when Rick supplies
   Annex #2. Also future: per-segment pacing (faster poll cadence while a round is mid-flight) if multiplayer feels slow.
+- [ ] **Capture boarding-party boxes at SSD verification**: no verified.json currently has a `boarding-party` group, so
+  `bpLeftOf` falls back to a default complement of 4. Add the family to the verify overlay so verification owns the count.

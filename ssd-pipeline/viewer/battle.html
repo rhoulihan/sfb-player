@@ -580,7 +580,11 @@ function raidSourceFor(t) {
   if (!t || isMine(t) || !s || !isMine(s) || isDead(s) || s.cloaked || hasCrit(s.criticals, 'transporter')) return null;
   return (hexDistance(s, t) <= TRANSPORTER_RANGE && !(shieldsNow(t)[exposedShield(s, t) - 1] > 0)) ? s : null;
 }
-const bpLeftOf = s => Math.max(0, (s._ver.groups || []).filter(g => g.family === 'boarding-party').reduce((n, g) => n + (g.boxIds || []).length, 0) - (s.bpLost || 0));   // D7.2: parties lost on raids are gone for the scenario
+const bpLeftOf = s => {   // D7.2: parties lost on raids are gone for the scenario. SSDs whose verification has not yet
+  // captured boarding-party boxes fall back to a standard cruiser complement of 4 (verification owns the real count).
+  const total = (s._ver.groups || []).filter(g => g.family === 'boarding-party').reduce((n, g) => n + (g.boxIds || []).length, 0);
+  return Math.max(0, (total || 4) - (s.bpLost || 0));
+};
 async function boardingRaid(ship, enemy) {   // D7.8: hit-and-run raids — EACH committed boarding party rolls the D7.81 chart, needing its own transporter
   if (!ship) return;
   if (ship.cloaked) { alert('A cloaked ship cannot use transporters (G13.51).'); return; }
@@ -1361,6 +1365,25 @@ function renderRoundStatus(ph) {   // header chip: where the round rests and who
   const sd = document.getElementById('segDoneBtn'); if (sd) sd.onclick = async () => { await postRound('segDone', { seg: '6B' }); driveRound(); };
   const wk = document.getElementById('wakeBtn'); if (wk) wk.onclick = () => { myIdle = null; renderRoundStatus(ph); };
 }
+// gray out declarations the fleet cannot actually perform: the system must be powered NOW, or some
+// ship must hold the reserve/battery power to power it reactively (H7.2). Items absent from the map stay enabled.
+function intentFeasibility(fleet) {
+  const fs = ships.filter(s => s.side === fleet && !isDead(s));
+  const any = f => fs.some(f);
+  const transOk = s => !hasCrit(s.criticals, 'transporter') && !s.cloaked && (s._ver.groups || []).some(g => g.family === 'transporter' && (g.boxIds || []).some(id => !s.status[id]));
+  return {
+    fire: any(s => (s.mounts || []).some(m => isCharged(s, m.id, m.cls)) || ((s.mounts || []).some(m => isPhaser(m.cls)) && ((s.capacitor || 0) >= 0.5 || reservePoolS(s) >= 1))),   // charged mounts, or phasers fundable through the capacitor (H6.22)
+    drones: any(s => dronesLaunchableOf(s) > 0 && dronesLeftOf(s) > 0),
+    plasma: any(s => plasmaReadyOf(s).length > 0 || plasmaCompletableOf(s).some(g => reservePoolS(s) >= reserveCompletionCost(plasmaClsOf(g.type)))),   // armed, or reserve-completable (FP1.91)
+    shuttles: any(s => shuttlesLeftOf(s) > 0),
+    transporters: any(s => transOk(s) && reservePoolS(s) >= 1),   // G8.13: each operation needs a point
+    mines: any(s => !s.cloaked),
+    tractors: any(s => (powerOf(s).systems.tractor || 0) > 0 && ((s.tractorPower || 0) > 0 || reservePoolS(s) >= 1)),   // allocated or reserve-fundable (G7.411)
+    boarding: any(s => bpLeftOf(s) > 0 && transOk(s) && reservePoolS(s) >= 1),   // D7.8: parties + a transporter operation
+    het: any(s => !hasCrit(s.criticals, 'maneuver') && (s.reserveWarp || 0) >= HET_ENERGY),   // C6.21/H7.42: reserve WARP only
+    decel: any(s => s.speed > 0 || s.speedPlot),   // C8.21: decel can only STOP a moving ship
+  };
+}
 const INTENT_ITEMS = [
   ['fire', '🔥 Direct fire (6D)'], null,
   ['drones', '🚀 Launch drones'], ['plasma', '☄ Launch plasma'], ['shuttles', '🛰 Shuttle ops (admin / suicide / weasel / scatter)'],
@@ -1371,11 +1394,14 @@ function openIntentModal(fleetsToAsk) {   // B2.4 checklist, grouped by segment;
   const m = document.getElementById('intentModal');
   if (m.style.display === 'flex') return;
   document.getElementById('intentTitle').textContent = `Turn ${clock.turn} · Impulse ${clock.impulse}${settings.solo ? ' (next)' : ''} — declare intentions`;
-  document.getElementById('intentBody').innerHTML = fleetsToAsk.map(f =>
-    `<div style="flex:1;min-width:200px"><div style="font-weight:700;color:${f === 'friendly' ? '#2563eb' : '#C74634'};margin-bottom:4px">${(fleets[f] || {}).name || f}</div>` +
-    INTENT_ITEMS.map(it => it
-      ? `<label style="display:flex;gap:6px;align-items:center;font-size:13px;padding:2px 0;cursor:pointer"><input type="checkbox" data-fleet="${f}" data-k="${it[0]}"> ${it[1]}</label>`
-      : '<div style="border-top:1px solid #eef2f6;margin:5px 0"></div>').join('') + '</div>').join('');
+  document.getElementById('intentBody').innerHTML = fleetsToAsk.map(f => {
+    const feas = intentFeasibility(f);
+    return `<div style="flex:1;min-width:200px"><div style="font-weight:700;color:${f === 'friendly' ? '#2563eb' : '#C74634'};margin-bottom:4px">${(fleets[f] || {}).name || f}</div>` +
+    INTENT_ITEMS.map(it => {
+      if (!it) return '<div style="border-top:1px solid #eef2f6;margin:5px 0"></div>';
+      const ok = feas[it[0]] !== false;   // unknown keys stay enabled
+      return `<label style="display:flex;gap:6px;align-items:center;font-size:13px;padding:2px 0;${ok ? 'cursor:pointer' : 'color:#94a3b8;cursor:not-allowed'}"${ok ? '' : ' title="no ship in this fleet has the system powered, nor the reserve/battery power to power it (H7)"'}><input type="checkbox" data-fleet="${f}" data-k="${it[0]}"${ok ? '' : ' disabled'}> ${it[1]}</label>`;
+    }).join('') + '</div>'; }).join('');
   m.dataset.fleets = fleetsToAsk.join(',');
   document.querySelector('input[name="intIdle"][value="0"]').checked = true;
   m.style.display = 'flex';
