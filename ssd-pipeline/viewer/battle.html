@@ -1570,6 +1570,7 @@ function renderEnergy() {
         sui: col.suicide || 0, suiMax: shLeft > 0 ? 3 : 0, suiStat: sa ? (sa.turns >= 3 ? `✓W${Math.max(6, Math.min(18, 2 * sa.energy))}` : sa.turns + '/3') : '',
         wwLaunch: launchOk && ww && ww.turns >= 2 && ww.lastTurn === clock.turn && !hasActiveWeasel(s),   // J3.12 charged + J3.116 one active weasel
         suiLaunch: launchOk && sa && sa.turns >= 3 && sa.lastTurn === clock.turn,                          // J2.2211 armed through this turn
+        variant: at('shuttles')[2] | 0,   // authored layout shape: 0 default / 1 wide / 2 tall
       });
     }
     if (at('edr') && p.systems.labs && !hasCrit(s.criticals, 'labs')) h += stackCtl(at('edr')[0], at('edr')[1], 'EDR (labs)', 'edr', col.edr, sinkMax(p, 'edr'));

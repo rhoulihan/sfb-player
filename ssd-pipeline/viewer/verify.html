@@ -655,7 +655,7 @@ function eafControlList(p){ const L=[];
   L.push({id:"fc-passive",label:"FC Passive",render:(x,y)=>toggleCtl(x,y,"FC PASSIVE","fcPassive",false)});
   L.push({id:"emergency-decel",label:"Emergency Decel",render:(x,y)=>toggleCtl(x,y,"EMERG DECEL","emDecel",false)});   // C8.10: declared during impulse play from the console
   if(p.systems.shuttles)   // J1.868: shuttle arming only makes sense on a ship with a shuttle bay
-    L.push({id:"shuttles",label:"Shuttle Bay",render:(x,y)=>shuttleCtl(x,y,{inv:p.systems.shuttles,bays:p.systems.shuttles,pw:0,ww:0,wwMax:1,wwStat:"",sui:0,suiMax:3,suiStat:""})});   // combined WW (J3.12) + suicide (J2.2211) arming counters
+    L.push({id:"shuttles",label:"Shuttle Bay",render:(x,y,v)=>shuttleCtl(x,y,{inv:p.systems.shuttles,bays:p.systems.shuttles,pw:0,ww:0,wwMax:1,wwStat:"",sui:0,suiMax:3,suiStat:"",variant:v|0})});   // combined WW (J3.12) + suicide (J2.2211) arming counters; [2] = layout variant (0 default / 1 wide / 2 tall)
   if(p.systems.labs) L.push({id:"edr",label:"EDR (labs)",render:(x,y)=>stackCtl(x,y,"EDR (labs)","edr",0,p.systems.labs)});
   L.push({id:"repair-target",label:"Repair Target",render:(x,y)=>ctl(x,y,`<button data-ea="dctarget">🛠 SYS</button>`)});
   return L; }
@@ -780,7 +780,7 @@ document.getElementById("ceApply").onclick=()=>{ if(!ceCid||!editLayout)return; 
   const x=+Math.max(0,Math.min(100,num("ceX"))).toFixed(1), y=+Math.max(0,Math.min(100,num("ceY"))).toFixed(1);
   if(/^shield-ov-/.test(ceCid))
     editLayout.controls[ceCid]=[x,y,((Math.round(num("ceDeg"))%360)+360)%360,Math.max(4,Math.round(num("ceLen"))),Math.max(4,Math.round(num("ceWid"))),+document.getElementById("ceShape").value,Math.max(-90,Math.min(90,Math.round(num("ceTaper"))))];
-  else editLayout.controls[ceCid]=[x,y];
+  else { const q0=editLayout.controls[ceCid]||[]; editLayout.controls[ceCid]=[x,y,...q0.slice(2)]; }   // keep trailing config (e.g. the shuttle control's layout variant)
   document.getElementById("ctlEditModal").classList.remove("open");
   renderEafEditor(); };
 document.getElementById("eafPalette").addEventListener("dblclick",e=>{ const pal=e.target.closest(".pal"); if(pal)openCtlEdit(pal.dataset.cid); });
@@ -817,12 +817,15 @@ document.addEventListener("keydown",e=>{ if(!document.getElementById("eafModal")
 function openEafCtx(cid,x,y){ const open=eafPartsOpen.has(cid), isOv=/^shield-ov-/.test(cid);
   const c=eafControlList(eafPowerModel()).find(x2=>x2.id===cid), label=c?c.label:cid;
   const m=document.getElementById("eafCtx");
+  const curV=cid==="shuttles"?((editLayout.controls[cid]||[])[2]|0):null;   // shuttle control: layout variant lives in [2]
   m.innerHTML=`<div style="padding:7px 12px;background:#f1f5f9;color:#64748b;font-size:11px">${label}</div>`+
     (isOv?`<div style="padding:9px 12px;color:#94a3b8;font-size:12px">no separable parts</div>`
-    :`<div id="eafCtxLock" style="padding:9px 12px;cursor:pointer">${open?"🔒 Lock parts":"🔓 Unlock parts"}<div style="font-size:10px;color:#94a3b8">${open?"the set moves as one again (offsets kept)":"drag the label / counters / ± buttons individually"}</div></div>`);
+    :`<div id="eafCtxLock" style="padding:9px 12px;cursor:pointer">${open?"🔒 Lock parts":"🔓 Unlock parts"}<div style="font-size:10px;color:#94a3b8">${open?"the set moves as one again (offsets kept)":"drag the label / counters / ± buttons individually"}</div></div>`)+
+    (curV===null?"":["Default","Wide","Tall"].map((n,i)=>`<div class="eafCtxVar" data-v="${i}" style="padding:8px 12px;cursor:pointer;border-top:${i?"0":"1px solid #eef2f6"}">${i===curV?"✓ ":"&nbsp;&nbsp;&nbsp;"}Layout: ${n}</div>`).join(""));
   m.style.display="block"; m.style.left=Math.min(x,innerWidth-220)+"px"; m.style.top=Math.min(y,innerHeight-90)+"px";
   const it=document.getElementById("eafCtxLock");
-  if(it)it.onclick=()=>{ if(open)eafPartsOpen.delete(cid); else eafPartsOpen.add(cid); m.style.display="none"; renderEafEditor(); }; }
+  if(it)it.onclick=()=>{ if(open)eafPartsOpen.delete(cid); else eafPartsOpen.add(cid); m.style.display="none"; renderEafEditor(); };
+  m.querySelectorAll(".eafCtxVar").forEach(el=>el.onclick=()=>{ pushUndo(null); const q=editLayout.controls[cid]; editLayout.controls[cid]=[q[0],q[1],+el.dataset.v]; m.style.display="none"; renderEafEditor(); }); }
 document.addEventListener("click",()=>{ const m=document.getElementById("eafCtx"); if(m)m.style.display="none"; });
 
 // ---- selection model: click selects, Shift-click adds/toggles, drag moves the whole selection, arrows nudge,

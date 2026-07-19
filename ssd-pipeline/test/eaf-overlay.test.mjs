@@ -129,4 +129,16 @@ test('shuttleCtl: one control set — inventory header, power summary, WW + SUI 
   assert.equal((h0.match(/data-ea="shlaunch"[^>]*disabled/g) || []).length, 2, 'both launches disabled when nothing is armed');
   const hl = shuttleCtl(40, 90, { inv: 2, bays: 4, pw: 0, ww: 0, wwMax: 1, wwStat: '✓', sui: 0, suiMax: 3, suiStat: '✓W18', wwLaunch: true, suiLaunch: true });
   assert.equal((hl.match(/data-ea="shlaunch"[^>]*disabled/g) || []).length, 0, 'armed + legal → both launches enabled');
+  // layout variants: 0 = default (two counter rows), 1 = wide (everything on one row), 2 = tall (narrow stack)
+  const o = { inv: 3, bays: 4, pw: 4, ww: 1, wwMax: 1, wwStat: '1/2', sui: 3, suiMax: 3, suiStat: '2/3' };
+  const rows = s => (s.match(/class="row"/g) || []).length;
+  assert.equal(rows(shuttleCtl(0, 0, o)), 2, 'default: two counter rows');
+  const wide = shuttleCtl(0, 0, { ...o, variant: 1 });
+  assert.equal(rows(wide), 1, 'wide: a single flat row');
+  assert.ok(/data-key="wildWeasel"/.test(wide) && /data-key="suicide"/.test(wide) && (wide.match(/data-ea="shlaunch"/g) || []).length === 2, 'wide keeps both counters and launches');
+  const tall = shuttleCtl(0, 0, { ...o, variant: 2 });
+  assert.equal(rows(tall), 2, 'tall: one narrow row per counter');
+  assert.match(tall, /<div class="lab">SHUTTLES<\/div>/, 'tall: header split onto its own narrow lines');
+  assert.ok(/data-key="wildWeasel"/.test(tall) && /data-key="suicide"/.test(tall) && (tall.match(/data-ea="shlaunch"/g) || []).length === 2, 'tall keeps both counters and launches');
+  assert.match(tall, /SHUTTLES/, 'inventory still shown');
 });
