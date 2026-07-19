@@ -27,10 +27,15 @@ Lower-priority polish. None block normal cruiser play.
 - [ ] **Full D22 energy-balance engine** (Rick-flagged, large) — general mid-turn power-loss reallocation for *any* damage. D22.0 is an *optional* rule ("greater realism at considerable cost in complexity"). The warp-crit slice (D8.23) is done; the general engine is a multi-part feature: classify every expenditure as expended/available/operating (D22.11 incremental / D22.12 instantaneous / D22.13 continuous); two-phase shortage resolution — warp shortage first (D22.2, steps A–G) then general shortage (D22.3/D22.4); phaser-capacitor accounting (D22.15); power-shedding priority chain (cancel accel/HET/EM → stop arming → slow down, D22.27/D22.52); plus UI to prompt/auto-shed. **Warrants a design + Rick's buy-in before building — not a blind autonomous build (would over-engineer an optional rule).** Rules read & scoped 2026-07-09.
 - [ ] **Extract EA control CSS** to a shared `eaf-panel.css`. **Deliberately deferred:** low value (DRY on ~25 lines that rarely change), the two copies intentionally differ (editor uses `cursor:grab` + `#eafArtWrap` scope; game uses `cursor:pointer`), and — decisively — the live game EA panel can't be visually regression-checked without standing up a full battle, so a blind extraction to the primary UI fails the "prove it works" bar. Do it when a live battle is up to screenshot-compare before/after.
 
-## Suicide-shuttle variable arming energy (from J2.221 fix)
-- The suicide-shuttle arming (J2.2211) currently applies a fixed 3 warp points per turn (→ max warhead 18). Add an EAF
-  slider so the player can commit 1–3 points per turn (half-point increments) for a genuinely variable warhead (2×energy,
-  min 6 / max 18), plus the 1-point/turn hold cost after the third turn (J2.2212). Requires EAF UI + energy accounting.
+## Suicide-shuttle variable arming energy — DONE 2026-07-18 (EAF shuttle-arming controls)
+- ~~Fixed 3 points/turn~~ → the EAF `suicide-arm` stepper now commits 0–3 points/turn (J2.2211) with the turn-4+ hold
+  (first point holds, extras keep arming to the 9-point cap, J2.2212). Remaining refinements:
+  - [ ] **Half-point arming increments** (J2.2211 allows 1.0–3.0 in 0.5 steps; the stepper is integer-only — a legal subset).
+  - [ ] **Reserve-power arming starts** — J2.2213 (suicide: reserve on any arming/hold turn) and J3.122 (weasel: reserve may
+    BEGIN a charge, then EAF-only, 32-impulse minimum before launch). Currently EAF-allocation-only.
+  - [ ] **Multiple simultaneous weasel charges** (J3.123) — one `wwArm` track per ship today.
+  - [ ] **Shuttle recovery restoring inventory** (J1.86x) — `shuttlesGone` only ever grows; recovered/landed shuttles
+    should decrement it (needs a recovery flow first).
 
 ## Boarding-party count (from D7/D15 fix)
 - A hit-and-run raid currently commits a single boarding party per transporter. Add a control to choose HOW MANY boarding
