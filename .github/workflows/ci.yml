@@ -13,6 +13,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Install serve.py dependencies
+        run: pip install numpy pillow scipy   # the energy-server integration test spawns ssd-pipeline/serve.py
       - name: Run test suite
         run: node --test ssd-pipeline/test/*.mjs
       - name: Syntax-check viewer module scripts
