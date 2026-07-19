@@ -1563,10 +1563,13 @@ function renderEnergy() {
       const shLeft = shuttlesLeftOf(s);   // J1.868: shuttle-arming allocations need a shuttle in the bay
       const ww = (s.wwArm && s.wwArm.lastTurn >= clock.turn - 1) ? s.wwArm : null;
       const sa = (s.suicideArm && s.suicideArm.lastTurn >= clock.turn - 1) ? s.suicideArm : null;
+      const launchOk = getPhase() !== 'energy' && shLeft > 0 && isMine(s);   // seeking-weapon launch is movement-phase only
       h += shuttleCtl(at('shuttles')[0], at('shuttles')[1], {
         inv: shLeft, bays: shuttleBaysOf(s), pw: (col.wildWeasel ? 1 : 0) + (col.suicide || 0),
         ww: col.wildWeasel ? 1 : 0, wwMax: shLeft > 0 ? 1 : 0, wwStat: ww ? (ww.turns >= 2 ? '✓' : ww.turns + '/2') : '',
         sui: col.suicide || 0, suiMax: shLeft > 0 ? 3 : 0, suiStat: sa ? (sa.turns >= 3 ? `✓W${Math.max(6, Math.min(18, 2 * sa.energy))}` : sa.turns + '/3') : '',
+        wwLaunch: launchOk && ww && ww.turns >= 2 && ww.lastTurn === clock.turn && !hasActiveWeasel(s),   // J3.12 charged + J3.116 one active weasel
+        suiLaunch: launchOk && sa && sa.turns >= 3 && sa.lastTurn === clock.turn,                          // J2.2211 armed through this turn
       });
     }
     if (at('edr') && p.systems.labs && !hasCrit(s.criticals, 'labs')) h += stackCtl(at('edr')[0], at('edr')[1], 'EDR (labs)', 'edr', col.edr, sinkMax(p, 'edr'));
@@ -1843,6 +1846,17 @@ epanel.addEventListener('click', e => {
   const tab = e.target.closest('[data-eatab]'); if (tab) { ui.eaSelected = ui.plotShipId = tab.dataset.eatab; render(); return; }
   const edc = e.target.closest('[data-ea="toggle"][data-key="emDecel"]');   // C8.10: emergency decel is an impulse-play declaration, usable even in the read-only EA view
   if (edc) { const s2 = ui.eaSelected ? byId(ui.eaSelected) : null; if (s2 && isMine(s2)) emergencyDecel(s2); return; }
+  const shl = e.target.closest('[data-ea="shlaunch"]');   // shuttle-bay launch buttons work in the read-only view too (impulse-play actions)
+  if (shl) {
+    const s2 = ui.eaSelected ? byId(ui.eaSelected) : null; if (!s2 || !isMine(s2)) return;
+    if (shl.dataset.kind === 'ww') launchWeasel(s2);
+    else {   // the suicide shuttle launches at the drone-targeting target: the working attack group's target ship
+      const g = working(), t = g && g.targetShipId ? byId(g.targetShipId) : null;
+      if (!t) alert('No target selected — click an enemy ship to set the attack-group target (same as launching a drone), then launch.');
+      else launchShuttle(s2, t);
+    }
+    return;
+  }
   if (ui.viewEA) return;   // read-only EA view (battle) — no allocation changes
   if (e.target.id === 'epAuto') { const s = byId(ui.eaSelected); if (s) { s.autopilot = !s.autopilot; s._autoIdx = 0; saveSoon(s.id); render(); } return; }
   if (myLockedEnergy) return; const s = byId(ui.eaSelected); if (!s) return; const p = powerOf(s), col = eaColOf(s);

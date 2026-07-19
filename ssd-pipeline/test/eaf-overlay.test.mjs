@@ -123,4 +123,10 @@ test('shuttleCtl: one control set — inventory header, power summary, WW + SUI 
   const h0 = shuttleCtl(40, 90, { inv: 0, bays: 4, pw: 0, ww: 0, wwMax: 0, wwStat: '', sui: 0, suiMax: 0, suiStat: '' });
   assert.match(h0, /SHUTTLES 0\/4/);
   assert.equal((h0.match(/data-d="-1"[^>]*disabled/g) || []).length, 2, 'both − disabled at 0');
+  // launch buttons: one per row, disabled until the arming is complete and launch is legal
+  assert.equal((h0.match(/data-ea="shlaunch"/g) || []).length, 2, 'a launch button on each row');
+  assert.match(h0, /data-kind="ww"/); assert.match(h0, /data-kind="sui"/);
+  assert.equal((h0.match(/data-ea="shlaunch"[^>]*disabled/g) || []).length, 2, 'both launches disabled when nothing is armed');
+  const hl = shuttleCtl(40, 90, { inv: 2, bays: 4, pw: 0, ww: 0, wwMax: 1, wwStat: '✓', sui: 0, suiMax: 3, suiStat: '✓W18', wwLaunch: true, suiLaunch: true });
+  assert.equal((hl.match(/data-ea="shlaunch"[^>]*disabled/g) || []).length, 0, 'armed + legal → both launches enabled');
 });
