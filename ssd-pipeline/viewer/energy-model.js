@@ -86,7 +86,7 @@ export function sinkMax(p, key) {
     case 'damageControl': return p.dcRating || (p.systems.damageControl || 0);// D9.21: ceiling = highest number on the DC track (the rating); fall back to intact-box count until captured (D14.13)
     case 'genReinf': return p.total + p.batteries;            // limited only by available power (D3.341)
     case 'suicide': return (p.systems.shuttles || 0) > 0 ? 3 : 0;   // J2.2211: 1-3 warp points/turn; J1.868: nothing to arm without a shuttle in the bay
-    case 'wildWeasel': return (p.systems.shuttles || 0) > 0 ? 1 : 0;   // J3.12: one point per turn charges the weasel (single track; J3.123 multiples backlogged)
+    case 'wildWeasel': return p.systems.shuttles || 0;   // J3.12 × J3.123: one point per charging weasel, any number at once (capped by bay shuttles)
     default: return p.total + p.batteries;
   }
 }
@@ -160,7 +160,7 @@ export function validateEaf(power, column, carried = 0, batteryCharge = power.ba
     + column.damageControl + column.recharge + (column.reserveWarp || 0) + column.tractor + column.transporter
     + column.ecm + column.eccm + column.labs
     + (column.em ? 6 * power.moveCost : 0) + (column.edr ? 3 * column.edr : 0)   // C10.11 EM = six hexes of movement; D14.12 EDR = 3 per powered lab
-    + (column.wildWeasel ? WW_COST : 0) + (column.suicide || 0) + (column.cloak ? (power.cloakCost || CLOAK_COST) : 0);   // J2.2211: suicide arming charges its value; G13.21: per-ship cloak cost
+    + WW_COST * (+column.wildWeasel || 0) + (column.suicide || 0) + (column.cloak ? (power.cloakCost || CLOAK_COST) : 0);   // J3.12×J3.123: 1/turn per charging weasel; J2.2211: suicide arming charges its value; G13.21: per-ship cloak cost
   const produced = power.total + batteryCharge;            // only the current battery charge is available
   const free = produced - used;
   const batteryUsed = Math.max(0, used - power.total);
@@ -208,7 +208,7 @@ export function foldEaf(power, column, carried = 0, progress = {}) {
     capacitor: carried + column.phaserCap,
     reinforce: { gen: Math.floor((column.genReinf || 0) / 2), spec: { ...column.specReinf } },   // D3.341: general reinforcement energy ÷2 = points (2 energy = 1 point)
     ecmLevel: column.ecm, eccmLevel: column.eccm,
-    wildWeasel: !!column.wildWeasel, suicide: +column.suicide || 0,   // J3.12 weasel charge turn; J2.2211 arming energy applied this turn (half-points preserved)
+    wildWeasel: +column.wildWeasel || 0, suicide: +column.suicide || 0,   // J3.12×J3.123 weasels charging this turn; J2.2211 arming energy (half-points preserved)
     reserveWarp: column.reserveWarp || 0,   // held for reactive use during the turn (H7.4); unused → batteries (H7.36)
   };
 }
