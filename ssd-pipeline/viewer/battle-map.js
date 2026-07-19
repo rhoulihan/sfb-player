@@ -175,10 +175,12 @@ export function createBattleMap(ctx) {
     const navIdx = navIdxAt(ps, hex);
     if (navIdx >= 0) return steps.slice(0, navIdx + 1);                                 // existing nav hex → keep it, re-draw forward FROM that hex (don't back up to the previous)
     const cur = plotCursor(ps, plotBase(ps));
-    const g = legalNextHexes(cur.pos, cur.facing, cur.speed, cur.hst, cur.category).find(x => x.legal && x.hex.q === hex.q && x.hex.r === hex.r);
-    if (g) return [...steps, { q: g.hex.q, r: g.hex.r, facing: g.facing }];             // green next-hex → extend
+    // SIDESLIP before turn: the oblique (facing±1) hexes are legal for BOTH, and the purple marker promises a
+    // sideslip — dragging is the sideslip gesture (C4.1); turning into the oblique stays on click / the ↺↻ buttons.
     const p = cur.speed > 0 ? legalSideslips(cur.pos, cur.facing, cur.slip).find(x => x.legal && x.hex.q === hex.q && x.hex.r === hex.r) : null;
     if (p) return [...steps, { q: p.hex.q, r: p.hex.r, facing: p.facing, slip: true }]; // purple sideslip hex → extend
+    const g = legalNextHexes(cur.pos, cur.facing, cur.speed, cur.hst, cur.category).find(x => x.legal && x.hex.q === hex.q && x.hex.r === hex.r);
+    if (g) return [...steps, { q: g.hex.q, r: g.hex.r, facing: g.facing }];             // green next-hex → extend
     return null;                                                                        // red / empty → not a path drag
   };
   map.addEventListener('mousedown', e => {
@@ -209,12 +211,14 @@ export function createBattleMap(ctx) {
       suppressClick = true; render(); return;
     }
     if (d.start) { courseOf(s).steps = pathFrom(s, plotBase(s), d.start, hex); saveSoon(s.id); suppressClick = true; render(); return; }   // nav / candidate drag → path
-    if (isMine(s) && !hasGhosts()) {   // friendly ship glyph onto a green (legal-next) or purple (sideslip) hex → extend one step (nav is blocked while a ghost is open)
+    if (isMine(s) && !hasGhosts()) {   // friendly ship glyph onto a purple (sideslip) or green (legal-next) hex → extend one step (nav is blocked while a ghost is open)
       const cur = plotCursor(s, plotBase(s));
-      const step = tryStep(cur.pos, cur.facing, cur.speed, cur.hst, cur.slip, hex, cur.category);   // C3.3: turn-mode legality by ship category
-      if (step) { courseOf(s).steps.push({ q: step.pos.q, r: step.pos.r, facing: step.facing }); saveSoon(s.id); suppressClick = true; render(); return; }
+      // sideslip FIRST: the oblique hexes are also legal turn targets, so trying the turn first made the purple
+      // sideslip candidates unreachable by drag — the drag gesture means sideslip (turns are a click / ↺↻ away)
       const slip = cur.speed > 0 ? trySideslip(cur.pos, cur.facing, cur.hst, cur.slip, hex) : null;
       if (slip) { courseOf(s).steps.push({ q: slip.pos.q, r: slip.pos.r, facing: slip.facing, slip: true }); saveSoon(s.id); suppressClick = true; render(); return; }
+      const step = tryStep(cur.pos, cur.facing, cur.speed, cur.hst, cur.slip, hex, cur.category);   // C3.3: turn-mode legality by ship category
+      if (step) { courseOf(s).steps.push({ q: step.pos.q, r: step.pos.r, facing: step.facing }); saveSoon(s.id); suppressClick = true; render(); return; }
     }
     if (!(hex.q === s.q && hex.r === s.r)) { ui.ghosts[s.id] = { q: hex.q, r: hex.r, facing: s.facing }; ui.selectedGhost = s.id; joinFireGroup(s); }   // dropped elsewhere → ghost (a same-hex near-click release is a no-op)
     suppressClick = true; render();
@@ -230,7 +234,9 @@ export function createBattleMap(ctx) {
     if (ui.plotShipId && byId(ui.plotShipId)) {   // click a legal candidate hex → extend the course one step (drag re-routes; right-click a nav hex = speed change)
       const s = byId(ui.plotShipId), c = courseOf(s), cur = plotCursor(s, plotBase(s));
       const step = tryStep(cur.pos, cur.facing, cur.speed, cur.hst, cur.slip, hex, cur.category);   // C3.3: turn-mode legality by ship category
-      if (step) { c.steps.push({ q: step.pos.q, r: step.pos.r, facing: step.facing }); saveSoon(ui.plotShipId); render(); }
+      if (step) { c.steps.push({ q: step.pos.q, r: step.pos.r, facing: step.facing }); saveSoon(ui.plotShipId); render(); return; }
+      const slip = cur.speed > 0 ? trySideslip(cur.pos, cur.facing, cur.hst, cur.slip, hex) : null;   // turn illegal → a click on a purple hex still sideslips
+      if (slip) { c.steps.push({ q: slip.pos.q, r: slip.pos.r, facing: slip.facing, slip: true }); saveSoon(ui.plotShipId); render(); }
     }
   });
   // impulse phase: drag a ship to move it (snaps to nearest hex); a plain click selects it
