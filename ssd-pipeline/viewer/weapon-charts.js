@@ -102,6 +102,49 @@ export const WEAPONS = {
     "fixedDamage": [0, 5, 4, 4, 3, 3, 2, 2],
     "overload": { "maxRange": 8, "feedbackRange": 0, "feedback": 2 }
   },
+// Plasma torpedoes (FP1.53): the warhead AGES as the torpedo flies — one warhead value per hexes-travelled
+// band, per type. This is the plasma damage track printed on the launching ship's SSD; verify it in
+// viewer/weapons.html like the direct-fire charts. Consumed by seeking.js (plasmaWarheadAt).
+  "PLASMA-R": {
+    "cls": "PLASMA-R",
+    "resolution": "seeking-warhead",
+    "maxRange": 30,
+    "bands": [
+      {"minTrue": 0, "maxTrue": 5}, {"minTrue": 6, "maxTrue": 10}, {"minTrue": 11, "maxTrue": 12}, {"minTrue": 13, "maxTrue": 14}, {"minTrue": 15, "maxTrue": 15}, {"minTrue": 16, "maxTrue": 18}, {"minTrue": 19, "maxTrue": 19},
+      {"minTrue": 20, "maxTrue": 20}, {"minTrue": 21, "maxTrue": 23}, {"minTrue": 24, "maxTrue": 24}, {"minTrue": 25, "maxTrue": 25}, {"minTrue": 26, "maxTrue": 28}, {"minTrue": 29, "maxTrue": 29}, {"minTrue": 30, "maxTrue": 30}
+    ],
+    "warhead": [50, 50, 35, 35, 25, 25, 25, 20, 20, 20, 10, 5, 1, 0]
+  },
+  "PLASMA-S": {
+    "cls": "PLASMA-S",
+    "resolution": "seeking-warhead",
+    "maxRange": 30,
+    "bands": [
+      {"minTrue": 0, "maxTrue": 5}, {"minTrue": 6, "maxTrue": 10}, {"minTrue": 11, "maxTrue": 12}, {"minTrue": 13, "maxTrue": 14}, {"minTrue": 15, "maxTrue": 15}, {"minTrue": 16, "maxTrue": 18}, {"minTrue": 19, "maxTrue": 19},
+      {"minTrue": 20, "maxTrue": 20}, {"minTrue": 21, "maxTrue": 23}, {"minTrue": 24, "maxTrue": 24}, {"minTrue": 25, "maxTrue": 25}, {"minTrue": 26, "maxTrue": 28}, {"minTrue": 29, "maxTrue": 29}, {"minTrue": 30, "maxTrue": 30}
+    ],
+    "warhead": [30, 30, 22, 22, 22, 15, 15, 15, 10, 5, 1, 0, 0, 0]
+  },
+  "PLASMA-G": {
+    "cls": "PLASMA-G",
+    "resolution": "seeking-warhead",
+    "maxRange": 30,
+    "bands": [
+      {"minTrue": 0, "maxTrue": 5}, {"minTrue": 6, "maxTrue": 10}, {"minTrue": 11, "maxTrue": 12}, {"minTrue": 13, "maxTrue": 14}, {"minTrue": 15, "maxTrue": 15}, {"minTrue": 16, "maxTrue": 18}, {"minTrue": 19, "maxTrue": 19},
+      {"minTrue": 20, "maxTrue": 20}, {"minTrue": 21, "maxTrue": 23}, {"minTrue": 24, "maxTrue": 24}, {"minTrue": 25, "maxTrue": 25}, {"minTrue": 26, "maxTrue": 28}, {"minTrue": 29, "maxTrue": 29}, {"minTrue": 30, "maxTrue": 30}
+    ],
+    "warhead": [20, 20, 15, 15, 15, 10, 5, 1, 0, 0, 0, 0, 0, 0]
+  },
+  "PLASMA-F": {
+    "cls": "PLASMA-F",
+    "resolution": "seeking-warhead",
+    "maxRange": 30,
+    "bands": [
+      {"minTrue": 0, "maxTrue": 5}, {"minTrue": 6, "maxTrue": 10}, {"minTrue": 11, "maxTrue": 12}, {"minTrue": 13, "maxTrue": 14}, {"minTrue": 15, "maxTrue": 15}, {"minTrue": 16, "maxTrue": 18}, {"minTrue": 19, "maxTrue": 19},
+      {"minTrue": 20, "maxTrue": 20}, {"minTrue": 21, "maxTrue": 23}, {"minTrue": 24, "maxTrue": 24}, {"minTrue": 25, "maxTrue": 25}, {"minTrue": 26, "maxTrue": 28}, {"minTrue": 29, "maxTrue": 29}, {"minTrue": 30, "maxTrue": 30}
+    ],
+    "warhead": [20, 15, 10, 5, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+  },
   "PHOTON": {
     "cls": "PHOTON",
     "resolution": "hit-or-miss",

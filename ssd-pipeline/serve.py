@@ -274,7 +274,7 @@ def _js_val(v, indent=0):
 
 def write_weapon_charts(weapons):
     """Rewrite viewer/weapon-charts.js from edited chart data (functional game-mechanics data)."""
-    header = ("// Direct-fire weapon catalog for the standard races (v0, standard loads).\n"
+    header = ("// Weapon catalog for the standard races: direct-fire charts + plasma FP1.53 aging tables.\n"
               "// Functional game-mechanics data transcribed from owned material (phaser Type I/II/III\n"
               "// grids from the SSDs; disruptor E3.4 + photon E4.12 from the rulebook). Editable via\n"
               "// viewer/weapons.html against the scanned source tables.\n\n")

@@ -11,7 +11,9 @@ test('all five direct-fire weapons are defined with a resolution model', () => {
 
 test('chart arrays are well-formed (grid = 6 die rows × bands; hit/damage = bands)', () => {
   for (const def of Object.values(WEAPONS)) {
-    if (def.resolution === 'range-of-effect') {
+    if (def.resolution === 'seeking-warhead') {
+      assert.equal(def.warhead.length, def.bands.length, def.cls + ' warhead row = #bands');
+    } else if (def.resolution === 'range-of-effect') {
       assert.equal(def.effectGrid.length, 6, def.cls + ' has 6 die rows');
       for (const row of def.effectGrid) assert.equal(row.length, def.bands.length, def.cls + ' row width = #bands');
     } else {
@@ -50,4 +52,28 @@ test('photon does a fixed warhead on any hitting range band', () => {
   const [lo] = photon.hitBand1d[bi];
   assert.equal(damageFor(photon, 5, lo), photon.fixedDamage[bi]);
   assert.ok(damageFor(photon, 5, lo) > 0);
+});
+
+test('plasma torpedoes are chart weapons: FP1.53 aging tables live in WEAPONS for the validator', async () => {
+  const { WEAPONS } = await import('../viewer/weapon-charts.js');
+  for (const cls of ['PLASMA-R', 'PLASMA-S', 'PLASMA-G', 'PLASMA-F']) {
+    const w = WEAPONS[cls];
+    assert.ok(w, `${cls} present`);
+    assert.equal(w.resolution, 'seeking-warhead', `${cls} is a seeking-warhead chart`);
+    assert.equal(w.bands.length, w.warhead.length, 'one warhead per travel band');
+    assert.equal(w.maxRange, 30, 'FP1.51: aged to nothing past 30 hexes');
+    for (let i = 1; i < w.warhead.length; i++) assert.ok(w.warhead[i] <= w.warhead[i - 1], `${cls} decays monotonically`);
+  }
+  assert.equal(WEAPONS['PLASMA-S'].warhead[0], 30, 'S-torp launches at 30');
+  assert.equal(WEAPONS['PLASMA-R'].warhead[0], 50, 'R-torp launches at 50');
+  assert.equal(WEAPONS['PLASMA-F'].warhead[0], 20, 'F-torp launches at 20');
+});
+
+test('plasmaWarheadAt reads the WEAPONS chart (the validator edits the live values)', async () => {
+  const { WEAPONS } = await import('../viewer/weapon-charts.js');
+  const { plasmaWarheadAt } = await import('../viewer/seeking.js');
+  const w = WEAPONS['PLASMA-S'];
+  for (let i = 0; i < w.bands.length; i++)
+    assert.equal(plasmaWarheadAt('PLASMA-S', w.bands[i].maxTrue), w.warhead[i], `band ${i} comes from the chart`);
+  assert.equal(plasmaWarheadAt('PLASMA-S', 31), 0, 'past max range the warhead is spent');
 });

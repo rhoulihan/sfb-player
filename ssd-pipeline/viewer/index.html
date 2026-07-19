@@ -37,7 +37,7 @@
 <body>
 <header><b>SFB Player</b><span class="sub">Ship System Display tools</span></header>
 <main>
-  <p class="lead">Pick a ship, then open it in the verify editor or the damage processor — or type a new ship (RACE-HULL) to find &amp; scan it from your PDFs.</p>
+  <p class="lead">Pick a ship to open in the verify editor — or type a new ship (RACE-HULL) to find &amp; scan it from your PDFs. Then jump into a battle, or read the guide first.</p>
   <div class="picker">
     <label for="ship">Ship</label>
     <select id="ship"></select>
@@ -46,8 +46,8 @@
   </div>
   <div class="cards">
     <a class="card" id="cardVerify"><div class="icon">🛠️</div><h2>Verify Editor</h2><p>Assign each system a DAC family, set firing arcs, edit box labels, and tidy the overlay onto the real SSD.</p><div class="go">Open editor →</div></a>
-    <a class="card" id="cardDamage"><div class="icon">⚔️</div><h2>Damage Processor</h2><p>Apply a volley through the full Damage Allocation Chart (shields → armor → internals) and watch the SSD update.</p><div class="go">Open processor →</div></a>
     <a class="card" href="battle.html"><div class="icon">🚀</div><h2>SFB Player</h2><p>Play a full Star Fleet Battles duel — energy allocation, movement, seeking weapons, cloak, terrain, and DAC combat across a four-empire roster.</p><div class="go">Open SFB Player →</div></a>
+    <a class="card" href="howto.html"><div class="icon">📖</div><h2>How to Play</h2><p>A guided tour of a full turn — energy allocation, movement plotting, impulse rounds, firing, shuttles, and reserve power — with screenshots.</p><div class="go">Read the guide →</div></a>
   </div>
   <p style="margin:16px 0 0;font-size:13px"><a href="weapons.html" style="color:#2563eb;text-decoration:none;font-weight:600">🎯 Weapon tables</a> <span style="color:#94a3b8">— verify &amp; edit the direct-fire damage charts against the scanned sources</span></p>
   <div class="ships">
@@ -65,9 +65,9 @@
 </div></div>
 <script>
 const sel=document.getElementById("ship");
-const cardV=document.getElementById("cardVerify"), cardD=document.getElementById("cardDamage");
+const cardV=document.getElementById("cardVerify");
 let VERIFIED=new Set();
-function updateCards(){ const s=sel.value; cardV.href=`verify.html?ship=${encodeURIComponent(s)}`; cardD.href=`ssd.html?ship=${encodeURIComponent(s)}`; }
+function updateCards(){ const s=sel.value; cardV.href=`verify.html?ship=${encodeURIComponent(s)}`; }
 sel.onchange=updateCards;
 async function loadShips(){
   const j=await (await fetch("/api/ships")).json();

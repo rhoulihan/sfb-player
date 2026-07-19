@@ -28,10 +28,17 @@ export const PLASMA_WARHEAD = {
   'PLASMA-F': [20, 15, 10, 5, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
 };
 export function plasmaWarheadAt(cls, hexes) {
-  const row = PLASMA_WARHEAD[cls]; if (!row) return 0;
+  const def = WEAPONS[cls];   // the validator-edited chart (viewer/weapons.html) is the source of truth
+  if (def && def.resolution === 'seeking-warhead') {
+    for (let i = 0; i < def.bands.length; i++) if (hexes <= def.bands[i].maxTrue) return def.warhead[i];
+    return 0;   // past 30 hexes the warhead has aged to nothing (FP1.51)
+  }
+  const row = PLASMA_WARHEAD[cls]; if (!row) return 0;   // fallback for types not yet in the chart
   for (let i = 0; i < PLASMA_BANDS.length; i++) if (hexes <= PLASMA_BANDS[i]) return row[i];
-  return 0;   // past 30 hexes the warhead has aged to nothing (FP1.51)
+  return 0;
 }
+
+import { WEAPONS } from './weapon-charts.js';
 
 export function launchSeeker({ id, owner, type = 'drone', q, r, facing = 0, targetId, speed, warhead, fade = 0, endurance = 40, cls = null }) {
   return { id, owner, type, q, r, facing, targetId, speed, warhead, fade, endurance, cls, phaserHits: 0, travelled: 0 };
@@ -129,5 +136,5 @@ export function pointDefenseHits(pdRating, rng, range) {
 export function plasmaSpec(type) {
   const size = (/PLASMA[\s-]*([RSGF])/i.exec(type || '') || [])[1] || 'S';
   const cls = 'PLASMA-' + size.toUpperCase();
-  return { type: 'plasma', cls, speed: 32, warhead: (PLASMA_WARHEAD[cls] || PLASMA_WARHEAD['PLASMA-S'])[0], endurance: 32 };
+  return { type: 'plasma', cls, speed: 32, warhead: plasmaWarheadAt(cls, 0) || plasmaWarheadAt('PLASMA-S', 0), endurance: 32 };   // launch warhead from the verified chart
 }

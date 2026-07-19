@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SFB Player — How to Play</title><link rel="icon" type="image/svg+xml" href="favicon.svg">
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;font:15px/1.65 "Segoe UI",system-ui,sans-serif;color:#0f172a;background:#e2e8f0}
+  header{background:#1e293b;color:#f8fafc;padding:12px 24px;border-bottom:3px solid #C74634;display:flex;align-items:baseline;gap:12px;position:sticky;top:0;z-index:10}
+  header b{font-size:18px}
+  header .sub{color:#94a3b8;font-size:13px}
+  header a{margin-left:auto;color:#93c5fd;text-decoration:none;font-size:13px}
+  main{max-width:880px;margin:0 auto;padding:28px 22px 60px}
+  h1{font-size:26px;margin:0 0 6px}
+  .lead{color:#475569;margin:0 0 24px}
+  h2{font-size:20px;margin:38px 0 10px;padding-top:14px;border-top:2px solid #cbd5e1}
+  h3{font-size:15.5px;margin:20px 0 6px}
+  p{margin:8px 0}
+  figure{margin:14px 0;background:#fff;border:1px solid #cbd5e1;border-radius:10px;padding:10px;box-shadow:0 2px 10px rgba(15,23,42,.06)}
+  figure img{width:100%;display:block;border-radius:6px}
+  figcaption{font-size:12.5px;color:#64748b;margin-top:8px}
+  .tip{background:#eff6ff;border-left:4px solid #2563eb;border-radius:6px;padding:9px 14px;font-size:13.5px;margin:12px 0}
+  .rule{color:#94a3b8;font-size:12px}
+  kbd{background:#f1f5f9;border:1px solid #cbd5e1;border-radius:4px;padding:1px 6px;font-size:12.5px;font-family:ui-monospace,monospace}
+  ul{margin:8px 0;padding-left:22px}
+  li{margin:4px 0}
+  .toc{background:#fff;border:1px solid #cbd5e1;border-radius:10px;padding:14px 18px;font-size:13.5px}
+  .toc a{color:#2563eb;text-decoration:none}
+</style></head>
+<body>
+<header><b>How to Play</b><span class="sub">SFB Player — a guided tour of a full turn</span><a href="index.html">← Home</a></header>
+<main>
+  <h1>📖 How to Play</h1>
+  <p class="lead">SFB Player runs a full <b>Star Fleet Battles</b> duel in the browser: energy allocation, plotted movement,
+  32-impulse turns, seeking weapons, shuttles, and the Damage Allocation Chart. Rule numbers like <span class="rule">(B2.3)</span>
+  refer to the Captain's Master Rulebook. This page walks one complete turn from setup to record keeping.</p>
+
+  <div class="toc"><b>On this page:</b>
+    <a href="#setup">Setting up a battle</a> ·
+    <a href="#energy">Energy allocation</a> ·
+    <a href="#plot">Plotting movement</a> ·
+    <a href="#intent">Declaring intentions</a> ·
+    <a href="#impulse">Impulse play</a> ·
+    <a href="#endturn">End of turn</a> ·
+    <a href="#tools">The data tools</a>
+  </div>
+
+  <h2 id="setup">1 · Setting up a battle</h2>
+  <figure><img src="assets/howto/home.png" alt="Home page"><figcaption>The home page: pick a ship for the Verify Editor, open SFB Player, or come back here.</figcaption></figure>
+  <p>From the home page open <b>SFB Player</b>, then <b>＋ New Battle</b>. Build each fleet from the verified-ship roster
+  — add the same hull more than once and the ships are named <b>FED-CA-1, FED-CA-2, …</b>; otherwise they simply carry
+  their type, like <b>KLI-D7</b>.</p>
+  <figure><img src="assets/howto/newbattle.png" alt="New battle dialog"><figcaption>Fleet builder: ships, map style, optional rules (secondary explosions, D8 criticals, advanced shuttles, drone speed), the dice seed, and Solo mode.</figcaption></figure>
+  <ul>
+    <li><b>Solo</b> — one player commands both fleets, switching perspective from the header dropdown. Ideal for learning.</li>
+    <li><b>Multiplayer</b> — the battle issues a four-letter <b>commander code per fleet</b>. Share each code with its
+    commander; they join from the start screen with it. Everything each commander shouldn't see — the enemy's energy
+    form, movement plots, and declarations — is hidden by fog of war.</li>
+    <li><b>Seed</b> — fix it for a reproducible battle; leave blank for random dice.</li>
+  </ul>
+
+  <h2 id="energy">2 · Energy allocation <span class="rule">(B3.0)</span></h2>
+  <p>Each turn opens on the <b>Energy Allocation Form</b> — the ship's own console art with live controls placed on it.
+  Every point of produced power (warp + impulse + APR, plus charged batteries) is budgeted here.</p>
+  <figure><img src="assets/howto/eaf.png" onerror="this.replaceWith(Object.assign(document.createElement('div'),{textContent:'(screenshot shows the ship console art — generated locally when the art is present)',style:'color:#94a3b8;font-size:12.5px;padding:18px;text-align:center'}))" alt="Energy allocation form"><figcaption>The EAF: shields and reinforcement, weapon arming, phaser capacitor, speed, reserve warp, batteries, tractor/transporter, ECM/ECCM, and the combined Shuttle Bay control.</figcaption></figure>
+  <ul>
+    <li><b>The meter can't go over.</b> Any control that would exceed produced power + charged batteries is refused
+    outright <span class="rule">(H5/H7)</span>. Movement is additionally capped at your warp output + one impulse point
+    <span class="rule">(C2.11)</span>.</li>
+    <li><b>Weapons</b> arm over multiple turns (photons two, plasma three) and must be fed every turn or the charge is
+    lost <span class="rule">(E4.21, FP1.21)</span>. <kbd>OL</kbd> overloads, <kbd>PX</kbd> sets photon proximity fuses.</li>
+    <li><b>Reserve warp</b> is the warp power you bank <i>into the batteries</i> for reactive use during the turn — it can
+    never exceed battery capacity <span class="rule">(H7.41/H7.113)</span>. It funds mid-turn HETs, erratic maneuvers,
+    reinforcement, and weapon tricks; whatever is left drains into the batteries at end of turn <span class="rule">(H7.36)</span>.</li>
+    <li><b>Shuttle Bay</b> — one control set with <b>WW</b> (wild-weasel charges, 1 point each for two consecutive turns,
+    any number at once <span class="rule">(J3.12, J3.123)</span>) and <b>SUI</b> (suicide-shuttle arming, 1–3 <i>warp</i>
+    points per turn in half-point steps for three consecutive turns; warhead = 2 × banked energy
+    <span class="rule">(J2.2211)</span>). Right-click the placed control in the EAF editor to pick its Default / Wide /
+    Tall layout.</li>
+  </ul>
+  <p>When the form balances, press <b>🔒 LOCK</b>. It is final — in multiplayer the turn proceeds when every commander
+  has locked.</p>
+
+  <h2 id="plot">3 · Plotting movement <span class="rule">(C1.32)</span></h2>
+  <p>Click one of your ships to make it the plot subject. Green hexes are legal next steps, red hexes need a turn your
+  turn mode doesn't allow yet, and purple dashed outlines are legal sideslips.</p>
+  <figure><img src="assets/howto/plot.png" alt="Plotting with the maneuver chooser"><figcaption>A plotted course with its impulse labels (this hex is reached on impulse 4, the next on 8). Clicking a hex that is both a legal turn and a legal sideslip asks which maneuver you mean.</figcaption></figure>
+  <ul>
+    <li><b>Click</b> a green hex to extend the course one step. If the hex could be reached by a turn <i>or</i> a
+    sideslip, a small chooser asks which. <b>Drag</b> along the map to route with straights and sideslips only — a drag
+    never turns.</li>
+    <li><b>Red hexes</b> offer a <b>⚡ High Energy Turn</b> from the chooser — a snap turn past your turn mode that costs
+    5 reserve <i>warp</i> at execution plus a breakdown roll <span class="rule">(C6.2, C6.5)</span>. The option grays out
+    in impulse play if the ship lacks the reserve warp.</li>
+    <li><b>Click a hex already on the path</b> to re-plan the route from that point (the path after it is discarded;
+    in energy allocation any later speed changes go too). <b>Right-click a path hex</b> to schedule a mid-turn speed
+    change <span class="rule">(C12)</span>; right-click empty map to clear the plot.</li>
+    <li>Plots cap at impulse 32 and <b>execute automatically</b> — plotting engages the autopilot (the 🅰 badge turns it
+    off if you want manual control). Plots stay visible to their commander and editable through impulse play; speed
+    changes lock at energy allocation.</li>
+  </ul>
+
+  <h2 id="intent">4 · Declaring intentions <span class="rule">(B2.4)</span></h2>
+  <p>At the start of every impulse each commander declares — secretly and simultaneously — what they <i>might</i> do
+  this impulse. Declarations are announced once everyone has submitted, and only declared segments pause for action;
+  everything else advances automatically.</p>
+  <figure><img src="assets/howto/intents.png" alt="Intentions checklist"><figcaption>The declaration checklist, grouped by impulse segment. Grayed items are infeasible — no ship has the system powered, nor the reserve/battery power to power it.</figcaption></figure>
+  <ul>
+    <li><b>Direct fire</b> pauses the impulse at the fire step for your commit; <b>activity</b> items (launches,
+    transporters, mines, tractors, boarding) pause the activity segment until you press <b>✅ Done</b>.</li>
+    <li><b>No actions for the next N impulses / rest of the turn</b> fast-forwards: impulses run automatically with only
+    scheduled activity (movement, seeking weapons, decel). If an enemy declares an action meanwhile, you're asked whether
+    to resume manual play; a <b>😴 Wake</b> button cancels the window any time.</li>
+    <li>In multiplayer <b>nothing advances without consensus</b> — the impulse waits until every commander has declared,
+    moved, and finished their declared segments. In solo one combined checklist covers both fleets.</li>
+  </ul>
+
+  <h2 id="impulse">5 · Impulse play <span class="rule">(B2.3 §6)</span></h2>
+  <figure><img src="assets/howto/impulse.png" alt="Impulse play"><figcaption>Impulse play: the fleet roster (left), the map with counters and plots, the round status by the clock, and the fire-commit bar below.</figcaption></figure>
+  <p>Each of the 32 impulses runs the Sequence of Play: movement, seeking-weapon impact, the activity segment, direct
+  fire, and post-combat. Ships move per the movement chart for their speed; each commander's client executes its own
+  fleet's plots (the enemy's plots stay secret).</p>
+  <h3>Fighting</h3>
+  <ul>
+    <li><b>Direct fire</b> — click your ship to start a fire group, click an enemy to target it, pick the weapon mounts,
+    then <b>Commit</b>. Both sides commit before anything resolves; damage lands simultaneously through the DAC. Only
+    weapons that are armed, in arc, off cooldown, and fed by the capacitor can be selected.</li>
+    <li><b>Seeking weapons</b> — launch drones, plasma, or shuttles from the target's context menu / the launch buttons
+    during your declared activity segment. Plasma warheads age with distance flown <span class="rule">(FP1.53)</span>;
+    phasers can weaken an incoming plasma or shoot down drones <span class="rule">(FP1.611)</span>.</li>
+    <li><b>Shuttle ops</b> — the Shuttle Bay control's 🚀 buttons launch a charged wild weasel (decoy) or an armed
+    suicide shuttle (which targets like a drone). Right-click your own admin shuttle beside a carrier to recover it.</li>
+    <li><b>Hit-and-run raids</b> — right-click an enemy in transporter range (its facing shield must be down): commit one
+    or more boarding parties; each rolls separately and needs its own transporter <span class="rule">(D7.8)</span>.</li>
+  </ul>
+  <h3>Reserve power in the moment <span class="rule">(H7)</span></h3>
+  <figure><img src="assets/howto/impulse-ea.png" onerror="this.replaceWith(Object.assign(document.createElement('div'),{textContent:'(screenshot shows the ship console art — generated locally when the art is present)',style:'color:#94a3b8;font-size:12.5px;padding:18px;text-align:center'}))" alt="Read-only EA view during impulse play"><figcaption>The EA view during impulse play: the header shows the live reserve/battery pool, and reserve-eligible systems stay adjustable while the rest are locked.</figcaption></figure>
+  <ul>
+    <li>Open your ship's EA view (right-click → View EA). The header is the <b>reserve counter</b>: reserve warp,
+    battery charge, and the combined pool.</li>
+    <li>Systems reserve power may legally feed stay <b>live</b>: ECM/ECCM (applies at the fire step), the phaser
+    capacitor, tractor power, shield reinforcement, erratic maneuvers, and the shuttle arming banks. Everything else is
+    locked until the next energy allocation <span class="rule">(H7.35)</span>.</li>
+    <li><b>Every spend is confirmed</b> in a dialog with a <b>Reserve warp / Battery</b> selector — warp-only uses
+    (movement, HETs, suicide arming) show battery disabled <span class="rule">(H5.4)</span>.</li>
+    <li>When incoming damage is scored on your shield, you're prompted to pour reserve power into reinforcement before
+    it lands <span class="rule">(H7.134)</span> — in multiplayer this reaches the <i>defending</i> commander even when
+    the other side resolves the volley.</li>
+    <li><b>🛑 stop</b> declares emergency deceleration: the ship halts two impulses later <span class="rule">(C8.10)</span>.</li>
+  </ul>
+
+  <h2 id="endturn">6 · End of turn <span class="rule">(B2.3 §7–8)</span></h2>
+  <ul>
+    <li>After impulse 32: unfired non-holdable weapons discharge, drone racks reload, damage control and emergency
+    repairs run, and <b>leftover reserve warp drains into the batteries automatically</b> (the log reports what was
+    stored and what was lost) <span class="rule">(H7.36)</span>.</li>
+    <li>The next turn's Energy Allocation begins with your batteries recharged accordingly and weapon arming carried
+    forward.</li>
+  </ul>
+
+  <h2 id="tools">7 · The data tools</h2>
+  <p>The battle engine runs entirely on <b>verified data</b>: the Verify Editor captures each ship's systems, arcs, and
+  chart stats from your scanned SSDs, and the <a href="weapons.html">Weapon Tables</a> validator holds every range/damage
+  chart — the direct-fire weapons and the plasma torpedo aging tables.</p>
+  <figure><img src="assets/howto/weapons-plasma.png" alt="Plasma table in the weapons validator"><figcaption>The weapons validator: plasma torpedoes list their warhead by hexes travelled — the plasma damage track from the SSD. Edit a cell and Save; the engine uses the new values immediately.</figcaption></figure>
+  <div class="tip">💡 <b>Admin:</b> the home page's “Clear all saved games” button (admin code) wipes the server-side
+  battle so everyone can start fresh.</div>
+</main>
+</body></html>

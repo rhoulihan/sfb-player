@@ -39,5 +39,9 @@ assets/*.png
 
 ssd-pipeline/viewer/assets/*.png
 
+# How-to-play screenshots that show the race console art (local-only, same policy as the art itself)
+ssd-pipeline/viewer/assets/howto/eaf.png
+ssd-pipeline/viewer/assets/howto/impulse-ea.png
+
 # custom ship-counter art (user-provided images, possibly scanned counters — never committed)
 ssd-pipeline/data/*/counter.png
