@@ -653,6 +653,7 @@ function eafControlList(p){ const L=[];
   L.push({id:"ew",label:"EW (ECM/ECCM)",render:(x,y)=>ewCtl(x,y,0,0,6)});
   L.push({id:"erratic",label:"Erratic (EM)",render:(x,y)=>toggleCtl(x,y,"ERRATIC","em",false)});
   L.push({id:"fc-passive",label:"FC Passive",render:(x,y)=>toggleCtl(x,y,"FC PASSIVE","fcPassive",false)});
+  L.push({id:"emergency-decel",label:"Emergency Decel",render:(x,y)=>toggleCtl(x,y,"EMERG DECEL","emDecel",false)});   // C8.10: declared during impulse play from the console
   if(p.systems.labs) L.push({id:"edr",label:"EDR (labs)",render:(x,y)=>stackCtl(x,y,"EDR (labs)","edr",0,p.systems.labs)});
   L.push({id:"repair-target",label:"Repair Target",render:(x,y)=>ctl(x,y,`<button data-ea="dctarget">🛠 SYS</button>`)});
   return L; }

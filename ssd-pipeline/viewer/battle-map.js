@@ -177,7 +177,10 @@ export function createBattleMap(ctx) {
   const startStepsFor = (ps, hex) => {   // classify the grabbed hex → the course prefix to path-find from, or null
     const steps = ps.course ? ps.course.steps : [];
     const navIdx = navIdxAt(ps, hex);
-    if (navIdx >= 0) return steps.slice(0, navIdx + 1);                                 // existing nav hex → keep it, re-draw forward FROM that hex (don't back up to the previous)
+    if (navIdx >= 0) {
+      if (getPhase() !== 'energy' && navIdx < (ps._autoIdx || 0)) return null;          // impulse play: hexes already flown are history — only the future tail is editable
+      return steps.slice(0, navIdx + 1);                                                // existing nav hex → keep it, re-draw forward FROM that hex (don't back up to the previous)
+    }
     const cur = plotCursor(ps, plotBase(ps));
     // A DRAG NEVER TURNS (Rick's plotting rule): a drag may start with a sideslip or the straight-ahead hex only;
     // turning into an oblique hex is a click / the ↺↻ buttons.
@@ -188,9 +191,11 @@ export function createBattleMap(ctx) {
     return null;                                                                        // turn hex / red / empty → not a path drag
   };
   map.addEventListener('mousedown', e => {
-    if (e.altKey || e.button !== 0 || getPhase() !== 'energy') return;   // left button only
+    if (e.altKey || e.button !== 0) return;   // left button only
+    const phase = getPhase(); if (phase !== 'energy' && phase !== 'impulse') return;   // plots stay editable during impulse play (speed changes stay energy-only)
     const gg = e.target.closest('.ship'), shipHere = gg && byId(gg.dataset.id);   // a ship glyph → sideslip / ghost (allowed even with ghosts open; priority over an underlying nav hex)
-    if (shipHere) { plotDrag = { id: shipHere.id, ship: true, shift: e.shiftKey, x: e.clientX, y: e.clientY, moved: false }; ui.shipDragId = shipHere.id; return; }
+    if (shipHere) { if (phase !== 'energy') return;   // impulse phase: mousedown on a ship is the reposition drag (its own listener)
+      plotDrag = { id: shipHere.id, ship: true, shift: e.shiftKey, x: e.clientX, y: e.clientY, moved: false }; ui.shipDragId = shipHere.id; return; }
     if (hasGhosts()) return;   // nav-path drags are blocked while a ghost what-if is open
     const ps = ui.plotShipId && byId(ui.plotShipId), hex = clickToHex(e);   // else classify the grabbed hex for the plot ship
     if (ps && isMine(ps) && hex) { const start = startStepsFor(ps, hex); if (start) plotDrag = { id: ps.id, start, shift: e.shiftKey, x: e.clientX, y: e.clientY, moved: false }; }
@@ -207,7 +212,8 @@ export function createBattleMap(ctx) {
   });
   window.addEventListener('mouseup', e => {
     const d = plotDrag; plotDrag = null; ui.shipDragId = null; const had = !!ui.navPreview; ui.navPreview = null;
-    if (!d || !d.moved || getPhase() !== 'energy') { if (had) render(); return; }
+    const ph = getPhase();
+    if (!d || !d.moved || (ph !== 'energy' && ph !== 'impulse')) { if (had) render(); return; }
     const s = byId(d.id), hex = clickToHex(e); if (!s || !hex) { render(); return; }
     if (d.shift && isMine(s) && !hasGhosts()) {   // shift-drag → sideslip from the course end (nav — blocked while a ghost is open)
       const cur = plotCursor(s, plotBase(s)), slip = cur.speed > 0 ? trySideslip(cur.pos, cur.facing, cur.hst, cur.slip, hex) : null;
@@ -232,10 +238,11 @@ export function createBattleMap(ctx) {
   // energy phase clicks: plot courses (snap) / speed-change on a path hex / shift-click to measure range
   map.addEventListener('click', e => {
     if (suppressClick) { suppressClick = false; return; }   // a drag-sideslip just happened; don't also turn
-    if (getPhase() !== 'energy') return;
+    const ph = getPhase(); if (ph !== 'energy' && ph !== 'impulse') return;   // course editing stays live during impulse play
     const hex = clickToHex(e); if (!hex) return;
     const shipHere = getShips().find(s => s.q === hex.q && s.r === hex.r);
-    if (shipHere) { if (isMine(shipHere)) { ui.plotShipId = shipHere.id; ui.eaSelected = shipHere.id; } onShipClick(shipHere); return; }   // your ship is also the route subject; onShipClick adds it as a firer (attacker) or sets it as the target
+    if (shipHere) { if (ph !== 'energy') return;   // impulse phase: ship clicks are handled by the drag listener (select / fire group)
+      if (isMine(shipHere)) { ui.plotShipId = shipHere.id; ui.eaSelected = shipHere.id; } onShipClick(shipHere); return; }   // your ship is also the route subject; onShipClick adds it as a firer (attacker) or sets it as the target
     if (hasGhosts()) return;   // nav plotting is blocked while a ghost what-if is open (fire-group + ghosting are not)
     if (ui.plotShipId && byId(ui.plotShipId)) {   // click a legal candidate hex → extend the course one step (drag re-routes; right-click a nav hex = speed change)
       const s = byId(ui.plotShipId), c = courseOf(s), cur = plotCursor(s, plotBase(s));

@@ -1259,7 +1259,7 @@ function render() {
       : `<circle cx="${c.x}" cy="${c.y}" r="7" fill="${fill}" stroke="#fff" stroke-width="1.5"/><text x="${c.x}" y="${c.y + 3}" text-anchor="middle" font-size="9" fill="#fff" font-weight="800" style="pointer-events:none">◈</text>`;
     svg += `<g class="seeker" data-seeker="${sk.id}" opacity="0.92">${line}${body}</g>`;
   }
-  if (getPhase() === 'energy') svg += plotOverlaySvg({ ships, isMine, byId, plotBase, ui });
+  svg += plotOverlaySvg({ ships, isMine, byId, plotBase, ui });   // movement plots stay visible to their fleet commanders through impulse play (fog-filtered: own fleet only)
   map.querySelector('#dyn').innerHTML = svg;
   applyPhaseUI();
   renderClock();   // both phases — the energy phase must reflect a turn wrap too
@@ -1553,6 +1553,7 @@ function renderEnergy() {
     if (p.systems.ecm && at('ew')) h += ewCtl(at('ew')[0], at('ew')[1], col.ecm, col.eccm, 6);
     if (at('erratic') && !hasCrit(s.criticals, 'maneuver')) h += toggleCtl(at('erratic')[0], at('erratic')[1], 'ERRATIC', 'em', col.em);
     if (at('fc-passive')) h += toggleCtl(at('fc-passive')[0], at('fc-passive')[1], 'FC PASSIVE', 'fcPassive', col.fcPassive);
+    if (at('emergency-decel')) h += toggleCtl(at('emergency-decel')[0], at('emergency-decel')[1], 'EMERG DECEL', 'emDecel', !!s.emDecelAt);   // C8.10: declared during impulse play; lit while the stop is pending
     if (at('edr') && p.systems.labs && !hasCrit(s.criticals, 'labs')) h += stackCtl(at('edr')[0], at('edr')[1], 'EDR (labs)', 'edr', col.edr, sinkMax(p, 'edr'));
   } else {   // legacy layout: shields map + ordered bay slots + fixed system strip
     for (const n of [1, 2, 3, 4, 5, 6]) { const [x, y] = L.shields[n]; h += shieldCtl(n, x, y, sn[n - 1], col.specReinf[n] || 0, specReinfMax(p, n, sn[n - 1]), genPts); }
@@ -1825,6 +1826,8 @@ function updateMeter() {   // light header-meter refresh during slider drag (no 
 }
 epanel.addEventListener('click', e => {
   const tab = e.target.closest('[data-eatab]'); if (tab) { ui.eaSelected = ui.plotShipId = tab.dataset.eatab; render(); return; }
+  const edc = e.target.closest('[data-ea="toggle"][data-key="emDecel"]');   // C8.10: emergency decel is an impulse-play declaration, usable even in the read-only EA view
+  if (edc) { const s2 = ui.eaSelected ? byId(ui.eaSelected) : null; if (s2 && isMine(s2)) emergencyDecel(s2); return; }
   if (ui.viewEA) return;   // read-only EA view (battle) — no allocation changes
   if (e.target.id === 'epAuto') { const s = byId(ui.eaSelected); if (s) { s.autopilot = !s.autopilot; s._autoIdx = 0; saveSoon(s.id); render(); } return; }
   if (myLockedEnergy) return; const s = byId(ui.eaSelected); if (!s) return; const p = powerOf(s), col = eaColOf(s);
