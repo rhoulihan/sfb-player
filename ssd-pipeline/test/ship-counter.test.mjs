@@ -137,3 +137,16 @@ test('counterSvg: a rotating framed counter with the right content per source', 
   const none = counterSvg(base);
   assert.ok(none.includes('<path'), 'no source at all still renders a generic delta');
 });
+
+test('counterColors: classic SFB race counter colors, keyed by the ship-code race prefix', async () => {
+  const { counterColors } = await import('../viewer/ship-counter.js');
+  assert.deepEqual(counterColors('FED-CA'), { bg: '#2563eb', fg: '#000000' }, 'Federation: black ship on blue');
+  assert.deepEqual(counterColors('KLI-D7'), { bg: '#000000', fg: '#ffffff' }, 'Klingon: white ship on black');
+  assert.deepEqual(counterColors('ROM-KR'), { bg: '#C74634', fg: '#000000' }, 'Romulan: black ship on red');
+  assert.deepEqual(counterColors('KZIN-CS'), { bg: '#f97316', fg: '#ffffff' }, 'Kzinti: white on orange');
+  assert.deepEqual(counterColors('GOR-CA'), { bg: '#16a34a', fg: '#ffffff' }, 'Gorn: white on green');
+  assert.deepEqual(counterColors('THOL-CA'), { bg: '#C74634', fg: '#ffffff' }, 'Tholian: white on red');
+  assert.deepEqual(counterColors('LYR-CA'), { bg: '#facc15', fg: '#15803d' }, 'Lyran: green on yellow');
+  assert.deepEqual(counterColors('HYD-RN'), { bg: '#16a34a', fg: '#000000' }, 'Hydran: black on green');
+  assert.deepEqual(counterColors('ZZZ-XX'), { bg: '#475569', fg: '#ffffff' }, 'unknown race: neutral slate with white ship');
+});

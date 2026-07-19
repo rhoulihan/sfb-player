@@ -214,7 +214,7 @@
 <script type="module">
 import * as E from "./ssd-engine.js";
 import { shipPower } from "./energy-model.js";   // build the ship's power model → real control set for the EAF editor
-import { counterClassFor, counterSvg, counterOutlineFromBoxes, shipBodyBoxes } from "./ship-counter.js";   // ship map counter: preview + fallback outline
+import { counterClassFor, counterSvg, counterColors, counterOutlineFromBoxes, shipBodyBoxes } from "./ship-counter.js";   // ship map counter: preview + fallback outline + race colors
 import { COUNTER_ART } from "./ship-counter-art.js";
 import { ctl, capCtl, weaponCtl, segCtl, stackCtl, toggleCtl, shuttleCtl, shieldCtl, sysCtl, batteryCtl, ewCtl, ovDims, shieldOverlaySvg, ctlParts, applyCtlParts, applyCtlText } from "./eaf-controls.js";   // render the exact in-game controls + shared shield-overlay geometry + per-part offsets
 const SVGNS="http://www.w3.org/2000/svg";
@@ -591,7 +591,8 @@ function ensureCounter(){ if(!counterClassFor(ship)&&!counterOutline) counterOut
 function renderCounterPrev(){
   const el=document.getElementById("counterPrev"); if(!el)return;
   const cls=counterClassFor(ship);
-  const inner=counterSvg({cx:26,cy:26,size:44,angle:0,frameFill:"#2563eb",frameStroke:"#173e8f",color:"#fff",
+  const rc=counterColors(ship);   // classic race counter colors (Fed black-on-blue, Klingon white-on-black, …)
+  const inner=counterSvg({cx:26,cy:26,size:44,angle:0,frameFill:rc.bg,frameStroke:"#173e8f",color:rc.fg,
     imageHref:counterArt?`../data/${ship}/${counterArt}?t=${Date.now()}`:null,
     art:cls?COUNTER_ART[cls]:null, outline:counterOutline});
   el.innerHTML=`<svg width="34" height="34" viewBox="0 0 52 52">${inner}</svg>`;

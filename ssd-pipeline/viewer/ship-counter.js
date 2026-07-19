@@ -176,3 +176,19 @@ export function counterSvg({ cx, cy, size = 38, angle = 0, frameFill = '#2563eb'
     `<rect x="${-h}" y="${-h}" width="${size}" height="${size}" rx="${rx}" fill="${frameFill}" stroke="${frameStroke}" stroke-width="2"/>` +
     content + `</g>`;
 }
+
+// Classic SFB counter colors per race (Rick's palette): bg = counter fill, fg = ship-drawing tint.
+// Keyed by the ship-code race prefix (FED-CA → FED); unknown races get a neutral slate counter.
+export const RACE_COLORS = {
+  FED:  { bg: '#2563eb', fg: '#000000' },   // black ship on blue
+  KLI:  { bg: '#000000', fg: '#ffffff' },   // white ship on black
+  ROM:  { bg: '#C74634', fg: '#000000' },   // black ship on red
+  KZIN: { bg: '#f97316', fg: '#ffffff' },   // white on orange
+  GOR:  { bg: '#16a34a', fg: '#ffffff' },   // white on green
+  THOL: { bg: '#C74634', fg: '#ffffff' },   // white on red
+  LYR:  { bg: '#facc15', fg: '#15803d' },   // green on yellow
+  HYD:  { bg: '#16a34a', fg: '#000000' },   // black on green
+};
+export function counterColors(code) {
+  return RACE_COLORS[String(code || '').split('-')[0]] || { bg: '#475569', fg: '#ffffff' };
+}

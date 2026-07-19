@@ -297,7 +297,7 @@
 </div>
 <script type="module">
 import { hexCenter, headingDeg, GEOM, hexDistance, exposedShield, isInArc } from './battle-geom.js';   // isInArc: FP1.611 phaser-vs-seeker arc check
-import { counterClassFor, counterAngle, counterSvg } from './ship-counter.js';   // square rotating ship counters
+import { counterClassFor, counterAngle, counterSvg, counterColors } from './ship-counter.js';   // square rotating ship counters, race counter colors
 import { COUNTER_ART } from './ship-counter-art.js';
 import { shipLoadout } from './ship-loadout.js';
 import { buildShipModel } from './ship-model.js';
@@ -1238,9 +1238,11 @@ function render() {
     // square game counter: whole counter (frame + hull drawing) rotates to the ship's heading; the id label
     // rides above it, un-rotated, so it stays readable at every facing. Content: custom uploaded art →
     // hull-class line drawing → verified fallback outline → generic delta.
-    const cls = counterClassFor(s.code);
+    // Counter colors are the classic race colors (Fed black-on-blue, Klingon white-on-black, …); fleet
+    // ownership stays visible via the frame stroke + the side-colored id label (needed when both fleets fly one race).
+    const cls = counterClassFor(s.code), rc = counterColors(s.code);
     const counter = counterSvg({ cx: c.x, cy: c.y, size: 38, angle: counterAngle(s.facing),
-      frameFill: fill, frameStroke: isMine(s) ? '#173e8f' : '#7f2d21', color: '#fff',
+      frameFill: rc.bg, frameStroke: isMine(s) ? '#173e8f' : '#7f2d21', color: rc.fg,
       imageHref: s._ver && s._ver.counterArt ? `../data/${s.code}/${s._ver.counterArt}` : null,
       art: cls ? COUNTER_ART[cls] : null,
       outline: (s._ver && s._ver.counterOutline) || null });
