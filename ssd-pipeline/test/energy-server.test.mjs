@@ -34,3 +34,45 @@ test('energy phase: sealed lockEnergy → resolve → impulse, with eaf fog of w
     ships: [{ id: 'F1', side: 'friendly', map: { q: 1, r: 1, speed: 8 } }, { id: 'E1', side: 'enemy', map: { q: 2, r: 1, speed: 4 } }] });
   assert.equal((await GET('?code=FFFF')).phase, 'impulse', 'phase flips to impulse once resolved');
 });
+
+test('movement-plot fog of war: plots are hidden from the other commander and survive their wholesale writes', async (t) => {
+  const child = spawn('python3', ['ssd-pipeline/serve.py'], { env: { ...process.env, SFB_PORT: String(PORT) }, stdio: 'ignore' });
+  t.after(() => { child.kill(); try { fs.rmSync('ssd-pipeline/data/_battle.json'); } catch {} });
+  for (let i = 0; i < 60; i++) { try { if ((await fetch(`${BASE}/api/ships`)).ok) break; } catch {} await new Promise(r => setTimeout(r, 100)); }
+
+  await POST({ kind: 'new', turn: 1, impulse: 0,
+    fleets: { friendly: { name: 'Fed', code: 'FFFF' }, enemy: { name: 'Kli', code: 'KKKK' } },
+    plans: { friendly: { groups: [] }, enemy: { groups: [] } }, eaf: {},
+    ships: [{ id: 'F1', side: 'friendly', map: { q: 1, r: 1 } }, { id: 'E1', side: 'enemy', map: { q: 2, r: 1 } }] });
+
+  // the Fed commander plots a course for F1
+  const course = { start: { q: 1, r: 1, facing: 0 }, steps: [{ q: 1, r: 2, facing: 0 }] };
+  await POST({ code: 'FFFF', kind: 'edit', ships: [{ id: 'F1', side: 'friendly', rev: 0, map: { q: 1, r: 1 }, course, speedPlot: { base: 8, changes: [] }, autopilot: true }] });
+
+  // fog: the Klingon commander's view must NOT contain F1's plot; the Fed commander's must
+  const kli = await GET('?code=KKKK');
+  const kliF1 = kli.ships.find(s => s.id === 'F1');
+  assert.ok(!('course' in kliF1) && !('speedPlot' in kliF1) && !('autopilot' in kliF1), 'enemy plots are stripped from the view');
+  const fed = await GET('?code=FFFF');
+  assert.deepEqual(fed.ships.find(s => s.id === 'F1').course, course, 'own plots are visible');
+
+  // the Klingon commander resolves energy and posts ALL ships — with no knowledge of F1's plot (course null).
+  // The server must preserve the Fed fleet's plot fields rather than let them be wiped.
+  await POST({ code: 'KKKK', kind: 'energyResolved', phase: 'impulse', ships: [
+    { id: 'F1', side: 'friendly', map: { q: 1, r: 1, speed: 8 }, course: null, speedPlot: null, autopilot: false },
+    { id: 'E1', side: 'enemy', map: { q: 2, r: 1, speed: 4 }, course: { start: { q: 2, r: 1, facing: 3 }, steps: [{ q: 2, r: 2, facing: 3 }] } },
+  ] });
+  const fed2 = await GET('?code=FFFF');
+  const f1 = fed2.ships.find(s => s.id === 'F1');
+  assert.deepEqual(f1.course, course, 'first locker keeps their programmed path after the resolver folds');
+  assert.equal(f1.autopilot, true, 'autopilot intent preserved too');
+  assert.ok(!('course' in fed2.ships.find(s => s.id === 'E1')), 'the enemy course stays fogged from the Fed view');
+
+  // a mid-impulse step from the Fed commander (who cannot see E1's plot) must not wipe E1's course either
+  await POST({ code: 'FFFF', kind: 'step', turn: 1, impulse: 2, ships: [
+    { id: 'F1', side: 'friendly', map: { q: 1, r: 2, speed: 8 }, course },
+    { id: 'E1', side: 'enemy', map: { q: 2, r: 2, speed: 4 }, course: null },
+  ] });
+  const kli2 = await GET('?code=KKKK');
+  assert.ok(kli2.ships.find(s => s.id === 'E1').course, "the other side's step does not wipe my plot");
+});

@@ -301,6 +301,24 @@ def _fleet_for_code(data, code):
             return side
     return None
 
+PLOT_FIELDS = ("course", "speedPlot", "autopilot")   # movement plots are private to the owning fleet (fog of war)
+
+def keep_plots(cur_by_id, posted, poster_side):
+    """A commander's ships write may not alter the OTHER fleet's plot fields — restore them from the stored
+    ships. (The poster's client cannot even see them: battle_view strips them, so a wholesale post would
+    otherwise wipe the other fleet's programmed paths — the first-to-lock empty-nav-path bug.)"""
+    for ps in posted:
+        if ps.get("side") == poster_side: continue
+        c = cur_by_id.get(ps.get("id"))
+        for k in PLOT_FIELDS:
+            if c and k in c: ps[k] = c[k]
+            else: ps.pop(k, None)
+    return posted
+
+def fog_ships(ships, my_fleet):
+    """A commander sees the other fleet's ships without their movement-plot fields."""
+    return [s if s.get("side") == my_fleet else {k: v for k, v in s.items() if k not in PLOT_FIELDS} for s in ships]
+
 def battle_view(data, my_fleet):
     """What a client may see: no commander codes; fire plans filtered to the commander's own fleet."""
     fleets = {s: {"name": ((data.get("fleets", {}) or {}).get(s) or {}).get("name", "")} for s in ("friendly", "enemy")}
@@ -310,7 +328,7 @@ def battle_view(data, my_fleet):
     eaf = {sid: col for sid, col in (data.get("eaf", {}) or {}).items() if sid in my_ships}   # energy allocation fog of war
     return {"rev": data.get("rev", 0), "turn": data.get("turn", 1), "impulse": data.get("impulse", 0),
             "phase": data.get("phase", "energy"), "fleets": fleets, "myFleet": my_fleet, "plans": plans,
-            "eaf": eaf, "ships": data.get("ships", []),
+            "eaf": eaf, "ships": fog_ships(data.get("ships", []), my_fleet),
             "committed": data.get("committed", {}), "lastFire": data.get("lastFire"),
             "seed": data.get("seed", 0), "rngCursor": data.get("rngCursor", 0), "seekers": data.get("seekers", []), "tractors": data.get("tractors", []), "terrain": data.get("terrain"), "settings": data.get("settings")}
 
@@ -363,10 +381,10 @@ def apply_battle_post(payload):
             if now_all and not was_all:                                 # this commit completed the set → resolve here
                 resp["resolve"] = True
                 resp["plans"] = {s: (plans.get(s) or {"groups": []}) for s in ("friendly", "enemy")}
-                resp["ships"] = cur.get("ships", [])
+                resp["ships"] = fog_ships(cur.get("ships", []), my)
             return 200, resp
         if kind == "fireResult":                                        # authoritative simultaneous resolution (single writer)
-            ships = payload.get("ships", cur.get("ships", []))
+            ships = keep_plots({s["id"]: s for s in cur.get("ships", [])}, payload.get("ships", cur.get("ships", [])), my)
             for s in ships: s["rev"] = s.get("rev", 0) + 1
             cur["ships"] = ships; cur["committed"] = {}; cur["lastFire"] = payload.get("lastFire"); cur["rev"] = cur.get("rev", 0) + 1
             with open(_battle_path(), "w") as f: json.dump(cur, f, indent=1)
@@ -384,14 +402,14 @@ def apply_battle_post(payload):
                 resp["resolve"] = True; resp["eaf"] = eaf
             return 200, resp
         if kind == "energyResolved":                                    # authoritative fold (single resolver) → impulse phase
-            ships = payload.get("ships", cur.get("ships", []))
+            ships = keep_plots({s["id"]: s for s in cur.get("ships", [])}, payload.get("ships", cur.get("ships", [])), my)
             for s in ships: s["rev"] = s.get("rev", 0) + 1
             cur["ships"] = ships; cur["phase"] = payload.get("phase", "impulse")
             cur["committed"] = {}; cur["rev"] = cur.get("rev", 0) + 1
             with open(_battle_path(), "w") as f: json.dump(cur, f, indent=1)
             return 200, {"ok": True, "rev": cur["rev"], "ships": {s["id"]: s["rev"] for s in ships}}
         curships = {s["id"]: s for s in cur.get("ships", [])}
-        posted = payload.get("ships", [])
+        posted = keep_plots(curships, payload.get("ships", []), my)
         if kind != "step":                                              # check every affected ship's version
             conflict = [ps["id"] for ps in posted if ps["id"] in curships and ps.get("rev", 0) != curships[ps["id"]].get("rev", 0)]
             if conflict: return 409, {"conflict": True, "ships": conflict, "view": battle_view(cur, my)}
