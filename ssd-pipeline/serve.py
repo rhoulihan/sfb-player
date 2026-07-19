@@ -319,6 +319,33 @@ def fog_ships(ships, my_fleet):
     """A commander sees the other fleet's ships without their movement-plot fields."""
     return [s if s.get("side") == my_fleet else {k: v for k, v in s.items() if k not in PLOT_FIELDS} for s in ships]
 
+def _round_for(cur, turn, impulse):
+    """The shared impulse-round fact sheet for (turn, impulse); a new position starts a fresh round."""
+    r = cur.get("round")
+    if not r or r.get("turn") != turn or r.get("impulse") != impulse:
+        r = {"turn": turn, "impulse": impulse, "intents": {}, "moveDone": {}, "seekersDone": False, "segDone": {}}
+        cur["round"] = r
+    return r
+
+def round_view(data, my_fleet):
+    """B2.4 fog: each commander sees WHO has declared, their own intent, and the public round facts.
+    The CONTENT of declarations is announced only once every fleet has declared."""
+    r = data.get("round")
+    if not r: return None
+    fleets = ["friendly", "enemy"]
+    ints = r.get("intents") or {}
+    v = {"turn": r.get("turn"), "impulse": r.get("impulse"),
+         "submitted": {f: f in ints for f in fleets},
+         "myIntent": ints.get(my_fleet),
+         "moveDone": r.get("moveDone", {}), "seekersDone": r.get("seekersDone", False),
+         "segDone": r.get("segDone", {}), "fireResolved": r.get("fireResolved", False)}
+    if all(f in ints for f in fleets):
+        v["announced"] = {"activity": [f for f in fleets if any((ints[f].get("activity") or {}).values())],
+                          "fire": [f for f in fleets if ints[f].get("fire")],
+                          "het": [f for f in fleets if ints[f].get("het")],
+                          "decel": [f for f in fleets if ints[f].get("decel")]}
+    return v
+
 def battle_view(data, my_fleet):
     """What a client may see: no commander codes; fire plans filtered to the commander's own fleet."""
     fleets = {s: {"name": ((data.get("fleets", {}) or {}).get(s) or {}).get("name", "")} for s in ("friendly", "enemy")}
@@ -329,6 +356,7 @@ def battle_view(data, my_fleet):
     return {"rev": data.get("rev", 0), "turn": data.get("turn", 1), "impulse": data.get("impulse", 0),
             "phase": data.get("phase", "energy"), "fleets": fleets, "myFleet": my_fleet, "plans": plans,
             "eaf": eaf, "ships": fog_ships(data.get("ships", []), my_fleet),
+            "round": round_view(data, my_fleet),
             "committed": data.get("committed", {}), "lastFire": data.get("lastFire"),
             "seed": data.get("seed", 0), "rngCursor": data.get("rngCursor", 0), "seekers": data.get("seekers", []), "tractors": data.get("tractors", []), "terrain": data.get("terrain"), "settings": data.get("settings")}
 
@@ -377,7 +405,7 @@ def apply_battle_post(payload):
             cur["committed"] = committed; cur["plans"] = plans; cur["rev"] = cur.get("rev", 0) + 1
             with open(_battle_path(), "w") as f: json.dump(cur, f, indent=1)
             now_all = all(committed.get(s) for s in ("friendly", "enemy"))
-            resp = {"ok": True, "rev": cur["rev"], "allCommitted": now_all, "committed": committed}
+            resp = {"ok": True, "rev": cur["rev"], "allCommitted": now_all, "committed": committed, "round": round_view(cur, my)}
             if now_all and not was_all:                                 # this commit completed the set → resolve here
                 resp["resolve"] = True
                 resp["plans"] = {s: (plans.get(s) or {"groups": []}) for s in ("friendly", "enemy")}
@@ -386,9 +414,10 @@ def apply_battle_post(payload):
         if kind == "fireResult":                                        # authoritative simultaneous resolution (single writer)
             ships = keep_plots({s["id"]: s for s in cur.get("ships", [])}, payload.get("ships", cur.get("ships", [])), my)
             for s in ships: s["rev"] = s.get("rev", 0) + 1
+            if cur.get("round"): cur["round"]["fireResolved"] = True     # 6D: one fire exchange per impulse (B2.3)
             cur["ships"] = ships; cur["committed"] = {}; cur["lastFire"] = payload.get("lastFire"); cur["rev"] = cur.get("rev", 0) + 1
             with open(_battle_path(), "w") as f: json.dump(cur, f, indent=1)
-            return 200, {"ok": True, "rev": cur["rev"], "ships": {s["id"]: s["rev"] for s in ships}}
+            return 200, {"ok": True, "rev": cur["rev"], "ships": {s["id"]: s["rev"] for s in ships}, "round": round_view(cur, my)}
         if kind == "lockEnergy":                                         # seal this fleet's energy allocation for the turn
             committed = cur.get("committed", {}) or {}
             was_all = all(committed.get(s) for s in ("friendly", "enemy"))
@@ -401,16 +430,48 @@ def apply_battle_post(payload):
             if all(committed.get(s) for s in ("friendly", "enemy")) and not was_all:   # last lock → resolver folds
                 resp["resolve"] = True; resp["eaf"] = eaf
             return 200, resp
+        if kind == "intent":                                            # B2.4: a fleet's secret impulse declaration
+            r = _round_for(cur, int(payload.get("turn", cur.get("turn", 1))), int(payload.get("impulse", cur.get("impulse", 0))))
+            r["intents"][my] = payload.get("intent") or {}
+            cur["rev"] = cur.get("rev", 0) + 1
+            with open(_battle_path(), "w") as f: json.dump(cur, f, indent=1)
+            return 200, {"ok": True, "rev": cur["rev"], "round": round_view(cur, my)}
+        if kind == "segDone":                                           # a declaring fleet finished acting in an interactive segment
+            r = _round_for(cur, int(payload.get("turn", cur.get("turn", 1))), int(payload.get("impulse", cur.get("impulse", 0))))
+            r.setdefault("segDone", {}).setdefault(str(payload.get("seg", "6B")), {})[my] = True
+            cur["rev"] = cur.get("rev", 0) + 1
+            with open(_battle_path(), "w") as f: json.dump(cur, f, indent=1)
+            return 200, {"ok": True, "rev": cur["rev"], "round": round_view(cur, my)}
+        if kind == "roundAdvance":                                      # idempotent: the first observer of a completed round moves the clock
+            nt, ni = int(payload.get("turn", cur.get("turn", 1))), int(payload.get("impulse", 0))
+            ct, ci = cur.get("turn", 1), cur.get("impulse", 0)
+            if (nt, ni) == (ct, ci):
+                return 200, {"ok": True, "rev": cur.get("rev", 0)}       # already there — the other client won the race
+            ok_step = (nt == ct and ni == ci + 1) or (nt == ct + 1 and payload.get("phase") == "energy")
+            if not ok_step: return 409, {"error": "stale round advance", "view": battle_view(cur, my)}
+            cur["turn"], cur["impulse"] = nt, ni
+            cur["phase"] = payload.get("phase", cur.get("phase", "impulse"))
+            cur["round"] = None; cur["committed"] = {}
+            cur["rev"] = cur.get("rev", 0) + 1
+            with open(_battle_path(), "w") as f: json.dump(cur, f, indent=1)
+            return 200, {"ok": True, "rev": cur["rev"]}
+        if kind in ("moveDone", "seekerResult"):                        # round bookkeeping, then the generic ships merge below
+            r = _round_for(cur, int(payload.get("turn", cur.get("turn", 1))), int(payload.get("impulse", cur.get("impulse", 0))))
+            if kind == "moveDone" and my not in r["moveDone"]:
+                r["moveDone"][my] = {"order": len(r["moveDone"]) + 1}    # the LAST mover becomes the seeker finisher
+            if kind == "seekerResult":
+                r["seekersDone"] = True
         if kind == "energyResolved":                                    # authoritative fold (single resolver) → impulse phase
             ships = keep_plots({s["id"]: s for s in cur.get("ships", [])}, payload.get("ships", cur.get("ships", [])), my)
             for s in ships: s["rev"] = s.get("rev", 0) + 1
             cur["ships"] = ships; cur["phase"] = payload.get("phase", "impulse")
+            cur["turn"] = int(payload.get("turn", cur.get("turn", 1))); cur["impulse"] = int(payload.get("impulse", 1))   # the resolver's clock is at impulse 1 — the other commander must adopt the same position
             cur["committed"] = {}; cur["rev"] = cur.get("rev", 0) + 1
             with open(_battle_path(), "w") as f: json.dump(cur, f, indent=1)
             return 200, {"ok": True, "rev": cur["rev"], "ships": {s["id"]: s["rev"] for s in ships}}
         curships = {s["id"]: s for s in cur.get("ships", [])}
         posted = keep_plots(curships, payload.get("ships", []), my)
-        if kind != "step":                                              # check every affected ship's version
+        if kind not in ("step", "moveDone", "seekerResult"):            # check every affected ship's version (round movement posts are authoritative)
             conflict = [ps["id"] for ps in posted if ps["id"] in curships and ps.get("rev", 0) != curships[ps["id"]].get("rev", 0)]
             if conflict: return 409, {"conflict": True, "ships": conflict, "view": battle_view(cur, my)}
         touched, newrevs = [], {}
@@ -419,10 +480,11 @@ def apply_battle_post(payload):
             touched.append(sid); newrevs[sid] = nr
             if c and kind != "step" and ps.get("side") != my:
                 c["status"] = ps.get("status", c.get("status")); c["rev"] = nr   # opponent ship: fire damage only
+                if kind in ("moveDone", "seekerResult"): c["map"] = ps.get("map", c.get("map"))   # towing and seeker impacts legitimately move enemy hulls; positions are public
             else:
                 ps["rev"] = nr; curships[sid] = ps                               # mine / step / new: full update
         plans = cur.get("plans", {}) or {}
-        if kind != "step":
+        if kind not in ("step", "moveDone", "seekerResult"):
             plans[my] = merge_plan(plans.get(my, {"groups": []}), payload.get("plan", {"groups": []}), touched)
         result = {"rev": cur.get("rev", 0) + 1,
                   "turn": payload.get("turn", cur.get("turn", 1)) if kind == "step" else cur.get("turn", 1),
@@ -431,13 +493,14 @@ def apply_battle_post(payload):
                   "committed": {} if kind == "step" else cur.get("committed", {}),   # new impulse clears commits
                   "phase": payload.get("phase", cur.get("phase", "impulse")),        # step may wrap turn → 'energy'
                   "eaf": cur.get("eaf", {}), "lastFire": cur.get("lastFire"),
+                  "round": cur.get("round"),
                   "seed": cur.get("seed", 0), "rngCursor": cur.get("rngCursor", 0),
                   "seekers": payload.get("seekers", cur.get("seekers", [])),
                   "tractors": payload.get("tractors", cur.get("tractors", [])),
                   "terrain": payload.get("terrain", cur.get("terrain")),
                   "settings": payload.get("settings", cur.get("settings"))}   # carry the shared dice + seeking weapons + tractors + terrain + settings through edit/step
         with open(_battle_path(), "w") as f: json.dump(result, f, indent=1)
-        return 200, {"ok": True, "rev": result["rev"], "ships": newrevs}
+        return 200, {"ok": True, "rev": result["rev"], "ships": newrevs, "round": round_view(result, my)}
 
 class H(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *a, **k): super().__init__(*a, directory=ROOT, **k)

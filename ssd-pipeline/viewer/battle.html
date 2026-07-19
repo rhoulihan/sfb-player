@@ -142,6 +142,7 @@
     <span class="sp"></span>
     <label class="tmode" id="soloPerspWrap" style="display:none" title="solo mode — switch which fleet you command">Command <select id="soloPersp"></select></label>
     <div class="clock" id="clock">TURN 1 · IMP 0/32</div>
+    <span id="roundStatus" style="display:none;font-size:12px;color:#cbd5e1;margin-left:8px"></span>
     <button class="btn primary" id="stepBtn">▶ Impulse</button>
     <div class="zoomc"><button data-z="-1">−</button><button data-z="fit">fit</button><span id="zpct">50%</span><button data-z="1">+</button></div>
     <button class="btn primary" id="newBattleBtn">＋ New Battle</button>
@@ -270,6 +271,19 @@
     <button class="btn primary" id="critAck" style="width:100%;padding:10px;font-size:14px;margin-top:8px">Acknowledge</button>
   </div>
 </div>
+<div id="intentModal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:520;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:12px;padding:18px 22px;min-width:340px;max-width:560px;box-shadow:0 12px 44px rgba(0,0,0,.4)">
+    <div style="font-weight:700;font-size:16px" id="intentTitle">Impulse intentions</div>
+    <div style="color:#64748b;font-size:12px;margin:2px 0 10px">Declare what you may do this impulse (B2.4). Segments nobody declares are skipped for everyone; declared actions use the normal controls when their segment arrives.</div>
+    <div id="intentBody" style="display:flex;gap:18px"></div>
+    <div style="margin-top:12px;border-top:1px solid #e2e8f0;padding-top:10px;font-size:13px;display:flex;flex-direction:column;gap:4px">
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="radio" name="intIdle" value="0" checked> Ask again next impulse</label>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="radio" name="intIdle" value="n"> No actions for the next <input id="intIdleN" type="number" min="1" max="31" value="4" style="width:52px;font:inherit;padding:1px 4px"> impulses</label>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="radio" name="intIdle" value="turn"> No actions for the rest of the turn</label>
+    </div>
+    <button class="btn primary" id="intentSubmit" style="width:100%;margin-top:12px;padding:9px;font-size:14px">Submit intentions</button>
+  </div>
+</div>
 <div id="nbModal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:400;align-items:center;justify-content:center">
   <div style="background:#fff;border-radius:10px;width:min(780px,94vw);max-height:88vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 12px 44px rgba(0,0,0,.4)">
     <div style="padding:10px 16px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center"><b style="font-size:15px">＋ New Battle</b><span style="flex:1"></span><button class="btn" id="nbCancel">✕</button></div>
@@ -329,6 +343,7 @@ import { ctl, stepPair, stackCtl, barCtl, sysCtl, batteryCtl, ewCtl, toggleCtl, 
 import { reservePool as reservePoolOf, spendReserve, reserveCost } from './reserve-power.js';   // reactive power (H5/H7)
 import { legalNextHexes, tryStep, impulseTimeline, hexesInPlot, setSpeedChange, speedChangeLegal, speedAt, legalSideslips, trySideslip } from './course-plan.js';   // speedChangeLegal: C12.3 mid-turn speed-change limits
 import { family, segmentName, advance, hasLockOn } from './battle-phase.js';   // SFB Sequence-of-Play segment cursor + driver; D6.1 lock predicate
+import { roundPhase, emptyIntent, idleCovers, ACTIVITY_KEYS } from './impulse-round.js';   // B2.4 impulse-round state machine (intentions → owner movement → declared segments)
 import { hexPath, rad, plotOverlaySvg, createBattleMap } from './battle-map.js';
 import { SCENARIO } from './scenario.js';
 
@@ -904,7 +919,10 @@ function applyRemote(data) {
   // adopt the remote clock/phase only when it is not behind ours — a lagging poll must never rewind our
   // own optimistic step/wrap (which would strand us a turn back while the server is already ahead).
   const localPos = clock.turn * 33 + clock.impulse, remotePos = (data.turn || 1) * 33 + (data.impulse ?? 0);
-  if (remotePos >= localPos) {
+  roundView = data.round || null;
+  if (!settings.solo && getPhase() === 'impulse' && remotePos > localPos && (data.phase === 'impulse' || data.phase === 'energy')) {
+    walkClockTo(data.turn || 1, data.phase === 'energy' ? 33 : (data.impulse ?? 0));   // replay my local segments to the server's position (round advanced elsewhere)
+  } else if (remotePos >= localPos) {
     clock = { turn: data.turn || 1, impulse: data.impulse ?? 0, phase: clock.phase };
     if (data.phase && data.phase !== getPhase()) { const toEnergy = data.phase === 'energy'; setCoarse(data.phase); if (toEnergy) { eafDraft = {}; myLockedEnergy = false; } }
     else if (data.phase) setCoarse(data.phase);
@@ -933,6 +951,7 @@ function applyRemote(data) {
   if (data.seed) seed = data.seed; if (data.rngCursor != null) rngCursor = data.rngCursor; if (data.seekers) seekers = data.seekers; if (data.tractors) tractors = data.tractors; if (data.terrain) terrain = data.terrain; if (data.settings) settings = data.settings;
   if (data.lastFire && data.lastFire.id && data.lastFire.id !== lastFireShown) { lastFireShown = data.lastFire.id; renderLog({ log: data.lastFire.log || [] }, true); }   // show the resolver's fire result
   render(); applying = false;
+  driveRound();   // reconcile my round obligations with the freshly-applied shared state
 }
 let toastT = 0;
 function notifyConflict() {
@@ -951,9 +970,10 @@ function startPolling() {
 
 const isDead = s => shipHealth(s) <= 0;
 // ---- Sequence-of-Play segment resolvers (B2.3) — the host runs these as the cursor reaches each segment ----
-function resolveMovement() {   // 6A Movement Segment: plotted speed changes fire, each ship moves one hex, tractored ships are dragged by their tower
+function resolveMovement(only = null) {   // 6A Movement Segment: plotted speed changes fire, each ship moves one hex, tractored ships are dragged by their tower. `only` filters to the executing fleet (multiplayer: each owner moves its own — plot fog)
   const _towPos = Object.fromEntries(ships.map(s => [s.id, [s.q, s.r]]));   // pre-move positions → drag tractored ships along with their tower (G7.32/36)
   for (const s of ships) {
+    if (only && !only(s)) continue;
     s.speed = hasCrit(s.criticals, 'warp') ? 0 : speedAt(s.speedPlot || { base: s.speed, changes: [] }, clock.impulse);   // plotted speed changes fire on their locked impulses (C12.36); warp crit halts the ship (D8.23)
     const towed = tractorLinksFrom(s).map(t => byId(t.to)).filter(h => h && !isDead(h));   // G7.36B: towing another ship slows the tower to the pair's pseudo-speed (combined move cost)
     if (towed.length && s.speed) {
@@ -1087,11 +1107,13 @@ function runSegment(seg) {
       ships.forEach(applyReserveQueue);                                                 // H7.1 queued reserve allocations take effect at the impulse boundary
       seqAlive = new Set(ships.filter(s => !isDead(s)).map(s => s.id));
       break;
-    case '6A2': resolveMovement(); break;                                               // 6A Movement Segment
+    case '6A2': if (settings.solo) resolveMovement(); break;                            // 6A Movement Segment (multiplayer: each owner moves its own fleet via the round protocol — plot fog)
     case '6A4':                                                                         // end of 6A: seeking weapons impact (F2.2), then announce seeking deaths — before any 6D fire
-      applyEmergencyDecel(seqLog);                                                     // C8.101: ships that declared emergency deceleration stop at the end of the movement segment
-      seqLog.push(...resolveSeekingImpact());
-      resolvePostCombat(seqAlive, seqLog);
+      if (settings.solo) {                                                              // multiplayer: the round's designated finisher resolves these and posts the result
+        applyEmergencyDecel(seqLog);                                                   // C8.101: ships that declared emergency deceleration stop at the end of the movement segment
+        seqLog.push(...resolveSeekingImpact());
+        resolvePostCombat(seqAlive, seqLog);
+      }
       break;
     case 'final': resolveRepairStage(); resolveFinalActivity(seqLog); break;            // Record Keeping repair (D9.21/D9.7) + Final Activity Phase (7)
     case 'record': eafDraft = {}; myLockedEnergy = false; ui.eaHidden = false; break;   // → next turn's Energy Allocation
@@ -1104,14 +1126,192 @@ function runSequence(extraGates) {   // advance the cursor to the next player ga
   clock = st.clock;                  // move to the rest position first — resolvers (movement etc.) read clock.impulse
   for (const seg of ran) runSegment(seg);
 }
-function stepImpulse() {
-  if (getPhase() !== 'impulse') return;
+function stepImpulse() {   // legacy single-driver step — SOLO ONLY (multiplayer advances through the consensus round protocol)
+  if (getPhase() !== 'impulse' || !settings.solo) return;
   seqLog = [];
   runSequence({ fireResolved: true, moveSatisfied: false });   // past this impulse's 6D fire + 6E (on impulse 32: Final/Record → next-turn Energy)
   if (getPhase() === 'impulse') runSequence({ moveSatisfied: true, fireResolved: false });   // 6A of the next impulse: move + seeking, rest at its fire gate
   const wrapped = getPhase() === 'energy';
   pruneUnavailable(); render(); if (seqLog.length) renderLog({ log: seqLog }, true);
   save(null, wrapped ? { step: true, phase: 'energy' } : { step: true });   // movement syncs to all commanders
+}
+
+// ---------- impulse round driver (B2.2 procedure 6 + B2.4 secret-simultaneous intentions) ----------
+// Multiplayer: the server stores the round facts; every client derives the same position with
+// roundPhase() and contributes only what it owns (its intent, its fleet's movement, its Done marks).
+// Solo: the same intentions modal fronts the local stepImpulse walk, covering both fleets at once.
+const FLEET_KEYS = ['friendly', 'enemy'];
+let roundView = null, myIdle = null, soloIdle = null, roundGuards = {}, soloIntentRes = null;
+const rk = w => `${clock.turn}:${clock.impulse}:${w}`;
+const roundOnce = w => roundGuards[rk(w)] ? false : (roundGuards[rk(w)] = true);
+function synthIntent(ann, f) {   // the enemy's announced declarations, as a reducer intent (contents beyond the announcements stay fogged)
+  return { ...emptyIntent(), fire: (ann.fire || []).includes(f), het: (ann.het || []).includes(f),
+    decel: (ann.decel || []).includes(f), activity: { any: (ann.activity || []).includes(f) } };
+}
+function factsFromView(v) {
+  const intents = {};
+  for (const f of FLEET_KEYS) {
+    if (f === myFleet) { if (v.myIntent) intents[f] = v.myIntent; }
+    else if (v.announced) intents[f] = synthIntent(v.announced, f);
+  }
+  return { intents, moveDone: v.moveDone || {}, seekersDone: !!v.seekersDone, segDone: v.segDone || {},
+    fireCommitted: committed || {}, fireResolved: !!v.fireResolved };
+}
+async function postRound(kind, extra = {}) {
+  try {
+    const j = await (await fetch('/api/battle', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: myCode, kind, turn: clock.turn, impulse: clock.impulse, ...extra }) })).json();
+    if (j.rev) rev = j.rev; if (j.round) roundView = j.round;
+    for (const [id, nr] of Object.entries(j.ships || {})) shipRev[id] = nr;
+    return j;
+  } catch { return null; }
+}
+async function driveRound() {   // reconcile my obligations with the shared round position (idempotent; called after polls/actions)
+  if (settings.solo || getPhase() !== 'impulse' || !ships.length || !myCode) return;
+  const v = roundView && roundView.turn === clock.turn && roundView.impulse === clock.impulse ? roundView : null;
+  const facts = v ? factsFromView(v) : { intents: {} };
+  // a declared action while I'm idle → ask whether to resume manual play (my no-actions window otherwise stands)
+  if (v && v.announced && myIdle && ['fire', 'activity', 'het', 'decel'].some(k => (v.announced[k] || []).length) && roundOnce('idleAsk')) {
+    const who = FLEET_KEYS.filter(f => f !== myFleet && ['fire', 'activity', 'het', 'decel'].some(k => (v.announced[k] || []).includes(f)));
+    if (who.length && confirm(`${who.map(f => (fleets[f] || {}).name || f).join(', ')} declared an action this impulse — resume manual play (intentions each impulse)?`)) myIdle = null;
+  }
+  const ph = roundPhase(facts, FLEET_KEYS);
+  renderRoundStatus(ph);
+  if (ph.seg === 'intent') {
+    if (!facts.intents[myFleet]) {
+      if (myIdle && idleCovers(myIdle, myIdle.submittedAt, clock.impulse)) { if (roundOnce('intent')) { await postRound('intent', { intent: emptyIntent() }); driveRound(); } }
+      else openIntentModal([myFleet]);
+    }
+    return;
+  }
+  document.getElementById('intentModal').style.display = 'none';   // declarations are in — the modal may still be up from a race
+  if (ph.seg === '6A' && ph.waitingOn.includes(myFleet)) { if (roundOnce('move')) { await postOwnMovement(); driveRound(); } return; }
+  if (ph.seg === '6A4' && ph.waitingOn[0] === myFleet) { if (roundOnce('seek')) { await postSeekerResult(); driveRound(); } return; }
+  if (ph.seg === '6D' && facts.intents[myFleet] && !facts.intents[myFleet].fire && !(committed || {})[myFleet]) { if (roundOnce('autocommit')) await autoCommitEmpty(); return; }
+  if (ph.seg === 'done') { if (roundOnce('advance')) await advanceRoundClock(); return; }
+}
+async function postOwnMovement() {   // 6A: execute MY fleet's scheduled movement (plots/chart/decel) and publish the resulting positions
+  seqLog = [];
+  resolveMovement(isMine);
+  applyEmergencyDecel(seqLog, isMine);
+  pruneUnavailable(); render(); if (seqLog.length) renderLog({ log: seqLog }, true);
+  const towed = ships.filter(s => !isMine(s) && (tractors || []).some(t => t.to === s.id && (h => h && isMine(h))(byId(t.from))));   // my towers drag held enemy hulls (G7.36)
+  await postRound('moveDone', { ships: [...ships.filter(isMine), ...towed].map(s => ({ ...serializeShip(s), rev: shipRev[s.id] ?? 0 })), rngCursor });
+}
+async function postSeekerResult() {   // 6A4 (designated finisher): seekers advance + impact on the merged post-move positions
+  seqLog = [];
+  seqLog.push(...resolveSeekingImpact());
+  resolvePostCombat(seqAlive, seqLog);
+  pruneUnavailable(); render(); if (seqLog.length) renderLog({ log: seqLog }, true);
+  await postRound('seekerResult', { ships: ships.map(s => ({ ...serializeShip(s), rev: shipRev[s.id] ?? 0 })), seekers, rngCursor });
+}
+async function autoCommitEmpty() {   // B2.4: a fleet that declared no fire auto-commits an empty plan so the exchange can resolve
+  myCommitted = true; render();
+  try {
+    const j = await (await fetch('/api/battle', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: myCode, kind: 'commit', plan: { groups: [] } }) })).json();
+    if (j.rev) rev = j.rev; if (j.committed) committed = j.committed; if (j.round) roundView = j.round;
+    if (j.resolve) await resolveAll(j.plans);   // my empty commit completed the set → I resolve the enemy's declared fire
+    render(); driveRound();
+  } catch { myCommitted = false; }
+}
+async function advanceRoundClock() {   // round complete → idempotent clock advance + local close-out walk (both clients run their own)
+  const wrap = clock.impulse >= 32;
+  await postRound('roundAdvance', wrap ? { turn: clock.turn + 1, impulse: 0, phase: 'energy' } : { turn: clock.turn, impulse: clock.impulse + 1, phase: 'impulse' });
+  roundView = null; if (wrap) { myIdle = null; roundGuards = {}; }
+  seqLog = [];
+  runSequence({ fireResolved: true, moveSatisfied: false });
+  if (getPhase() === 'impulse') runSequence({ moveSatisfied: true, fireResolved: false });
+  pruneUnavailable(); render(); if (seqLog.length) renderLog({ log: seqLog }, true);
+  requestAnimationFrame(fitToShips);
+  driveRound();
+}
+function walkClockTo(turn, impulse) {   // replay my local segment walk up to the server's position (the other client advanced first)
+  for (let g = 0; g < 40 && getPhase() === 'impulse' && clock.turn * 33 + clock.impulse < turn * 33 + impulse; g++) {
+    seqLog = [];
+    runSequence({ fireResolved: true, moveSatisfied: false });
+    if (getPhase() === 'impulse') runSequence({ moveSatisfied: true, fireResolved: false });
+    if (seqLog.length) renderLog({ log: seqLog }, true);
+  }
+}
+function renderRoundStatus(ph) {   // header chip: where the round rests and who it waits for
+  const el = document.getElementById('roundStatus'); if (!el) return;
+  if (settings.solo || getPhase() !== 'impulse') { el.style.display = 'none'; return; }
+  el.style.display = '';
+  const segLab = { intent: '📋 Intentions', '6A': '🚀 Movement', '6A4': '☄ Seeking weapons', '6B': '🛰 Activity', '6D': '🔥 Direct fire', done: '⏭ Advancing…' }[ph.seg] || ph.seg;
+  const nameOf = f => (fleets[f] && fleets[f].name) || f;
+  const others = ph.waitingOn.filter(f => f !== myFleet);
+  let h = `<b>${segLab}</b>`;
+  if (ph.seg === '6B' && ph.waitingOn.includes(myFleet)) h += ` <button class="btn" id="segDoneBtn">✅ Done with activity</button>`;
+  else if (others.length) h += ` · waiting for ${others.map(nameOf).join(', ')}`;
+  if (myIdle && idleCovers(myIdle, myIdle.submittedAt, clock.impulse + 1)) h += ` <button class="btn" id="wakeBtn" title="cancel the no-actions window at the next impulse">😴 Wake</button>`;
+  el.innerHTML = h;
+  const sd = document.getElementById('segDoneBtn'); if (sd) sd.onclick = async () => { await postRound('segDone', { seg: '6B' }); driveRound(); };
+  const wk = document.getElementById('wakeBtn'); if (wk) wk.onclick = () => { myIdle = null; renderRoundStatus(ph); };
+}
+const INTENT_ITEMS = [
+  ['fire', '🔥 Direct fire (6D)'], null,
+  ['drones', '🚀 Launch drones'], ['plasma', '☄ Launch plasma'], ['shuttles', '🛰 Shuttle ops (admin / suicide / weasel / scatter)'],
+  ['transporters', '⚡ Transporters (hit-and-run / T-bomb)'], ['mines', '✸ Lay mines'], ['tractors', '🧲 Tractor ops'], ['boarding', '⚔ Boarding'],
+  null, ['het', '⚡↺ High Energy Turn'], ['decel', '🛑 Emergency deceleration'],
+];
+function openIntentModal(fleetsToAsk) {   // B2.4 checklist, grouped by segment; solo passes both fleets (two columns)
+  const m = document.getElementById('intentModal');
+  if (m.style.display === 'flex') return;
+  document.getElementById('intentTitle').textContent = `Turn ${clock.turn} · Impulse ${clock.impulse}${settings.solo ? ' (next)' : ''} — declare intentions`;
+  document.getElementById('intentBody').innerHTML = fleetsToAsk.map(f =>
+    `<div style="flex:1;min-width:200px"><div style="font-weight:700;color:${f === 'friendly' ? '#2563eb' : '#C74634'};margin-bottom:4px">${(fleets[f] || {}).name || f}</div>` +
+    INTENT_ITEMS.map(it => it
+      ? `<label style="display:flex;gap:6px;align-items:center;font-size:13px;padding:2px 0;cursor:pointer"><input type="checkbox" data-fleet="${f}" data-k="${it[0]}"> ${it[1]}</label>`
+      : '<div style="border-top:1px solid #eef2f6;margin:5px 0"></div>').join('') + '</div>').join('');
+  m.dataset.fleets = fleetsToAsk.join(',');
+  document.querySelector('input[name="intIdle"][value="0"]').checked = true;
+  m.style.display = 'flex';
+}
+document.getElementById('intentSubmit').onclick = async () => {
+  const m = document.getElementById('intentModal');
+  const asked = (m.dataset.fleets || myFleet).split(',');
+  const idleSel = document.querySelector('input[name="intIdle"]:checked').value;
+  const idleImpulses = idleSel === 'turn' ? 'turn' : idleSel === 'n' ? Math.max(1, +document.getElementById('intIdleN').value || 1) : 0;
+  const intentFor = f => {
+    const it = emptyIntent(); it.idleImpulses = idleImpulses;
+    m.querySelectorAll(`input[data-fleet="${f}"]:checked`).forEach(cb => {
+      const k = cb.dataset.k;
+      if (k === 'fire' || k === 'het' || k === 'decel') it[k] = true; else it.activity[k] = true;
+    });
+    return it;
+  };
+  m.style.display = 'none';
+  if (settings.solo) { const r = soloIntentRes; soloIntentRes = null; if (r) r(Object.fromEntries(asked.map(f => [f, intentFor(f)]))); return; }
+  const it = intentFor(myFleet);
+  myIdle = it.idleImpulses ? { submittedAt: clock.impulse, idleImpulses: it.idleImpulses } : null;
+  await postRound('intent', { intent: it });
+  driveRound();
+};
+async function soloStep() {   // solo ▶: close out the current impulse, ask intentions for the next, run its movement
+  if (getPhase() !== 'impulse') return;
+  seqLog = [];
+  runSequence({ fireResolved: true, moveSatisfied: false });   // 6D..6E (final/record on impulse 32)
+  if (seqLog.length) renderLog({ log: seqLog }, true);
+  if (getPhase() !== 'impulse') { soloIdle = null; pruneUnavailable(); render(); requestAnimationFrame(fitToShips); return; }   // wrapped into next-turn energy
+  await soloRunImpulse();
+}
+async function soloRunImpulse() {   // intentions (or idle auto) for the impulse about to run, then its 6A walk
+  let intents = null;
+  if (!(soloIdle && idleCovers(soloIdle, soloIdle.submittedAt, clock.impulse + 1)))
+    intents = await new Promise(res => { soloIntentRes = res; openIntentModal(FLEET_KEYS); });
+  if (intents) {
+    const idler = Object.values(intents).find(it => it.idleImpulses);
+    soloIdle = idler ? { submittedAt: clock.impulse + 1, idleImpulses: idler.idleImpulses } : null;
+  }
+  seqLog = [];
+  runSequence({ moveSatisfied: true, fireResolved: false });   // 6A: both fleets' movement + seekers (solo knows all plots), park at 6D1
+  pruneUnavailable(); render(); if (seqLog.length) renderLog({ log: seqLog }, true);
+  requestAnimationFrame(fitToShips);
+  const declared = intents && Object.values(intents).some(it => it.fire || Object.values(it.activity || {}).some(Boolean));
+  if (!declared) {
+    await fireNow({ groups: [] });   // nobody declared fire → the 6D exchange is empty
+    if (soloIdle && idleCovers(soloIdle, soloIdle.submittedAt, clock.impulse + 1)) setTimeout(soloStep, 160);   // fast-forward through the idle window
+  }
 }
 // a queued turn executes when the ship next moves; applies to the given ship (defaults to the last-clicked one)
 // D14.12: destroyed system boxes eligible for emergency damage repair (excludes damage-control track + excess-damage boxes)
@@ -1161,8 +1361,9 @@ function emergencyDecel(ship) {
 }
 // C8.101: at the end of the movement segment two impulses after the declaration, the ship stops (speed 0) and enters the
 // post-deceleration period (C8.4). Runs at 6A4 (end of the Movement Segment).
-function applyEmergencyDecel(skLog) {
+function applyEmergencyDecel(skLog, only = null) {
   for (const s of ships) {
+    if (only && !only(s)) continue;
     if (s.emDecelAt && impulsesSince(s.emDecelAt, clock.turn, clock.impulse) >= 2) {
       s.speed = 0; s.queuedTurn = 0; s.postDecelAt = { turn: clock.turn, impulse: clock.impulse };
       s.emDecelAt = null; saveSoon(s.id);
@@ -1322,7 +1523,7 @@ function applyPhaseUI() {
   const pl = document.getElementById('perspLabel'); if (pl) { pl.textContent = modelFleet === myFleet ? 'your attack' : 'enemy attack'; document.getElementById('perspToggle').style.background = modelFleet === myFleet ? '' : '#7c2d12'; }
   if (!ui.dragging && !ui.ghostDrag && !ui.shipDragId) document.getElementById('dragShadow').style.display = 'none';
   document.querySelectorAll('.body .resizer').forEach(r => (r.style.display = energy ? 'none' : ''));
-  document.getElementById('stepBtn').style.display = energy ? 'none' : '';
+  document.getElementById('stepBtn').style.display = (energy || !settings.solo) ? 'none' : '';   // multiplayer impulses advance by consensus (round protocol), not a local step
 }
 // ---------- energy allocation panel ----------
 const carriedOf = s => Math.floor(s.capacitor || 0);   // phaser charge carried over from last turn (H6.21)
@@ -1784,7 +1985,7 @@ document.getElementById('fleet').addEventListener('click', e => {
   const b = e.target.closest('[data-turn]'); if (b) turnAction(+b.dataset.turn, b.dataset.ship);
 });
 window.addEventListener('keydown', e => { if (e.target.tagName === 'INPUT') return; if (e.key === '[') turnAction(-1); else if (e.key === ']') turnAction(1); });
-document.getElementById('stepBtn').onclick = () => stepImpulse();
+document.getElementById('stepBtn').onclick = () => soloStep();
 let stashedPlan = null;   // the other fleet's fire plan, kept while you model this side
 function renderSoloPersp() {   // solo: show + populate the command-fleet dropdown
   const wrap = document.getElementById('soloPerspWrap'), sel = document.getElementById('soloPersp');
@@ -1951,11 +2152,12 @@ async function resolveEnergy(allEaf) {                        // fold each locke
   }
   myLockedEnergy = false; committed = {}; eafDraft = {};
   seqLog = [];
-  runSequence({ energyResolved: true, moveSatisfied: true });   // B2.3 phases 2–5 (speed, self-destruct, lock-on, initial) then move into impulse 1, resting at its 6D fire gate
+  runSequence({ energyResolved: true, moveSatisfied: !settings.solo });   // B2.3 phases 2–5; multiplayer walks to the 6D rest (movement comes from the round protocol); solo parks BEFORE impulse 1's movement so its intentions can be declared first
   if (seqLog.length) renderLog({ log: seqLog }, true);
   render(); requestAnimationFrame(fitToShips);
-  if (settings.solo) return;
-  try { const j = await (await fetch('/api/battle', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: myCode, kind: 'energyResolved', phase: 'impulse', ships: ships.map(serializeShip) }) })).json(); if (j.rev) rev = j.rev; for (const [id, nr] of Object.entries(j.ships || {})) shipRev[id] = nr; } catch {}
+  if (settings.solo) { soloRunImpulse(); return; }
+  roundView = null; roundGuards = {}; driveRound();
+  try { const j = await (await fetch('/api/battle', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: myCode, kind: 'energyResolved', phase: 'impulse', turn: clock.turn, impulse: clock.impulse, ships: ships.map(serializeShip) }) })).json(); if (j.rev) rev = j.rev; for (const [id, nr] of Object.entries(j.ships || {})) shipRev[id] = nr; } catch {}
 }
 
 // nav + reset
@@ -2252,7 +2454,7 @@ async function fireNow(p = plan) {                     // resolve a plan immedia
 async function postCommit() {
   try {
     const j = await (await fetch('/api/battle', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: myCode, kind: 'commit', plan }) })).json();
-    if (j.rev) rev = j.rev; if (j.committed) committed = j.committed;
+    if (j.rev) rev = j.rev; if (j.committed) committed = j.committed; if (j.round) roundView = j.round;
     if (j.resolve) await resolveAll(j.plans);          // my commit completed the set — I am the resolver
     render();
   } catch { myCommitted = false; render(); }

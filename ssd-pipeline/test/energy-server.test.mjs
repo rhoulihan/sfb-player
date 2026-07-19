@@ -76,3 +76,52 @@ test('movement-plot fog of war: plots are hidden from the other commander and su
   const kli2 = await GET('?code=KKKK');
   assert.ok(kli2.ships.find(s => s.id === 'E1').course, "the other side's step does not wipe my plot");
 });
+
+test('impulse round protocol: fogged intents, owner moves, finisher seekers, idempotent advance', async (t) => {
+  const child = spawn('python3', ['ssd-pipeline/serve.py'], { env: { ...process.env, SFB_PORT: String(PORT) }, stdio: 'ignore' });
+  t.after(() => { child.kill(); try { fs.rmSync('ssd-pipeline/data/_battle.json'); } catch {} });
+  for (let i = 0; i < 60; i++) { try { if ((await fetch(`${BASE}/api/ships`)).ok) break; } catch {} await new Promise(r => setTimeout(r, 100)); }
+
+  await POST({ kind: 'new', turn: 1, impulse: 1, phase: 'impulse',
+    fleets: { friendly: { name: 'Fed', code: 'FFFF' }, enemy: { name: 'Kli', code: 'KKKK' } },
+    plans: { friendly: { groups: [] }, enemy: { groups: [] } }, eaf: {},
+    ships: [{ id: 'F1', side: 'friendly', map: { q: 1, r: 1 } }, { id: 'E1', side: 'enemy', map: { q: 2, r: 1 } }] });
+
+  // Fed declares first: fire=true. Before the Klingon declares, the Klingon view shows only a submitted flag.
+  const fedIntent = { fire: true, activity: {}, het: false, decel: false, idleImpulses: 0 };
+  await POST({ code: 'FFFF', kind: 'intent', turn: 1, impulse: 1, intent: fedIntent });
+  let kli = await GET('?code=KKKK');
+  assert.equal(kli.round.submitted.friendly, true, 'the Klingon sees THAT the Fed declared');
+  assert.ok(!kli.round.myIntent, 'the Klingon has not declared');
+  assert.ok(!kli.round.announced, 'no announcements until every fleet has declared (B2.4)');
+  assert.ok(!JSON.stringify(kli.round).includes('"fire":true'), 'the CONTENT of the Fed intent is fogged');
+
+  // Klingon declares nothing → announcements appear for both
+  await POST({ code: 'KKKK', kind: 'intent', turn: 1, impulse: 1, intent: { fire: false, activity: {}, idleImpulses: 0 } });
+  kli = await GET('?code=KKKK');
+  assert.deepEqual(kli.round.announced.fire, ['friendly'], 'fire declaration announced once all intents are in');
+  assert.deepEqual(kli.round.announced.activity, [], 'no activity declared by anyone');
+
+  // each fleet posts its OWN movement; the order is recorded so the last mover resolves seekers
+  await POST({ code: 'KKKK', kind: 'moveDone', turn: 1, impulse: 1, ships: [{ id: 'E1', side: 'enemy', map: { q: 2, r: 2 } }] });
+  await POST({ code: 'FFFF', kind: 'moveDone', turn: 1, impulse: 1, ships: [{ id: 'F1', side: 'friendly', map: { q: 1, r: 2 } }] });
+  const fed = await GET('?code=FFFF');
+  assert.equal(fed.round.moveDone.enemy.order, 1); assert.equal(fed.round.moveDone.friendly.order, 2);
+  assert.equal(fed.ships.find(s => s.id === 'E1').map.q, 2, 'enemy move merged');
+  assert.equal(fed.ships.find(s => s.id === 'E1').map.r, 2);
+
+  // the finisher (Fed, order 2) resolves seekers — may carry enemy STATUS damage from impacts
+  await POST({ code: 'FFFF', kind: 'seekerResult', turn: 1, impulse: 1, seekers: [],
+    ships: [{ id: 'E1', side: 'enemy', map: { q: 2, r: 2 }, status: { destroyed: ['box1'], shields: [1, 2, 3, 4, 5, 6] } }] });
+  const kli2 = await GET('?code=KKKK');
+  assert.equal(kli2.round.seekersDone, true);
+  assert.deepEqual(kli2.ships.find(s => s.id === 'E1').status.destroyed, ['box1'], 'impact damage applied to the enemy ship');
+
+  // round advance is idempotent: both clients may post it; only the first mutates
+  const a1 = await POST({ code: 'FFFF', kind: 'roundAdvance', turn: 1, impulse: 2, phase: 'impulse' });
+  const a2 = await POST({ code: 'KKKK', kind: 'roundAdvance', turn: 1, impulse: 2, phase: 'impulse' });
+  assert.equal(a1.body.ok, true); assert.equal(a2.body.ok, true);
+  const after = await GET('?code=FFFF');
+  assert.equal(after.impulse, 2, 'clock advanced once');
+  assert.ok(!after.round, 'stale round cleared for the fresh impulse');
+});

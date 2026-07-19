@@ -46,3 +46,17 @@ Lower-priority polish. None block normal cruiser play.
   (last to commit). When the ATTACKER is the resolver, the defending player is not local and cannot be prompted. The full
   fix is a networked mid-resolution handshake: the resolver pauses on each penetrating hit, requests the defending
   commander's reserve-reinforcement decision over the save/poll channel, waits, then applies it. Needs 2-player testing.
+
+## Plotting UX rework (Rick, 2026-07-19 — queued behind the impulse engine)
+- [ ] **Turn-vs-sideslip click modal**: drag-to-sideslip is unintuitive. On clicking a reachable offset hex where BOTH a turn
+  and a sideslip are legal, pop a small modal at the hex asking which to use; if only one is legal, no prompt — just do it.
+- [ ] **Reroute-from-hex**: clicking an existing route hex asks "reroute from this point?" — yes truncates the path at that hex.
+  In the EA phase the truncation also removes speed changes at/after the cut; during impulse play speed changes are IMMUTABLE
+  while editing nav paths (C12 locked plots).
+- [ ] **Path length cap**: nav paths may never extend beyond impulse 32 (the end of the turn).
+- [ ] **HET on the nav path (replaces left-pane turn buttons)**: drop the turn buttons from the battle-map left pane. Shade all
+  illegal-turn hexes on the plot; clicking an illegal-turn hex pops the same small choice modal with an HET option (sideslip
+  option included only when that hex is a legal sideslip — otherwise HET alone). (Rick 2026-07-19, queued behind the impulse engine.)
+- [ ] **Annex #2 exact 6B activity sub-order**: the OCR'd rulebook text lacks Annex #2 (the expanded Sequence of Play).
+  The impulse engine maps B2.3's activity list onto the 6B1–6B8 slots; refine the in-segment ordering when Rick supplies
+  Annex #2. Also future: per-segment pacing (faster poll cadence while a round is mid-flight) if multiplayer feels slow.

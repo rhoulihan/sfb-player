@@ -87,3 +87,11 @@ Branch: feat/damage-processor. Node-tested pure-JS rules engine + player view on
 ## Spec section map (subsystems) — see plan message
 A. Foundation/Platform  B. Rules & Content  C. Game Mechanics
 D. Player Experience/UI (+ wireframes)  E. Cross-cutting/Ops/Roadmap
+
+## Impulse Play Engine (2026-07-19, plan: parsed-twirling-gosling)
+- [x] 1. viewer/impulse-round.js + tests — round reducer (intent → 6A → seekers → 6B → 6D → done), skips, finisher, idle coverage
+- [x] 2. serve.py — kinds intent/moveDone/segDone, round storage keyed {turn,impulse}, fogged view (enemy intent = submitted flag only) + server test
+- [x] 3. battle.html — own-fleet movement split + moveDone posting + round-state polling drives the clock; retire unilateral stepImpulse in multiplayer
+- [x] 4. Intentions modal (B2.3 checklist) + idle N / rest-of-turn + status button states
+- [x] 5. Solo combined modal + local fast-forward (browser-verified) + local fast-forward
+- [x] 6. E2E two-context verification (paths on both screens ✓, consensus blocking ✓, intent fog ✓, idle fast-forward ✓) + full suite + backlog notes
