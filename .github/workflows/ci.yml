@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Run test suite
+        run: node --test ssd-pipeline/test/*.mjs
+      - name: Syntax-check viewer module scripts
+        run: |
+          python3 - <<'PYEOF'
+          import re, subprocess, tempfile, os, sys
+          fail = False
+          for page in ['ssd-pipeline/viewer/battle.html', 'ssd-pipeline/viewer/verify.html']:
+              src = open(page, encoding='utf-8').read()
+              for i, m in enumerate(re.finditer(r'<script type="module">(.*?)</script>', src, re.S)):
+                  with tempfile.NamedTemporaryFile('w', suffix='.mjs', delete=False, encoding='utf-8') as t:
+                      t.write(m.group(1)); path = t.name
+                  r = subprocess.run(['node', '--check', path], capture_output=True, text=True)
+                  if r.returncode:
+                      fail = True; print(f"{page} block {i}: SYNTAX ERROR\n{r.stderr}")
+                  os.unlink(path)
+          sys.exit(1 if fail else 0)
+          PYEOF
