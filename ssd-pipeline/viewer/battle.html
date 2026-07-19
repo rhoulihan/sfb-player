@@ -1063,7 +1063,12 @@ function resolveFinalActivity(skLog) {   // Final Activity Phase (7): reload, no
     }
     if (s.drones) s.drones.racks = s.drones.racks.map(r => (loadoutSpaces(r.loaded) < r.capacity && r.reloadsLeft > 0 && r.firedTurn !== clock.turn - 1) ? reloadStep(r) : r); s.shuttlesLeft = Math.max(0, shuttleBaysOf(s) - (s.shuttlesGone || 0));   // FD2.421: reload 2 spaces/turn from the magazine, only if the rack did not fire the turn just ended; plasma re-arms through the EAF (FP1.21); expended shuttles stay gone (J1.5)
     for (const w of powerOf(s).weapons) if (!canHold(w.cls) && s.armProgress && isArmed(w.cls, s.armProgress[w.id] || 0)) s.armProgress[w.id] = 0;   // non-holdable weapon armed but not fired → discharge (E3.24 disruptor, FP1.311 plasma-R)
-    if (s.reserveWarp) { if (!hasCrit(s.criticals, 'battery')) s.batteryCharge = Math.min(powerOf(s).batteries, batteryOf(s) + s.reserveWarp); s.reserveWarp = 0; }   // H7.36: unused reserve warp drains into the batteries at end of turn — but a battery crit means they can't hold power (D8.2), so it is simply lost
+    if (s.reserveWarp) {   // H7.36: unused reserve warp drains into the batteries at end of turn — a battery crit means they can't hold power (D8.2), so it is lost
+      const before = batteryOf(s), lost = hasCrit(s.criticals, 'battery');
+      if (!lost) s.batteryCharge = Math.min(powerOf(s).batteries, before + s.reserveWarp);
+      skLog.push({ kind: 'reserveDrain', ship: s.id, amount: s.reserveWarp, stored: lost ? 0 : batteryOf(s) - before });
+      s.reserveWarp = 0;
+    }
     if (addRacksOf(s) > 0 && addAmmoOf(s) < addCapOf(s)) { const mag = s.addMag ?? (s.addMag = ADD_RELOAD_SETS * addCapOf(s)); const add = Math.min(ADD_RELOAD_RATE, addCapOf(s) - s.addAmmo, mag); s.addAmmo += add; s.addMag = mag - add; }   // E5.74/E5.71: reload ≤4 anti-drones/turn from two reload sets
     if (settings.d8crits && s.criticals && s.criticals.length) {   // D8.31: one repair attempt per turn — 1d6 ≤4 repairs, −1/−2 on repeat attempts of the same occurrence
       const ci = Math.min(s.repairChoice || 0, s.criticals.length - 1);   // D8.31: the owning player chooses which critical to attempt (defaults to the oldest)
@@ -1222,6 +1227,42 @@ async function postSeekerResult() {   // 6A4 (designated finisher): seekers adva
   resolvePostCombat(seqAlive, seqLog);
   pruneUnavailable(); render(); if (seqLog.length) renderLog({ log: seqLog }, true);
   await postRound('seekerResult', { ships: ships.map(s => ({ ...serializeShip(s), rev: shipRev[s.id] ?? 0 })), seekers, rngCursor });
+}
+// H5.4: battery power is neither warp nor impulse power — warp/movement-specific uses need reserve WARP.
+// When both sources could pay, the commander chooses (Rick's rule); a single viable source is used silently.
+function askReserveSource(s, cost, warpOnly = false) {
+  const w = s.reserveWarp || 0, b = batteryOf(s);
+  if (warpOnly) { if (w >= cost) return 'warp'; alert(`Needs ${cost} reserve WARP power — battery power cannot fund warp/movement functions (H5.4).`); return null; }
+  if (w + b < cost) { alert(`Not enough reserve power (${w + b} available, ${cost} needed) (H7).`); return null; }
+  if (w < cost) return 'battery';
+  if (b < cost) return 'warp';
+  return confirm(`Pay ${cost} from RESERVE WARP (OK) or BATTERY (Cancel)?\n\nreserve warp ${w} · battery ${b}`) ? 'warp' : 'battery';
+}
+// impulse-play adjustment of a reserve-eligible system (H7.2). EW changes queue for the fire-decision
+// step (H7.33); capacitor (H6.22), tractor power (G7.411), reinforcement (H7.132), and EM-begin
+// (C10.11, reserve warp only) apply the moment the battery is discharged (H7.131).
+function reserveAdjust(s, key, shieldN = null) {
+  const cost = key === 'genReinf' ? 2 : key === 'em' ? 6 * powerOf(s).moveCost : 1;
+  if (key === 'phaserCap' && (s.capacitor || 0) >= powerOf(s).capacitorCap) { alert('The phaser capacitor is full (H6.21).'); return; }
+  if (key === 'em' && s.em) return;
+  if (key === 'ecm' || key === 'eccm') {
+    const q = s.reserveQueue || {};
+    const combined = (s.ecmLevel || 0) + (s.eccmLevel || 0) + (q.ecm || 0) + (q.eccm || 0);
+    if (combined >= sensorRating(s)) { alert('ECM + ECCM already at the sensor rating (D6.310).'); return; }
+    if (reserveQueueCost({ ...q, [key]: (q[key] || 0) + 1 }) > reservePoolS(s)) { alert('Not enough reserve power for the queued total (H7).'); return; }
+    const src = askReserveSource(s, cost); if (!src) return;
+    s.reserveQueue = { ...q, [key]: (q[key] || 0) + 1, source: src };   // H7.33: takes effect at the fire-decision step / impulse boundary
+  } else {
+    const src = askReserveSource(s, cost, key === 'em'); if (!src) return;
+    const np = spendReserve(s.reserveWarp || 0, batteryOf(s), cost, src); s.reserveWarp = np.reserveWarp; s.batteryCharge = np.battery;
+    if (key === 'phaserCap') s.capacitor = Math.min(powerOf(s).capacitorCap, (s.capacitor || 0) + 1);
+    else if (key === 'tractor') { s.tractorPower = (s.tractorPower || 0) + 1; repowerTractors(s); }
+    else if (key === 'genReinf') { const rl = ensureReinfLeft(s); rl.gen = (rl.gen || 0) + 1; }
+    else if (key === 'spec') { const rl = ensureReinfLeft(s); rl.spec[shieldN] = (rl.spec[shieldN] || 0) + 1; }
+    else if (key === 'em') s.em = !hasCrit(s.criticals, 'maneuver');
+    s.model = null;
+  }
+  saveSoon(s.id); render();
 }
 const payReserveS = (ship, n) => { const src = (ship.reserveWarp || 0) >= n ? 'warp' : 'battery'; const np = spendReserve(ship.reserveWarp || 0, batteryOf(ship), n, src); ship.reserveWarp = np.reserveWarp; ship.batteryCharge = np.battery; };
 function reserveArm(ship, key) {   // impulse-play reserve arming: J2.2213 (suicide — begin, feed, or top up any turn) / J3.122 (weasel — BEGIN only)
@@ -1574,16 +1615,17 @@ const prevOverloadOf = s => { const o = {}; const a = s.armed || {}; for (const 
 const batteryOf = s => hasCrit(s.criticals, 'battery') ? 0 : (s.batteryCharge ?? powerOf(s).batteries);   // current battery charge (starts full); D8.2 #3 battery failure → no power, can't hold
 const reservePoolS = s => reservePoolOf(s.reserveWarp || 0, batteryOf(s));   // reactive power available this turn (H7.4 + H5)
 const ensureReinfLeft = t => { if (!t.reinfLeft) t.reinfLeft = t.reinforce ? { gen: t.reinforce.gen || 0, spec: { ...t.reinforce.spec } } : { gen: 0, spec: {} }; return t.reinfLeft; };
-const reserveQueueSummary = q => { if (!q) return ''; const p = []; if (q.eccm) p.push(`ECCM ${q.eccm}`); if (q.cap) p.push(`cap ${q.cap}`); if (q.gen) p.push(`gen-reinf ${q.gen}`); for (const [n, v] of Object.entries(q.spec || {})) p.push(`shield ${n} +${v}`); return p.join(', '); };
+const reserveQueueSummary = q => { if (!q) return ''; const p = []; if (q.ecm) p.push(`ECM ${q.ecm}`); if (q.eccm) p.push(`ECCM ${q.eccm}`); if (q.cap) p.push(`cap ${q.cap}`); if (q.gen) p.push(`gen-reinf ${q.gen}`); for (const [n, v] of Object.entries(q.spec || {})) p.push(`shield ${n} +${v}`); return p.join(', '); };
 // Proactive reserve/battery spend during impulse play (H7.1): open the EA panel mid-turn and pour reserve into
 // reinforcement (D3.341/342), ECCM (H7.33), or the phaser capacitor (E2.33). Always confirmed before it applies.
 // Apply a ship's queued reserve allocation at its applicable segment (before direct fire, or at the impulse
 // boundary). Spends the pool then and adds the effects; a no-op if there's no queue or the pool no longer covers it.
-function reserveQueueCost(q) { return q ? reserveCost('eccm', q.eccm || 0) + reserveCost('capacitor', q.cap || 0) + reserveCost('genReinf', q.gen || 0) + Object.values(q.spec || {}).reduce((a, v) => a + reserveCost('specReinf', v), 0) : 0; }
+function reserveQueueCost(q) { return q ? reserveCost('eccm', (q.eccm || 0) + (q.ecm || 0)) + reserveCost('capacitor', q.cap || 0) + reserveCost('genReinf', q.gen || 0) + Object.values(q.spec || {}).reduce((a, v) => a + reserveCost('specReinf', v), 0) : 0; }
 function applyReserveQueue(s) {
   const q = s.reserveQueue; if (!q) return; const c = reserveQueueCost(q);
   if (c > 0 && reservePoolS(s) >= c) {
     const np = spendReserve(s.reserveWarp || 0, batteryOf(s), c, q.source || 'warp'); s.reserveWarp = np.reserveWarp; s.batteryCharge = np.battery;
+    if (q.ecm) s.ecmLevel = (s.ecmLevel || 0) + q.ecm;
     if (q.eccm) s.eccmLevel = (s.eccmLevel || 0) + q.eccm;
     if (q.cap) s.capacitor = Math.min(powerOf(s).capacitorCap, (s.capacitor || 0) + q.cap);
     const rl = ensureReinfLeft(s); rl.gen = (rl.gen || 0) + (q.gen || 0); for (const [n, v] of Object.entries(q.spec || {})) rl.spec[n] = (rl.spec[n] || 0) + v;
@@ -1796,7 +1838,9 @@ function renderEnergy() {
   const s = ui.eaSelected ? byId(ui.eaSelected) : null, ov = document.getElementById('epOverlay');
   if (!s) { ov.innerHTML = ''; document.getElementById('epMeter').textContent = ''; return; }
   const p = powerOf(s), col = eaColOf(s), v = validateShip(s), sn = shieldsNow(s);
-  document.getElementById('epMeter').innerHTML = `<b style="color:${stColor(v.status)}">${v.used}</b>/${v.produced} · ${v.free} free`;
+  document.getElementById('epMeter').innerHTML = (ui.viewEA && getPhase() === 'impulse')
+    ? `⚡ reserve warp <b>${s.reserveWarp || 0}</b> · battery <b>${batteryOf(s)}</b> · pool <b>${reservePoolS(s)}</b>${s.reserveQueue ? ` · queued ${reserveQueueCost(s.reserveQueue)}` : ''}`   // H7: the live reserve/battery counter during impulse play
+    : `<b style="color:${stColor(v.status)}">${v.used}</b>/${v.produced} · ${v.free} free`;
   const anyOver = mine.some(x => validateShip(x).status === 'over');
   const lock = document.getElementById('epLock');
   lock.disabled = ui.viewEA ? false : (myLockedEnergy || anyOver);
@@ -2135,6 +2179,29 @@ epanel.addEventListener('click', e => {
   if (rstep && ui.viewEA && getPhase() === 'impulse' && (rstep.dataset.key === 'suicide' || rstep.dataset.key === 'wildWeasel') && +rstep.dataset.d > 0) {
     const s2 = ui.eaSelected ? byId(ui.eaSelected) : null; if (s2 && isMine(s2)) reserveArm(s2, rstep.dataset.key);
     return;
+  }
+  if (ui.viewEA && getPhase() === 'impulse') {   // impulse play: reserve-eligible systems (H7.2) stay adjustable; the rest are locked
+    const s2 = ui.eaSelected ? byId(ui.eaSelected) : null;
+    const stp2 = e.target.closest('[data-ea="step"]');
+    if (stp2 && s2 && isMine(s2)) {
+      const k = stp2.dataset.key, d = +stp2.dataset.d;
+      if (d < 0) { alert('Spent reserve power cannot be refunded — additions only during impulse play (H7).'); return; }
+      if (['ecm', 'eccm', 'phaserCap', 'tractor', 'genReinf'].includes(k)) { reserveAdjust(s2, k); return; }
+      if (k === 'transporter') { alert('Transporter operations draw reserve power automatically when used (G8.13).'); return; }
+      alert('Locked during impulse play — reserve power cannot fund this system (H7.35/C2.11).'); return;
+    }
+    const sp2 = e.target.closest('[data-ea="specstep"]');
+    if (sp2 && s2 && isMine(s2)) {
+      if (+sp2.dataset.d < 0) { alert('Spent reserve power cannot be refunded (H7).'); return; }
+      reserveAdjust(s2, 'spec', +sp2.dataset.shield); return;
+    }
+    const tg2 = e.target.closest('[data-ea="toggle"]');
+    if (tg2 && s2 && isMine(s2)) {
+      if (tg2.dataset.key === 'em') { reserveAdjust(s2, 'em'); return; }   // C10.11: begin EM mid-turn on reserve warp
+      alert('Locked during impulse play (H7.35) — this setting is part of the sealed allocation.'); return;
+    }
+    if (e.target.closest('[data-ea="weap"]')) { alert('Weapon arming is locked during impulse play — reserve weapon uses happen at the moment of firing (H7.5).'); return; }
+    if (e.target.closest('[data-ea="seg"]')) { alert('Locked during impulse play (H7.35).'); return; }
   }
   const shl = e.target.closest('[data-ea="shlaunch"]');   // shuttle-bay launch buttons work in the read-only view too (impulse-play actions)
   if (shl) {
@@ -2567,6 +2634,8 @@ function renderLog(res, append) {
     ? `<div class="miss">🛑 ${l.ship} declares Emergency Deceleration (C8.10) — will stop in 2 impulses</div>`
     : l.kind === 'emdecel-stop'
     ? `<div class="hit">🛑 ${l.ship} halts (Emergency Deceleration, C8.101) — now at Speed 0</div>`
+    : l.kind === 'reserveDrain'
+    ? `<div class="miss">🔋 ${l.ship}: ${l.amount} leftover reserve warp → batteries (${l.stored} stored${l.stored < l.amount ? `, ${l.amount - l.stored} lost` : ''}) (H7.36)</div>`
     : l.kind === 'recover'
     ? `<div class="miss">🛰 ${l.ship} recovers a shuttle — serviced and back in inventory next turn (J1.52/J1.869)</div>`
     : l.kind === 'raidbp'

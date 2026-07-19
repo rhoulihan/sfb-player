@@ -127,6 +127,9 @@ test('sinkMax enforces rule-based slider ceilings', () => {
   assert.equal(sinkMax(fed, 'ecm'), 6); assert.equal(sinkMax(fed, 'eccm'), 6);
   assert.equal(sinkMax(fed, 'phaserCap'), 9, 'capacitor room');
   assert.equal(sinkMax(fed, 'recharge'), 4, 'no more than battery capacity');
+  // H7.41/H7.113: reserve warp is the warp "recharging" the batteries — total reserve can never exceed battery capacity
+  assert.equal(sinkMax(fed, 'reserveWarp'), 4, 'reserve warp caps at battery capacity, not warp output');
+  assert.ok(validateEaf(fed, { ...newEafColumn(fed, 0), reserveWarp: 5 }).errors.some(e => /H7\.(41|113)/.test(e)), 'over-capacity reserve warp is an error');
   assert.equal(sinkMax(fed, 'tractor'), fed.systems.tractor);
   assert.equal(sinkMax(fed, 'transporter'), fed.systems.transporter);
   assert.equal(specReinfMax(fed, 1), fed.total + fed.batteries, 'D3.342: specific reinforcement is limited only by available power, NOT the printed box value');

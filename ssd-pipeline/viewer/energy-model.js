@@ -78,7 +78,7 @@ export function sinkMax(p, key) {
     case 'phaserCap': return p.capacitorCap;                  // capacitor room (H6.21)
     case 'ecm': case 'eccm': return 6;                        // ECM/ECCM shift cap (D6.3)
     case 'recharge': return p.batteries;                      // recharge no more than battery capacity (H5)
-    case 'reserveWarp': return p.warp;                        // reserve warp power (H7)
+    case 'reserveWarp': return Math.min(p.warp, p.batteries);   // H7.41/H7.113: reserve warp is warp power held IN the batteries — capped by battery capacity
     case 'tractor': return p.systems.tractor || 0;            // one point per tractor emitter (G7)
     case 'transporter': return p.systems.transporter || 0;    // per transporter (G8)
     case 'labs': return p.systems.labs || 0;                  // per lab
@@ -181,6 +181,7 @@ export function validateEaf(power, column, carried = 0, batteryCharge = power.ba
   if (warpDemand > power.warp) errors.push('warp allocations exceed warp engine output (C2.11/H7.41/E4.23)');
   if (batteryUsed > batteryCharge) errors.push('battery draw exceeds available battery power');
   if ((column.recharge || 0) > power.batteries - batteryCharge) errors.push('recharge exceeds empty batteries');
+  if ((column.reserveWarp || 0) > power.batteries) errors.push('reserve warp exceeds battery capacity (H7.41/H7.113)');
   // J1.868: energy cannot be allocated to arm a shuttle (SS or WW) unless there is a shuttle in the bay
   if ((column.wildWeasel || (column.suicide || 0) > 0) && !((power.systems.shuttles || 0) > 0)) errors.push('no shuttle in the bay to arm (J1.868)');
   if ((column.suicide || 0) > 3) errors.push('suicide-shuttle arming exceeds 3 points per turn (J2.2211)');
