@@ -960,12 +960,16 @@ function notifyConflict() {
   clearTimeout(toastT); toastT = setTimeout(() => (t.style.display = 'none'), 3500);
 }
 let poller = 0;
-function startPolling() {
-  clearInterval(poller);
-  poller = setInterval(async () => {
-    if (settings.solo || applying || saving || saveTimer) return;   // solo is standalone; don't fight an in-flight save
-    try { const j = await (await fetch('/api/battle?code=' + encodeURIComponent(myCode))).json(); if (j && j.rev && j.rev > rev && j.ships) applyRemote(j); } catch {}
-  }, 1500);
+function startPolling() {   // adaptive cadence: 500ms while fast-forwarding through an idle window, 1500ms otherwise
+  clearTimeout(poller);
+  const tick = async () => {
+    if (!(settings.solo || applying || saving || saveTimer)) {   // solo is standalone; don't fight an in-flight save
+      try { const j = await (await fetch('/api/battle?code=' + encodeURIComponent(myCode))).json(); if (j && j.rev && j.rev > rev && j.ships) applyRemote(j); } catch {}
+    }
+    const fast = !settings.solo && getPhase() === 'impulse' && myIdle && idleCovers(myIdle, myIdle.submittedAt, clock.impulse);
+    poller = setTimeout(tick, fast ? 500 : 1500);
+  };
+  poller = setTimeout(tick, 1500);
 }
 
 const isDead = s => shipHealth(s) <= 0;
