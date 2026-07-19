@@ -49,8 +49,9 @@ export function plotCursor(s, base) {
   return { pos, facing, hst, slip, speed: speedAt(sp, impulse || 32), tl, category: cat };
 }
 
-// Greedily draw a legal course: start from `startSteps`, then step toward targetHex each impulse, always
-// taking the legal-turn candidate that most reduces distance, until it can get no closer. Pure — mutates
+// Greedily draw a course toward targetHex using STRAIGHT moves and SIDESLIPS only — a drag NEVER turns
+// (turning is a click / the ↺↻ buttons; Rick's plotting rule). An offset that sideslips can't reach (e.g.
+// the slip counter isn't satisfied) simply stops the route — the drag does nothing further. Pure — mutates
 // only a throwaway clone. Returns the new steps array (for a live preview or to commit).
 export function pathFrom(s, base, startSteps, targetHex) {
   const c = courseOf(s);
@@ -59,12 +60,15 @@ export function pathFrom(s, base, startSteps, targetHex) {
   for (let guard = 0; guard < 40; guard++) {
     const cur = plotCursor(tmp, base), d0 = dist(cur.pos, targetHex);
     if (d0 === 0) break;
-    let best = null, bd = Infinity;
-    for (const x of legalNextHexes(cur.pos, cur.facing, cur.speed, cur.hst, cur.category)) {
-      if (!x.legal) continue; const d = dist(x.hex, targetHex); if (d < bd) { bd = d; best = x; }
+    let best = null, bd = Infinity, bestSlip = false;
+    const straight = legalNextHexes(cur.pos, cur.facing, cur.speed, cur.hst, cur.category).find(x => x.legal && x.facing === cur.facing);
+    if (straight) { const d = dist(straight.hex, targetHex); if (d < bd) { bd = d; best = straight; bestSlip = false; } }
+    for (const x of (cur.speed > 0 ? legalSideslips(cur.pos, cur.facing, cur.slip) : [])) {
+      if (!x.legal) continue; const d = dist(x.hex, targetHex); if (d < bd) { bd = d; best = x; bestSlip = true; }
     }
-    if (!best || bd >= d0) break;   // can't get closer under the turn-mode constraints → stop here
-    tmp.course.steps.push({ q: best.hex.q, r: best.hex.r, facing: best.facing });
+    if (!best || bd >= d0) break;   // can't get closer with straights + sideslips → stop (never turn)
+    tmp.course.steps.push(bestSlip ? { q: best.hex.q, r: best.hex.r, facing: best.facing, slip: true }
+                                   : { q: best.hex.q, r: best.hex.r, facing: best.facing });
   }
   return tmp.course.steps;
 }
@@ -175,13 +179,13 @@ export function createBattleMap(ctx) {
     const navIdx = navIdxAt(ps, hex);
     if (navIdx >= 0) return steps.slice(0, navIdx + 1);                                 // existing nav hex → keep it, re-draw forward FROM that hex (don't back up to the previous)
     const cur = plotCursor(ps, plotBase(ps));
-    // SIDESLIP before turn: the oblique (facing±1) hexes are legal for BOTH, and the purple marker promises a
-    // sideslip — dragging is the sideslip gesture (C4.1); turning into the oblique stays on click / the ↺↻ buttons.
+    // A DRAG NEVER TURNS (Rick's plotting rule): a drag may start with a sideslip or the straight-ahead hex only;
+    // turning into an oblique hex is a click / the ↺↻ buttons.
     const p = cur.speed > 0 ? legalSideslips(cur.pos, cur.facing, cur.slip).find(x => x.legal && x.hex.q === hex.q && x.hex.r === hex.r) : null;
     if (p) return [...steps, { q: p.hex.q, r: p.hex.r, facing: p.facing, slip: true }]; // purple sideslip hex → extend
-    const g = legalNextHexes(cur.pos, cur.facing, cur.speed, cur.hst, cur.category).find(x => x.legal && x.hex.q === hex.q && x.hex.r === hex.r);
-    if (g) return [...steps, { q: g.hex.q, r: g.hex.r, facing: g.facing }];             // green next-hex → extend
-    return null;                                                                        // red / empty → not a path drag
+    const g = legalNextHexes(cur.pos, cur.facing, cur.speed, cur.hst, cur.category).find(x => x.legal && x.facing === cur.facing && x.hex.q === hex.q && x.hex.r === hex.r);
+    if (g) return [...steps, { q: g.hex.q, r: g.hex.r, facing: g.facing }];             // straight-ahead hex → extend
+    return null;                                                                        // turn hex / red / empty → not a path drag
   };
   map.addEventListener('mousedown', e => {
     if (e.altKey || e.button !== 0 || getPhase() !== 'energy') return;   // left button only
@@ -211,14 +215,16 @@ export function createBattleMap(ctx) {
       suppressClick = true; render(); return;
     }
     if (d.start) { courseOf(s).steps = pathFrom(s, plotBase(s), d.start, hex); saveSoon(s.id); suppressClick = true; render(); return; }   // nav / candidate drag → path
-    if (isMine(s) && !hasGhosts()) {   // friendly ship glyph onto a purple (sideslip) or green (legal-next) hex → extend one step (nav is blocked while a ghost is open)
+    if (isMine(s) && !hasGhosts()) {   // friendly ship glyph onto a purple (sideslip) or straight-ahead hex → extend one step (nav is blocked while a ghost is open)
       const cur = plotCursor(s, plotBase(s));
-      // sideslip FIRST: the oblique hexes are also legal turn targets, so trying the turn first made the purple
-      // sideslip candidates unreachable by drag — the drag gesture means sideslip (turns are a click / ↺↻ away)
+      // A DRAG NEVER TURNS: sideslip first; the straight-ahead hex is fine; an offset hex whose sideslip is
+      // illegal does NOTHING (no turn fallback, no ghost) — turning is a click / the ↺↻ buttons.
       const slip = cur.speed > 0 ? trySideslip(cur.pos, cur.facing, cur.hst, cur.slip, hex) : null;
       if (slip) { courseOf(s).steps.push({ q: slip.pos.q, r: slip.pos.r, facing: slip.facing, slip: true }); saveSoon(s.id); suppressClick = true; render(); return; }
       const step = tryStep(cur.pos, cur.facing, cur.speed, cur.hst, cur.slip, hex, cur.category);   // C3.3: turn-mode legality by ship category
-      if (step) { courseOf(s).steps.push({ q: step.pos.q, r: step.pos.r, facing: step.facing }); saveSoon(s.id); suppressClick = true; render(); return; }
+      if (step && step.facing === cur.facing) { courseOf(s).steps.push({ q: step.pos.q, r: step.pos.r, facing: step.facing }); saveSoon(s.id); suppressClick = true; render(); return; }
+      const dd = (cur.pos.q === hex.q && cur.pos.r === hex.r) ? 0 : hexDistance(cur.pos, hex);
+      if (dd === 1) { suppressClick = true; render(); return; }   // adjacent offset, sideslip illegal → the drag does nothing
     }
     if (!(hex.q === s.q && hex.r === s.r)) { ui.ghosts[s.id] = { q: hex.q, r: hex.r, facing: s.facing }; ui.selectedGhost = s.id; joinFireGroup(s); }   // dropped elsewhere → ghost (a same-hex near-click release is a no-op)
     suppressClick = true; render();
