@@ -328,7 +328,7 @@ import { tractorCost, canTractor, tractorBroken, TRACTOR_MAX_RANGE } from './tra
 import { cloakEcm, applyCloakFireGate, CLOAK_ECM } from './cloak.js';   // G13: cloak fire penalty + fire gate
 import { ewShift } from './ew.js';   // D6.34 net-ECM → shift (used for D17.26 tactical-intel level shift)
 import { makeScenario, asteroidEcm } from './terrain.js';   // P3.33: asteroids give the target ECM (they don't block fire)
-import { MINE, mineTriggeredBy, mineShouldArm, hitAndRunSucceeds, SELF_DESTRUCT, selfDestructHits, selfDestructDamage, selfDestructZone, DEFAULT_BES, NUCLEAR_MINE, transporterTarget, TRANSPORTER_RANGE, TBOMB_WARHEAD } from './mines.js';   // D5: per-ship BES self-destruction; G8.14 transporter range; M2.31 mine arming
+import { MINE, mineTriggeredBy, mineShouldArm, hitAndRunResult, SELF_DESTRUCT, selfDestructHits, selfDestructDamage, selfDestructZone, DEFAULT_BES, NUCLEAR_MINE, transporterTarget, TRANSPORTER_RANGE, TBOMB_WARHEAD } from './mines.js';   // D5: per-ship BES self-destruction; G8.14 transporter range; M2.31 mine arming
 import { shuttleMaxHp, damageShuttle, shuttleDestroyed } from './shuttle-inventory.js';
 const PD_SHUTTLE_DMG = 2;   // point-defense damage per hit vs a shuttle (shuttles soak, drones one-shot)
 import { movesOnImpulse, neighbor, turnMode, turnModeFor, accelCap, pseudoSpeed } from './movement.js';
@@ -580,28 +580,40 @@ function raidSourceFor(t) {
   if (!t || isMine(t) || !s || !isMine(s) || isDead(s) || s.cloaked || hasCrit(s.criticals, 'transporter')) return null;
   return (hexDistance(s, t) <= TRANSPORTER_RANGE && !(shieldsNow(t)[exposedShield(s, t) - 1] > 0)) ? s : null;
 }
-function boardingRaid(ship, enemy) {   // D15: a transporter hit-and-run raid on a chosen enemy — on 4+ it knocks out a random enemy system
+const bpLeftOf = s => Math.max(0, (s._ver.groups || []).filter(g => g.family === 'boarding-party').reduce((n, g) => n + (g.boxIds || []).length, 0) - (s.bpLost || 0));   // D7.2: parties lost on raids are gone for the scenario
+function boardingRaid(ship, enemy) {   // D7.8: hit-and-run raids — EACH committed boarding party rolls the D7.81 chart, needing its own transporter
   if (!ship) return;
   if (ship.cloaked) { alert('A cloaked ship cannot use transporters (G13.51).'); return; }
   if (hasCrit(ship.criticals, 'transporter')) { alert('Transporters disabled by a critical hit (D8.2).'); return; }
   const transCount = (ship._ver.groups || []).filter(g => g.family === 'transporter').reduce((n, g) => n + (g.boxIds || []).filter(id => !ship.status[id]).length, 0) || 1;   // D7.821: each transporter supports one raid (in and out) per turn
   if (ship._raidTurn !== clock.turn) { ship._raidTurn = clock.turn; ship._raidsUsed = 0; }
-  if (ship._raidsUsed >= transCount) { alert(`Each transporter supports one hit-and-run raid per turn (D7.821); all ${transCount} used this turn.`); return; }
+  const slots = transCount - (ship._raidsUsed || 0);
+  if (slots <= 0) { alert(`Each transporter supports one hit-and-run raid per turn (D7.821); all ${transCount} used this turn.`); return; }
+  if (bpLeftOf(ship) <= 0) { alert('No boarding parties left (D7.2).'); return; }
   if (enemy && (isDead(enemy) || hexDistance(ship, enemy) > TRANSPORTER_RANGE)) enemy = null;   // stale/out-of-range choice
-  if (enemy && shieldsNow(enemy)[exposedShield(ship, enemy) - 1] > 0) { alert('The target’s facing shield is up — transporters cannot function through a shield (G8.21).'); return; }
-  if (enemy && !clearFiringShield(ship, enemy)) return;   // G8.21: drop the raiding ship's own facing shield (confirm) or cancel
-  if (enemy && !payTransporter(ship)) return;   // G8.13: the transporter operation costs 1 energy
-  if (enemy) ship._raidsUsed = (ship._raidsUsed || 0) + 1;   // a raid is expended once a valid target is engaged
-  const rng = makeRng((seed + rngCursor) >>> 0); rngCursor = rng.cursor();
+  if (!enemy) { renderLog({ log: [{ kind: 'shot', firer: ship.id, cls: 'RAID', target: '\u2014', points: 0, hit: false }] }, true); return; }
+  if (shieldsNow(enemy)[exposedShield(ship, enemy) - 1] > 0) { alert('The target’s facing shield is up — transporters cannot function through a shield (G8.21).'); return; }
+  const maxN = Math.min(slots, bpLeftOf(ship));
+  const ask = maxN > 1 ? prompt(`Commit how many boarding parties? (1-${maxN} — each rolls separately and needs its own transporter, D7.81/D7.821)`, '1') : '1';
+  if (ask == null) return;
+  const n = Math.max(1, Math.min(maxN, Math.floor(+ask) || 1));
+  if (!clearFiringShield(ship, enemy)) return;   // G8.21: drop the raiding ship's own facing shield (confirm) or cancel
   const log = [];
-  if (!enemy) log.push({ kind: 'shot', firer: ship.id, cls: 'RAID', target: '\u2014', points: 0, hit: false });
-  else if (hitAndRunSucceeds(rng.d6())) {
-    const boxes = (enemy._ver.groups || []).filter(g => !['shield', 'excess-damage', 'markers', 'crew', 'rating-track', 'ammo-track', 'hull'].includes(g.family)).flatMap(g => g.boxIds || []).filter(id => !enemy.status[id]);
-    const box = boxes.length ? boxes[Math.floor(rng.next() * boxes.length)] : null;
-    if (box) enemy.status[box] = 'destroyed';
-    log.push({ kind: 'shot', firer: ship.id, cls: 'RAID', target: enemy.id, points: box ? 1 : 0, hit: !!box }); saveSoon(enemy.id);
-  } else log.push({ kind: 'shot', firer: ship.id, cls: 'RAID', target: enemy.id, points: 0, hit: false });
-  saveSoon(ship.id); render(); renderLog({ log }, true);
+  for (let i = 0; i < n; i++) {
+    if (!payTransporter(ship)) break;   // G8.13: each transporter operation costs 1 energy
+    ship._raidsUsed = (ship._raidsUsed || 0) + 1;
+    const rng = makeRng((seed + rngCursor) >>> 0); rngCursor = rng.cursor();
+    const res = hitAndRunResult(rng.d6());   // D7.81 NORMAL column
+    if (res.partyLost) ship.bpLost = (ship.bpLost || 0) + 1;
+    let box = null;
+    if (res.systemDestroyed) {
+      const boxes = (enemy._ver.groups || []).filter(g => !['shield', 'excess-damage', 'markers', 'crew', 'rating-track', 'ammo-track', 'hull', 'damage-control'].includes(g.family)).flatMap(g => g.boxIds || []).filter(id => !enemy.status[id]);   // D7.823: no damage-control or excess-damage boxes
+      box = boxes.length ? boxes[Math.floor(rng.next() * boxes.length)] : null;
+      if (box) enemy.status[box] = 'destroyed';
+    }
+    log.push({ kind: 'raidbp', firer: ship.id, target: enemy.id, destroyed: !!box, lost: res.partyLost });
+  }
+  saveSoon(ship.id, enemy.id); render(); renderLog({ log }, true);
 }
 // D5/D5.41: apply an exploding ship's Basic Explosion Strength to every unit in the blast zone (friend or foe) through
 // the DAC, then mark the exploding ship gone. Blast log entries are pushed into `sink`; the caller announces the death.
@@ -943,7 +955,7 @@ function applyRemote(data) {
     s.firedAt = {}; for (const [mid, w] of Object.entries(sd.weapons || {})) if (w && w.firedAt) s.firedAt[mid] = w.firedAt;
     if (sd.criticals !== undefined) s.criticals = sd.criticals; if (sd.critRolledTurn !== undefined) s._critRolledTurn = sd.critRolledTurn;   // D8 crit state
     if (sd.tractorPower !== undefined) s.tractorPower = sd.tractorPower; if (sd.edr !== undefined) s.edr = sd.edr;   // G7 tractor + D14 EDR allocation
-    if (sd.armed !== undefined) s.armed = sd.armed; if (sd.armProgress !== undefined) s.armProgress = sd.armProgress; if (sd.capacitor !== undefined) s.capacitor = sd.capacitor; if (sd.batteryCharge !== undefined) s.batteryCharge = sd.batteryCharge; if (sd.reserveWarp !== undefined) s.reserveWarp = sd.reserveWarp; if (sd.reserveQueue !== undefined) s.reserveQueue = sd.reserveQueue; if (sd.addAmmo !== undefined) s.addAmmo = sd.addAmmo; if (sd.addMag !== undefined) s.addMag = sd.addMag; if (sd.reinforce !== undefined) { s.reinforce = sd.reinforce; s.reinfLeft = null; } if (sd.suicideArm !== undefined) s.suicideArm = sd.suicideArm; if (sd.wwCharges !== undefined) s.wwCharges = sd.wwCharges; if (sd.shuttlesGone !== undefined) s.shuttlesGone = sd.shuttlesGone;
+    if (sd.armed !== undefined) s.armed = sd.armed; if (sd.armProgress !== undefined) s.armProgress = sd.armProgress; if (sd.capacitor !== undefined) s.capacitor = sd.capacitor; if (sd.batteryCharge !== undefined) s.batteryCharge = sd.batteryCharge; if (sd.reserveWarp !== undefined) s.reserveWarp = sd.reserveWarp; if (sd.reserveQueue !== undefined) s.reserveQueue = sd.reserveQueue; if (sd.addAmmo !== undefined) s.addAmmo = sd.addAmmo; if (sd.addMag !== undefined) s.addMag = sd.addMag; if (sd.reinforce !== undefined) { s.reinforce = sd.reinforce; s.reinfLeft = null; } if (sd.suicideArm !== undefined) s.suicideArm = sd.suicideArm; if (sd.wwCharges !== undefined) s.wwCharges = sd.wwCharges; if (sd.shuttlesGone !== undefined) s.shuttlesGone = sd.shuttlesGone; if (sd.bpLost !== undefined) s.bpLost = sd.bpLost;
     if (sd.course !== undefined) s.course = sd.course; if (sd.speedPlot !== undefined) s.speedPlot = sd.speedPlot; if (sd.autopilot !== undefined) s.autopilot = sd.autopilot;
     s.model = null;
   }
@@ -2212,7 +2224,7 @@ const serializeShip = s => ({
   selfDestructPlot: s.selfDestructPlot || false,   // D5.1: EAF marked "self-destruct" → resolves in Phase 3
   tractorPower: s.tractorPower || 0, edr: s.edr || 0,   // G7.15 tractor points + D14 EDR labs allocated this turn
   armed: s.armed || {}, armProgress: s.armProgress || {}, capacitor: s.capacitor ?? 0, batteryCharge: s.batteryCharge, reserveWarp: s.reserveWarp || 0, reserveQueue: s.reserveQueue || null, addAmmo: s.addAmmo, addMag: s.addMag, reinforce: s.reinforce || null,   // folded energy-allocation + ammo state
-  suicideArm: s.suicideArm || null, wwCharges: s.wwCharges || null, shuttlesGone: s.shuttlesGone || 0,   // J2.2211 suicide arming bank + J3.12×J3.123 weasel charge tracks + expended-shuttle inventory
+  suicideArm: s.suicideArm || null, wwCharges: s.wwCharges || null, shuttlesGone: s.shuttlesGone || 0, bpLost: s.bpLost || 0,   // J2.2211 suicide arming bank + J3.12×J3.123 weasel charge tracks + expended-shuttle inventory
   course: s.course || null, speedPlot: s.speedPlot || null, autopilot: !!s.autopilot,   // tactical course plot
   weapons: Object.fromEntries(s.mounts.map(m => [m.id, { cls: m.cls, arc: (m.arc.arcs || []), charged: isCharged(s, m.id, m.cls), firedAt: s.firedAt[m.id] || null }])),
 });
@@ -2511,6 +2523,8 @@ function renderLog(res, append) {
     ? `<div class="miss">🛑 ${l.ship} declares Emergency Deceleration (C8.10) — will stop in 2 impulses</div>`
     : l.kind === 'emdecel-stop'
     ? `<div class="hit">🛑 ${l.ship} halts (Emergency Deceleration, C8.101) — now at Speed 0</div>`
+    : l.kind === 'raidbp'
+    ? `<div class="${l.destroyed ? 'hit' : 'miss'}">⚔ ${l.firer} boarding party raids ${l.target}: ${l.destroyed ? 'system DESTROYED' : 'no effect'}${l.lost ? ' — party lost (D7.81)' : ' — party returns'}</div>`
     : l.kind === 'hetFail'
     ? `<div class="hit">⚡ ${l.ship} plotted High Energy Turn FAILED — no power or maneuver damage (C6.21); the remaining plot is lost</div>`
     : l.kind === 'het'
