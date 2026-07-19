@@ -88,6 +88,7 @@ export function plotOverlaySvg({ ships, isMine, byId, plotBase, ui }) {
       if (imp) s += `<text x="${cur.x}" y="${cur.y - 7}" text-anchor="middle" font-size="9" fill="#1d4ed8" font-weight="700" style="pointer-events:none">${imp}</text>`;
       const chg = (sp.changes || []).find(ch => ch.announceImpulse === imp);
       if (chg) s += `<text x="${cur.x}" y="${cur.y + 15}" text-anchor="middle" font-size="10" fill="#b45309" font-weight="800" style="pointer-events:none">▸${chg.speed}</text>`;
+      if (st.het) s += `<text x="${cur.x - 13}" y="${cur.y + 4}" font-size="12" fill="#f59e0b" font-weight="800" style="pointer-events:none">⚡</text>`;   // plotted High Energy Turn (C6)
       const nb = neighbor(st.q, st.r, st.facing), nc = hexCenter(nb.q, nb.r);   // heading arrow: small triangle pointing in the ship's facing
       const dx = nc.x - cur.x, dy = nc.y - cur.y, L = Math.hypot(dx, dy) || 1, ux = dx / L, uy = dy / L, px = -uy, py = ux;
       s += `<polygon points="${(cur.x + ux * 11).toFixed(1)},${(cur.y + uy * 11).toFixed(1)} ${(cur.x - ux * 3 + px * 5).toFixed(1)},${(cur.y - uy * 3 + py * 5).toFixed(1)} ${(cur.x - ux * 3 - px * 5).toFixed(1)},${(cur.y - uy * 3 - py * 5).toFixed(1)}" fill="#fbbf24" stroke="#78350f" stroke-width="0.6" opacity="0.95" style="pointer-events:none"/>`;
@@ -217,18 +218,18 @@ export function createBattleMap(ctx) {
     const s = byId(d.id), hex = clickToHex(e); if (!s || !hex) { render(); return; }
     if (d.shift && isMine(s) && !hasGhosts()) {   // shift-drag → sideslip from the course end (nav — blocked while a ghost is open)
       const cur = plotCursor(s, plotBase(s)), slip = cur.speed > 0 ? trySideslip(cur.pos, cur.facing, cur.hst, cur.slip, hex) : null;
-      if (slip) { courseOf(s).steps.push({ q: slip.pos.q, r: slip.pos.r, facing: slip.facing, slip: true }); saveSoon(s.id); }
+      if (slip) { courseOf(s).steps.push({ q: slip.pos.q, r: slip.pos.r, facing: slip.facing, slip: true }); s.autopilot = true; saveSoon(s.id); }
       suppressClick = true; render(); return;
     }
-    if (d.start) { courseOf(s).steps = pathFrom(s, plotBase(s), d.start, hex); saveSoon(s.id); suppressClick = true; render(); return; }   // nav / candidate drag → path
+    if (d.start) { courseOf(s).steps = pathFrom(s, plotBase(s), d.start, hex); s.autopilot = true; saveSoon(s.id); suppressClick = true; render(); return; }   // nav / candidate drag → path
     if (isMine(s) && !hasGhosts()) {   // friendly ship glyph onto a purple (sideslip) or straight-ahead hex → extend one step (nav is blocked while a ghost is open)
       const cur = plotCursor(s, plotBase(s));
       // A DRAG NEVER TURNS: sideslip first; the straight-ahead hex is fine; an offset hex whose sideslip is
       // illegal does NOTHING (no turn fallback, no ghost) — turning is a click / the ↺↻ buttons.
       const slip = cur.speed > 0 ? trySideslip(cur.pos, cur.facing, cur.hst, cur.slip, hex) : null;
-      if (slip) { courseOf(s).steps.push({ q: slip.pos.q, r: slip.pos.r, facing: slip.facing, slip: true }); saveSoon(s.id); suppressClick = true; render(); return; }
+      if (slip) { courseOf(s).steps.push({ q: slip.pos.q, r: slip.pos.r, facing: slip.facing, slip: true }); s.autopilot = true; saveSoon(s.id); suppressClick = true; render(); return; }
       const step = tryStep(cur.pos, cur.facing, cur.speed, cur.hst, cur.slip, hex, cur.category);   // C3.3: turn-mode legality by ship category
-      if (step && step.facing === cur.facing) { courseOf(s).steps.push({ q: step.pos.q, r: step.pos.r, facing: step.facing }); saveSoon(s.id); suppressClick = true; render(); return; }
+      if (step && step.facing === cur.facing) { courseOf(s).steps.push({ q: step.pos.q, r: step.pos.r, facing: step.facing }); s.autopilot = true; saveSoon(s.id); suppressClick = true; render(); return; }
       const dd = (cur.pos.q === hex.q && cur.pos.r === hex.r) ? 0 : hexDistance(cur.pos, hex);
       if (dd === 1) { suppressClick = true; render(); return; }   // adjacent offset, sideslip illegal → the drag does nothing
     }
@@ -238,7 +239,7 @@ export function createBattleMap(ctx) {
   // small floating chooser at the click point: when a hex is reachable BOTH by a turn and a sideslip,
   // the player picks the maneuver (Rick's rule); with only one legal option there is no prompt.
   let manChooser = null;
-  const closeManChooser = () => { if (manChooser) { manChooser.remove(); manChooser = null; } };
+  const closeManChooser = () => { if (manChooser) { manChooser.remove(); manChooser = null; } document.removeEventListener('click', closeManChooser); };   // also disarm the once-listener — an item pick stops propagation, so it would otherwise survive and eat the NEXT chooser
   function openManChooser(e, choices) {
     closeManChooser();
     const m = document.createElement('div');
@@ -287,10 +288,18 @@ export function createBattleMap(ctx) {
       if (!impulseTimeline(speedPlotOf(s, plotBase(s)))[c.steps.length]) return;   // C1.32: a plot cannot extend past impulse 32 (the turn's end)
       const step = tryStep(cur.pos, cur.facing, cur.speed, cur.hst, cur.slip, hex, cur.category);   // C3.3: turn-mode legality by ship category
       const slip = cur.speed > 0 ? trySideslip(cur.pos, cur.facing, cur.hst, cur.slip, hex) : null;
-      const doTurn = step ? () => { c.steps.push({ q: step.pos.q, r: step.pos.r, facing: step.facing }); saveSoon(ui.plotShipId); render(); } : null;
-      const doSlip = slip ? () => { c.steps.push({ q: slip.pos.q, r: slip.pos.r, facing: slip.facing, slip: true }); saveSoon(ui.plotShipId); render(); } : null;
+      // a shaded (red) candidate: the turn there is beyond turn mode — reachable only by a High Energy Turn (C6)
+      const hetCand = !step ? legalNextHexes(cur.pos, cur.facing, cur.speed, cur.hst, cur.category).find(x => !x.legal && x.hex.q === hex.q && x.hex.r === hex.r) : null;
+      const doTurn = step ? () => { c.steps.push({ q: step.pos.q, r: step.pos.r, facing: step.facing }); s.autopilot = true; saveSoon(ui.plotShipId); render(); } : null;
+      const doSlip = slip ? () => { c.steps.push({ q: slip.pos.q, r: slip.pos.r, facing: slip.facing, slip: true }); s.autopilot = true; saveSoon(ui.plotShipId); render(); } : null;
+      const doHet = hetCand ? () => { c.steps.push({ q: hetCand.hex.q, r: hetCand.hex.r, facing: hetCand.facing, het: true }); s.autopilot = true; saveSoon(ui.plotShipId); render(); } : null;
       if (doTurn && doSlip && step.facing !== cur.facing) { openManChooser(e, [{ label: '↻ Turn', apply: doTurn }, { label: '⇢ Sideslip', apply: doSlip }]); return; }   // both maneuvers legal → the player picks
       if (doTurn) { doTurn(); return; }
+      if (doHet) {   // HET always asks (it costs 5 energy + a breakdown roll at execution) — with Sideslip alongside when legal
+        openManChooser(e, doSlip ? [{ label: '⚡ High Energy Turn', apply: doHet }, { label: '⇢ Sideslip', apply: doSlip }]
+                                 : [{ label: '⚡ High Energy Turn', apply: doHet }]);
+        return;
+      }
       if (doSlip) doSlip();
     }
   });

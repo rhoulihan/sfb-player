@@ -988,6 +988,7 @@ function resolveMovement(only = null) {   // 6A Movement Segment: plotted speed 
     if (isDead(s) || heldBy(s) || !movesOnImpulse(s.speed, clock.impulse)) continue;   // a held ship is dragged by its tower (below), not self-propelled (G7.21)
     const auto = s.autopilot && s.course && s.course.steps[s._autoIdx || 0];
     if (auto) { const st = s.course.steps[s._autoIdx || 0], turned = st.facing !== s.facing;   // follow the plotted course
+      if (st.het && !execPlottedHet(s)) { s.course.steps = s.course.steps.slice(0, s._autoIdx || 0); saveSoon(s.id); continue; }   // C6.21: no power / maneuver crit → the plotted HET (and the path beyond it) is lost
       s.facing = st.facing; s.q = st.q; s.r = st.r; s.hexesSinceTurn = turned ? 1 : s.hexesSinceTurn + 1;
       s.slipSince = st.slip ? 0 : (s.slipSince ?? 1) + 1;   // track sideslip spacing across turns (C4.0)
       s._autoIdx = (s._autoIdx || 0) + 1; continue; }
@@ -1333,24 +1334,23 @@ function turnAction(dir, shipId = ui.selectedId) {
 }
 const HET_ENERGY = 5;              // C6.21: a High Energy Turn costs 5 hexes of warp energy
 const DEFAULT_BREAKDOWN = 5;       // C6.53: per-ship breakdown rating (a roll ≥ this breaks down); D7-class default until captured from the SSD
-// C6.1/C6.21/C6.51: a High Energy Turn snaps the ship to face an adjacent hexside regardless of turn mode, costs 5 warp
-// energy, then rolls for breakdown (1d6 ≥ the ship's breakdown rating; −2 on the first HET of the scenario, C6.52).
-function highEnergyTurn(ship, dir) {
-  if (!ship || !isMine(ship)) return;
-  if (getPhase() !== 'impulse') { alert('High Energy Turns are made during the Movement Segment (C6.1).'); return; }
-  if (hasCrit(ship.criticals, 'maneuver')) { alert('Maneuver damaged — cannot perform a High Energy Turn.'); return; }
-  if ((ship.reserveWarp || 0) + batteryOf(ship) < HET_ENERGY) { alert(`A High Energy Turn costs ${HET_ENERGY} warp energy (C6.21) — insufficient reserve/battery power.`); return; }
+// C6.21/C6.5: pay for a plotted HET step and roll for breakdown at execution time. The step itself carries the
+// facing; this core only charges the 5 warp energy (reserve/battery) and resolves C6.51. Returns false when the
+// HET cannot be performed (maneuver crit / no power) — the caller breaks the plot there.
+function execPlottedHet(ship) {
+  if (hasCrit(ship.criticals, 'maneuver') || (ship.reserveWarp || 0) + batteryOf(ship) < HET_ENERGY) {
+    renderLog({ log: [{ kind: 'hetFail', ship: ship.id }] }, true); return false;
+  }
   const src = (ship.reserveWarp || 0) >= HET_ENERGY ? 'warp' : 'battery';
   const np = spendReserve(ship.reserveWarp || 0, batteryOf(ship), HET_ENERGY, src); ship.reserveWarp = np.reserveWarp; ship.batteryCharge = np.battery;
-  ship.facing = (ship.facing + dir + 6) % 6; ship.hexesSinceTurn = 0; ship.queuedTurn = 0;   // C6.1: snap-turn one hexside, ignoring turn mode
   const rng = makeRng((seed + rngCursor) >>> 0); rngCursor = rng.cursor();   // C6.51 breakdown roll (deterministic across clients)
   const firstUse = !ship._hetUsed; ship._hetUsed = true;
   const rating = powerOf(ship).breakdownRating || DEFAULT_BREAKDOWN;   // C6.53: per-ship breakdown rating from the MSC (verified stats)
   const roll = rng.d6() - (firstUse ? 2 : 0);   // C6.52: first HET of the scenario is at −2
   const broke = roll >= rating;
   if (broke) { ship.speed = Math.floor(ship.speed / 2); ship.breakdownRating = Math.max(2, rating - 1); }   // C6.541 speed drops; C6.544 breakdown rating worsens by 1
-  saveSoon(ship.id); render();
   renderLog({ log: [{ kind: 'het', ship: ship.id, roll, rating, broke }] }, true);
+  return true;
 }
 // C8.10: declare emergency deceleration during the Impulse Segment; the ship halts at the end of the movement segment two
 // impulses later (C8.101). Emergency decel can only STOP a ship, not reduce speed (C8.21). Declaring again cancels it.
@@ -1858,12 +1858,9 @@ function turnCtl(s) {
   if (!isMine(s)) return `<div class="turnctl"><span class="tmc" style="margin:0">other fleet — switch command perspective to control it</span></div>`;
   const tm = turnModeOf(s), rem = Math.max(0, tm - s.hexesSinceTurn);
   const cd = tm === 0 ? 'may turn freely' : rem === 0 ? 'may turn on next move' : `turn in ${rem} hex${rem !== 1 ? 'es' : ''}`;
-  const move = getPhase() === 'impulse';
-  const het = move && !hasCrit(s.criticals, 'maneuver')   // C6.0: an HET is a movement-phase snap-turn
-    ? `<button data-het="-1" data-ship="${s.id}" title="High Energy Turn: snap-turn one hexside ignoring turn mode — ${HET_ENERGY} warp energy + breakdown roll (C6.21/C6.51)">⚡↺ HET</button><button data-het="1" data-ship="${s.id}" title="High Energy Turn (C6.0)">HET ↻⚡</button>` : '';
+  const move = getPhase() === 'impulse';   // turning + HETs are plotted on the nav path (click a candidate hex; red = HET)
   const decel = move && (s.speed > 0 || s.speedPlot) ? `<button data-decel="${s.id}" class="${s.emDecelAt ? 'lit' : ''}" title="Emergency Deceleration: the ship stops at the end of the movement segment two impulses from now (C8.10/C8.101)">🛑 stop</button>` : '';
-  return `<div class="turnctl"><button data-turn="-1" data-ship="${s.id}" class="${s.queuedTurn === -1 ? 'lit' : ''}">↺ turn</button>
-    <button data-turn="1" data-ship="${s.id}" class="${s.queuedTurn === 1 ? 'lit' : ''}">turn ↻</button>${het}${decel}<span class="tmc">${cd}</span></div>`;
+  return `<div class="turnctl">${decel}<span class="tmc">${cd}</span></div>`;
 }
 function renderClock() {
   const seg = segmentName(clock.phase);   // SOP: the current sequence-of-play segment
@@ -1984,9 +1981,7 @@ document.getElementById('fleet').addEventListener('click', e => {
   const a = e.target.closest('[data-auto]'); if (a) { const s = byId(a.dataset.auto); if (s) { s.autopilot = !s.autopilot; s._autoIdx = 0; saveSoon(s.id); render(); } return; }
   const cb = e.target.closest('[data-crit]'); if (cb) { const s = byId(cb.dataset.critship); if (s) { s.repairChoice = +cb.dataset.crit; saveSoon(s.id); render(); } return; }   // D8.31: choose which critical to attempt to repair
   const ed = e.target.closest('[data-edr]'); if (ed) { const s = byId(ed.dataset.edrship); if (s) { const id = ed.dataset.edr; s.edrTargets = s.edrTargets || []; const i = s.edrTargets.indexOf(id); if (i >= 0) s.edrTargets.splice(i, 1); else s.edrTargets.push(id); saveSoon(s.id); render(); } return; }   // D14.12: pick EDR repair targets
-  const h = e.target.closest('[data-het]'); if (h) { highEnergyTurn(byId(h.dataset.ship), +h.dataset.het); return; }   // C6.0 High Energy Turn
   const dc = e.target.closest('[data-decel]'); if (dc) { emergencyDecel(byId(dc.dataset.decel)); return; }   // C8.0 Emergency Deceleration
-  const b = e.target.closest('[data-turn]'); if (b) turnAction(+b.dataset.turn, b.dataset.ship);
 });
 window.addEventListener('keydown', e => { if (e.target.tagName === 'INPUT') return; if (e.key === '[') turnAction(-1); else if (e.key === ']') turnAction(1); });
 document.getElementById('stepBtn').onclick = () => soloStep();
@@ -2480,6 +2475,8 @@ function renderLog(res, append) {
     ? `<div class="miss">🛑 ${l.ship} declares Emergency Deceleration (C8.10) — will stop in 2 impulses</div>`
     : l.kind === 'emdecel-stop'
     ? `<div class="hit">🛑 ${l.ship} halts (Emergency Deceleration, C8.101) — now at Speed 0</div>`
+    : l.kind === 'hetFail'
+    ? `<div class="hit">⚡ ${l.ship} plotted High Energy Turn FAILED — no power or maneuver damage (C6.21); the remaining plot is lost</div>`
     : l.kind === 'het'
     ? `<div class="${l.broke ? 'hit' : 'miss'}">⚡ ${l.ship} High Energy Turn: breakdown d6 ${l.roll} vs rating ${l.rating} → ${l.broke ? '<span style="color:#dc2626;font-weight:700">BREAKDOWN</span> (speed halved, C6.54)' : 'no breakdown'}</div>`
     : l.kind === 'shot'

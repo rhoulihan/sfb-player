@@ -51,9 +51,10 @@ Lower-priority polish. None block normal cruiser play.
 - [x] Turn-vs-sideslip click chooser (dual-eligible hex asks; single option just executes)
 - [x] Reroute-from-hex ask + truncation (EA also drops speed changes past the cut; impulse play keeps them immutable; executed steps protected)
 - [x] Path cap at impulse 32 (click extend, drag router, and drop sites all honor the movement timeline)
-- [ ] **HET on the nav path (replaces left-pane turn buttons)**: drop the turn buttons from the battle-map left pane. Shade all
-  illegal-turn hexes on the plot; clicking an illegal-turn hex pops the same small choice modal with an HET option (sideslip
-  option included only when that hex is a legal sideslip — otherwise HET alone). (Rick 2026-07-19, queued behind the impulse engine.)
+- [x] **HET on the nav path — DONE 2026-07-19**: left-pane turn/HET buttons removed; red (illegal-turn) candidate hexes open the
+  maneuver chooser with ⚡ High Energy Turn (+ Sideslip only when legal). HET steps carry ⚡ on the path and pay the 5 energy +
+  C6.51 breakdown roll at execution; an unpayable HET breaks the plot there. Plotting any step now ENGAGES the autopilot
+  (programmed paths execute without the 🅰 toggle — root of several "ships not following paths" reports).
 - [ ] **Annex #2 exact 6B activity sub-order**: the OCR'd rulebook text lacks Annex #2 (the expanded Sequence of Play).
   The impulse engine maps B2.3's activity list onto the 6B1–6B8 slots; refine the in-segment ordering when Rick supplies
   Annex #2. Also future: per-segment pacing (faster poll cadence while a round is mid-flight) if multiplayer feels slow.
