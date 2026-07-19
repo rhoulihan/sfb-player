@@ -356,7 +356,7 @@ def battle_view(data, my_fleet):
     return {"rev": data.get("rev", 0), "turn": data.get("turn", 1), "impulse": data.get("impulse", 0),
             "phase": data.get("phase", "energy"), "fleets": fleets, "myFleet": my_fleet, "plans": plans,
             "eaf": eaf, "ships": fog_ships(data.get("ships", []), my_fleet),
-            "round": round_view(data, my_fleet),
+            "round": round_view(data, my_fleet), "handshake": data.get("handshake"),
             "committed": data.get("committed", {}), "lastFire": data.get("lastFire"),
             "seed": data.get("seed", 0), "rngCursor": data.get("rngCursor", 0), "seekers": data.get("seekers", []), "tractors": data.get("tractors", []), "terrain": data.get("terrain"), "settings": data.get("settings")}
 
@@ -415,7 +415,7 @@ def apply_battle_post(payload):
             ships = keep_plots({s["id"]: s for s in cur.get("ships", [])}, payload.get("ships", cur.get("ships", [])), my)
             for s in ships: s["rev"] = s.get("rev", 0) + 1
             if cur.get("round"): cur["round"]["fireResolved"] = True     # 6D: one fire exchange per impulse (B2.3)
-            cur["ships"] = ships; cur["committed"] = {}; cur["lastFire"] = payload.get("lastFire"); cur["rev"] = cur.get("rev", 0) + 1
+            cur["ships"] = ships; cur["committed"] = {}; cur["lastFire"] = payload.get("lastFire"); cur["handshake"] = None; cur["rev"] = cur.get("rev", 0) + 1
             with open(_battle_path(), "w") as f: json.dump(cur, f, indent=1)
             return 200, {"ok": True, "rev": cur["rev"], "ships": {s["id"]: s["rev"] for s in ships}, "round": round_view(cur, my)}
         if kind == "lockEnergy":                                         # seal this fleet's energy allocation for the turn
@@ -430,6 +430,14 @@ def apply_battle_post(payload):
             if all(committed.get(s) for s in ("friendly", "enemy")) and not was_all:   # last lock → resolver folds
                 resp["resolve"] = True; resp["eaf"] = eaf
             return 200, resp
+        if kind in ("reinfAsk", "reinfAnswer", "reinfClear"):        # H7.134 reactive-reinforcement handshake (resolver ↔ defender)
+            if kind == "reinfAsk": cur["handshake"] = {"ask": payload.get("ask")}
+            elif kind == "reinfAnswer":
+                if cur.get("handshake"): cur["handshake"]["answer"] = payload.get("answer")
+            else: cur["handshake"] = None
+            cur["rev"] = cur.get("rev", 0) + 1
+            with open(_battle_path(), "w") as f: json.dump(cur, f, indent=1)
+            return 200, {"ok": True, "rev": cur["rev"], "handshake": cur.get("handshake")}
         if kind == "intent":                                            # B2.4: a fleet's secret impulse declaration
             r = _round_for(cur, int(payload.get("turn", cur.get("turn", 1))), int(payload.get("impulse", cur.get("impulse", 0))))
             r["intents"][my] = payload.get("intent") or {}
@@ -493,7 +501,7 @@ def apply_battle_post(payload):
                   "committed": {} if kind == "step" else cur.get("committed", {}),   # new impulse clears commits
                   "phase": payload.get("phase", cur.get("phase", "impulse")),        # step may wrap turn → 'energy'
                   "eaf": cur.get("eaf", {}), "lastFire": cur.get("lastFire"),
-                  "round": cur.get("round"),
+                  "round": cur.get("round"), "handshake": cur.get("handshake"),
                   "seed": cur.get("seed", 0), "rngCursor": cur.get("rngCursor", 0),
                   "seekers": payload.get("seekers", cur.get("seekers", [])),
                   "tractors": payload.get("tractors", cur.get("tractors", [])),

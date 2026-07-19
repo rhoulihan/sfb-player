@@ -125,3 +125,33 @@ test('impulse round protocol: fogged intents, owner moves, finisher seekers, ide
   assert.equal(after.impulse, 2, 'clock advanced once');
   assert.ok(!after.round, 'stale round cleared for the fresh impulse');
 });
+
+test('H7.134 handshake: the resolver asks, the DEFENDER answers, fire resolution clears it', async (t) => {
+  const child = spawn('python3', ['ssd-pipeline/serve.py'], { env: { ...process.env, SFB_PORT: String(PORT) }, stdio: 'ignore' });
+  t.after(() => { child.kill(); try { fs.rmSync('ssd-pipeline/data/_battle.json'); } catch {} });
+  for (let i = 0; i < 60; i++) { try { if ((await fetch(`${BASE}/api/ships`)).ok) break; } catch {} await new Promise(r => setTimeout(r, 100)); }
+
+  await POST({ kind: 'new', turn: 1, impulse: 1, phase: 'impulse',
+    fleets: { friendly: { name: 'Fed', code: 'FFFF' }, enemy: { name: 'Kli', code: 'KKKK' } },
+    plans: { friendly: { groups: [] }, enemy: { groups: [] } }, eaf: {},
+    ships: [{ id: 'F1', side: 'friendly', map: { q: 1, r: 1 } }, { id: 'E1', side: 'enemy', map: { q: 2, r: 1 } }] });
+
+  // the Fed client resolves fire hitting E1 and pauses: it asks the Klingon commander about reserve reinforcement
+  const ask = { id: '1:1:E1:3:0', ship: 'E1', shield: 3, incoming: 14, preAbsorb: 2 };
+  await POST({ code: 'FFFF', kind: 'reinfAsk', ask });
+  const kli = await GET('?code=KKKK');
+  assert.deepEqual(kli.handshake.ask, ask, 'the defender sees the pending ask');
+  assert.ok(!kli.handshake.answer, 'no answer yet');
+
+  // the Klingon answers with 3 specific + 1 general from warp
+  await POST({ code: 'KKKK', kind: 'reinfAnswer', answer: { id: ask.id, spec: 3, gen: 1, cost: 5, source: 'warp' } });
+  const fed = await GET('?code=FFFF');
+  assert.equal(fed.handshake.answer.spec, 3, 'the resolver sees the answer');
+  assert.equal(fed.handshake.answer.id, ask.id);
+
+  // fire resolution clears the handshake
+  await POST({ code: 'FFFF', kind: 'fireResult', ships: [
+    { id: 'F1', side: 'friendly', map: { q: 1, r: 1 } }, { id: 'E1', side: 'enemy', map: { q: 2, r: 1 } }] });
+  const after = await GET('?code=KKKK');
+  assert.ok(!after.handshake, 'handshake cleared once the volley resolves');
+});

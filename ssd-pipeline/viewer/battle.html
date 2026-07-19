@@ -964,6 +964,7 @@ function applyRemote(data) {
   if (data.lastFire && data.lastFire.id && data.lastFire.id !== lastFireShown) { lastFireShown = data.lastFire.id; renderLog({ log: data.lastFire.log || [] }, true); }   // show the resolver's fire result
   render(); applying = false;
   driveRound();   // reconcile my round obligations with the freshly-applied shared state
+  if (!settings.solo && data.handshake) maybeAnswerReinfAsk(data.handshake);   // H7.134: a resolver is waiting on MY reinforcement decision
 }
 let toastT = 0;
 function notifyConflict() {
@@ -1629,7 +1630,7 @@ function promptReserveAllocate(s) {
 // defender pour reserve/battery power into reinforcement. Resolves when the commander confirms or skips; on
 // confirm it spends the pools and adds to t.reinfLeft — specific on the struck shield at 1 energy/pt (D3.342),
 // general at 2 energy/pt (D3.341). Reserve may only reinforce, never raise a shield (H7.345).
-function promptReserveReinforce(t, sh, incoming, preAbsorb) {
+function promptReserveReinforce(t, sh, incoming, preAbsorb, applyLocal = true) {
   return new Promise(resolve => {
     let source = (t.reserveWarp || 0) >= batteryOf(t) ? 'warp' : 'battery', spec = 0, gen = 0;
     const modal = document.getElementById('reserveModal'), body = document.getElementById('reserveBody');
@@ -1660,13 +1661,42 @@ function promptReserveReinforce(t, sh, incoming, preAbsorb) {
       document.getElementById('reserveConfirm').onclick = null; document.getElementById('reserveSkip').onclick = null; resolve(applied); };
     body.addEventListener('click', onBody);
     document.getElementById('reserveConfirm').onclick = () => {
-      if (cost() > 0) { const np = spendReserve(t.reserveWarp || 0, batteryOf(t), cost(), source); t.reserveWarp = np.reserveWarp; t.batteryCharge = np.battery;
+      if (applyLocal && cost() > 0) { const np = spendReserve(t.reserveWarp || 0, batteryOf(t), cost(), source); t.reserveWarp = np.reserveWarp; t.batteryCharge = np.battery;
         t.reinfLeft.spec[sh] = (t.reinfLeft.spec[sh] || 0) + spec; t.reinfLeft.gen = (t.reinfLeft.gen || 0) + gen; }
-      close(spec + gen);
+      close({ spec, gen, cost: cost(), source });
     };
-    document.getElementById('reserveSkip').onclick = () => close(0);
+    document.getElementById('reserveSkip').onclick = () => close({ spec: 0, gen: 0, cost: 0, source });
     draw(); modal.style.display = 'flex';
   });
+}
+// ---- H7.134 defender-not-resolver handshake: the resolver posts an ask, the defending commander's client
+// prompts THEM (decide-only), posts the answer, and the resolver applies it authoritatively before the volley.
+async function remoteReserveReinforce(t, sh, incoming, preAbsorb) {
+  const ask = { id: `${clock.turn}:${clock.impulse}:${t.id}:${sh}:${rngCursor}`, ship: t.id, shield: sh, incoming, preAbsorb };
+  const posted = await postRound('reinfAsk', { ask });
+  if (!posted) return;
+  for (let i = 0; i < 120; i++) {   // ~84s; an unanswered ask defaults to no reinforcement
+    await new Promise(r => setTimeout(r, 700));
+    let j = null;
+    try { j = await (await fetch('/api/battle?code=' + encodeURIComponent(myCode))).json(); } catch {}
+    const ans = j && j.handshake && j.handshake.answer;
+    if (ans && ans.id === ask.id) {
+      if (ans.cost > 0) { const np = spendReserve(t.reserveWarp || 0, batteryOf(t), ans.cost, ans.source || 'warp'); t.reserveWarp = np.reserveWarp; t.batteryCharge = np.battery; }
+      t.reinfLeft.spec[sh] = (t.reinfLeft.spec[sh] || 0) + (ans.spec || 0); t.reinfLeft.gen = (t.reinfLeft.gen || 0) + (ans.gen || 0);
+      break;
+    }
+  }
+  await postRound('reinfClear', {});
+}
+let _reinfAnswered = null;
+async function maybeAnswerReinfAsk(hs) {   // defender side: prompt me for MY ship, decide-only, post the answer
+  const ask = hs && hs.ask;
+  if (!ask || hs.answer || _reinfAnswered === ask.id) return;
+  const t = byId(ask.ship);
+  if (!t || !isMine(t)) return;
+  _reinfAnswered = ask.id;
+  const res = await promptReserveReinforce(t, ask.shield, ask.incoming, ask.preAbsorb, false);   // the resolver applies; fireResult brings the result back
+  await postRound('reinfAnswer', { answer: { id: ask.id, ...res } });
 }
 function eaColOf(s) {
   const c = carriedOf(s);
@@ -2474,7 +2504,8 @@ async function resolvePlanInto(p, models, log, affected) {
     if (!t.reinfLeft) t.reinfLeft = t.reinforce ? { gen: t.reinforce.gen || 0, spec: { ...t.reinforce.spec } } : { gen: 0, spec: {} };
     const rl = t.reinfLeft;
     const preAbsorb = Math.min(pts, (rl.spec[sh] || 0) + (rl.gen || 0));     // what already-allocated reinforcement soaks
-    if ((settings.solo || isMine(t)) && pts > preAbsorb && reservePoolS(t) > 0) await promptReserveReinforce(t, sh, pts, preAbsorb);   // H7.134: reactive reserve reinforcement before the volley applies — in multiplayer the defender is prompted for their own ships when they are the resolver (the authoritative, broadcast result stays in sync). See backlog for the defender-not-resolver network handshake.
+    if ((settings.solo || isMine(t)) && pts > preAbsorb && reservePoolS(t) > 0) await promptReserveReinforce(t, sh, pts, preAbsorb);   // H7.134: reactive reserve reinforcement before the volley applies (the defender is local: solo, or my own ship)
+    else if (!settings.solo && !isMine(t) && pts > preAbsorb && reservePoolS(t) > 0) await remoteReserveReinforce(t, sh, pts, preAbsorb);   // H7.134 handshake: the DEFENDER commander decides on their client; this resolver waits, then applies
     const used = Math.min(pts, (rl.spec[sh] || 0) + (rl.gen || 0));
     let u = used; const fromGen = Math.min(u, rl.gen || 0); rl.gen = (rl.gen || 0) - fromGen; u -= fromGen; rl.spec[sh] = Math.max(0, (rl.spec[sh] || 0) - u);   // D3.3411: general reinforcement is spent before specific
     return used;
