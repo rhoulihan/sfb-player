@@ -1573,6 +1573,7 @@ function renderEnergy() {
         wwLaunch: launchOk && ww && ww.turns >= 2 && ww.lastTurn === clock.turn && !hasActiveWeasel(s),   // J3.12 charged + J3.116 one active weasel
         suiLaunch: launchOk && sa && sa.turns >= 3 && sa.lastTurn === clock.turn,                          // J2.2211 armed through this turn
         variant: at('shuttles')[2] | 0,   // authored layout shape: 0 default / 1 wide / 2 tall
+        mode: (ui.shutMode || {})[s.id] || 'ww',   // compact variants: which shuttle type the shared stepper/launch drive
       });
     }
     if (at('edr') && p.systems.labs && !hasCrit(s.criticals, 'labs')) h += stackCtl(at('edr')[0], at('edr')[1], 'EDR (labs)', 'edr', col.edr, sinkMax(p, 'edr'));
@@ -1849,6 +1850,8 @@ epanel.addEventListener('click', e => {
   const tab = e.target.closest('[data-eatab]'); if (tab) { ui.eaSelected = ui.plotShipId = tab.dataset.eatab; render(); return; }
   const edc = e.target.closest('[data-ea="toggle"][data-key="emDecel"]');   // C8.10: emergency decel is an impulse-play declaration, usable even in the read-only EA view
   if (edc) { const s2 = ui.eaSelected ? byId(ui.eaSelected) : null; if (s2 && isMine(s2)) emergencyDecel(s2); return; }
+  const smb = e.target.closest('[data-ea="shmode"]');   // compact shuttle control: WW/SUI mode toggle is view state, live in every phase
+  if (smb) { const s2 = ui.eaSelected ? byId(ui.eaSelected) : null; if (s2) { (ui.shutMode = ui.shutMode || {})[s2.id] = smb.dataset.mode; render(); } return; }
   const shl = e.target.closest('[data-ea="shlaunch"]');   // shuttle-bay launch buttons work in the read-only view too (impulse-play actions)
   if (shl) {
     const s2 = ui.eaSelected ? byId(ui.eaSelected) : null; if (!s2 || !isMine(s2)) return;

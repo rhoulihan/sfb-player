@@ -129,16 +129,29 @@ test('shuttleCtl: one control set — inventory header, power summary, WW + SUI 
   assert.equal((h0.match(/data-ea="shlaunch"[^>]*disabled/g) || []).length, 2, 'both launches disabled when nothing is armed');
   const hl = shuttleCtl(40, 90, { inv: 2, bays: 4, pw: 0, ww: 0, wwMax: 1, wwStat: '✓', sui: 0, suiMax: 3, suiStat: '✓W18', wwLaunch: true, suiLaunch: true });
   assert.equal((hl.match(/data-ea="shlaunch"[^>]*disabled/g) || []).length, 0, 'armed + legal → both launches enabled');
-  // layout variants: 0 = default (two counter rows), 1 = wide (everything on one row), 2 = tall (narrow stack)
+  // layout variants: 0 = default (two counter rows), 1 = wide (two lines, shared controls + WW/SUI toggle),
+  // 2 = tall (narrow stack, shared controls + toggle). The compact variants drive ONE stepper/launch pair
+  // bound to the active mode; the toggle (data-ea="shmode") switches which shuttle type it addresses.
   const o = { inv: 3, bays: 4, pw: 4, ww: 1, wwMax: 1, wwStat: '1/2', sui: 3, suiMax: 3, suiStat: '2/3' };
   const rows = s => (s.match(/class="row"/g) || []).length;
   assert.equal(rows(shuttleCtl(0, 0, o)), 2, 'default: two counter rows');
+  assert.ok(/data-key="wildWeasel"/.test(shuttleCtl(0, 0, o)) && /data-key="suicide"/.test(shuttleCtl(0, 0, o)), 'default keeps both counters');
   const wide = shuttleCtl(0, 0, { ...o, variant: 1 });
-  assert.equal(rows(wide), 1, 'wide: a single flat row');
-  assert.ok(/data-key="wildWeasel"/.test(wide) && /data-key="suicide"/.test(wide) && (wide.match(/data-ea="shlaunch"/g) || []).length === 2, 'wide keeps both counters and launches');
+  assert.equal(rows(wide), 1, 'wide: header line + one control row (two lines total)');
+  assert.equal((wide.match(/data-ea="shmode"/g) || []).length, 2, 'wide: WW/SUI mode toggle');
+  assert.ok(/data-key="wildWeasel"/.test(wide) && !/data-key="suicide"/.test(wide), 'wide: one shared stepper, bound to the active mode (default ww)');
+  assert.equal((wide.match(/data-ea="shlaunch"/g) || []).length, 1, 'wide: one shared launch button');
+  assert.match(wide, /data-mode="ww"[^>]*class="[^"]*on/, 'wide: active mode highlighted');
+  const wideSui = shuttleCtl(0, 0, { ...o, variant: 1, mode: 'sui' });
+  assert.ok(/data-key="suicide"/.test(wideSui) && !/data-key="wildWeasel"/.test(wideSui), 'wide: toggled → stepper drives suicide');
+  assert.match(wideSui, /data-kind="sui"/, 'wide: toggled → launch is the suicide launch');
+  assert.match(wideSui, /2\/3/, 'wide: toggled → shows the suicide arming status');
   const tall = shuttleCtl(0, 0, { ...o, variant: 2 });
-  assert.equal(rows(tall), 2, 'tall: one narrow row per counter');
   assert.match(tall, /<div class="lab">SHUTTLES<\/div>/, 'tall: header split onto its own narrow lines');
-  assert.ok(/data-key="wildWeasel"/.test(tall) && /data-key="suicide"/.test(tall) && (tall.match(/data-ea="shlaunch"/g) || []).length === 2, 'tall keeps both counters and launches');
-  assert.match(tall, /SHUTTLES/, 'inventory still shown');
+  assert.equal((tall.match(/data-ea="shmode"/g) || []).length, 2, 'tall: WW/SUI mode toggle');
+  assert.ok(/data-key="wildWeasel"/.test(tall) && !/data-key="suicide"/.test(tall), 'tall: one shared stepper');
+  assert.equal((tall.match(/data-ea="shlaunch"/g) || []).length, 1, 'tall: one shared launch');
+  assert.equal(rows(tall), 3, 'tall: toggle row, stepper row, launch row — each narrow');
+  const tallSui = shuttleCtl(0, 0, { ...o, variant: 2, mode: 'sui' });
+  assert.ok(/data-key="suicide"/.test(tallSui) && /data-kind="sui"/.test(tallSui) && /2\/3/.test(tallSui), 'tall: toggled → suicide stepper, launch, status');
 });

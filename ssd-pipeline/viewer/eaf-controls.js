@@ -40,12 +40,23 @@ export const shuttleCtl = (x, y, o) => {
   const rocket = (kind, launch) => `<button data-ea="shlaunch" data-kind="${kind}"${launch ? '' : ' disabled'} title="${SHUTTLE_TITLES[kind]}">🚀</button>`;
   const hdr = `SHUTTLES ${o.inv}/${o.bays} · ⚡${o.pw}`;
   const v = o.variant | 0;
-  if (v === 1)   // wide: everything on one flat row
-    return ctl(x, y, `<div class="row"><span class="lab">${hdr}</span><span class="lab">WW</span>${steps('wildWeasel', o.ww, o.wwMax)}${o.wwStat ? `<span class="lab">${o.wwStat}</span>` : ''}${rocket('ww', o.wwLaunch)}<span class="lab">SUI</span>${steps('suicide', o.sui, o.suiMax)}${o.suiStat ? `<span class="lab">${o.suiStat}</span>` : ''}${rocket('sui', o.suiLaunch)}</div>`);
-  if (v === 2)   // tall: narrow stack — labels on their own lines, one compact row per counter
+  // Compact variants share ONE stepper + launch pair between the two shuttle types; the WW/SUI toggle
+  // (data-ea="shmode", view state in the host) picks which type the shared controls address.
+  const m = o.mode === 'sui' ? 'sui' : 'ww';
+  const act = m === 'ww'
+    ? { key: 'wildWeasel', kind: 'ww', val: o.ww, max: o.wwMax, stat: o.wwStat, launch: o.wwLaunch }
+    : { key: 'suicide', kind: 'sui', val: o.sui, max: o.suiMax, stat: o.suiStat, launch: o.suiLaunch };
+  const modeBtns = withVals =>
+    `<button data-ea="shmode" data-mode="ww" class="${m === 'ww' ? 'on' : ''}">WW${withVals ? ' ' + o.ww : ''}</button>`
+    + `<button data-ea="shmode" data-mode="sui" class="${m === 'sui' ? 'on' : ''}">SUI${withVals ? ' ' + o.sui : ''}</button>`;
+  if (v === 1)   // wide: two lines — header, then toggle + the shared stepper/status/launch
+    return ctl(x, y, `<div class="lab">${hdr}</div>`
+      + `<div class="row">${modeBtns(true)}${steps(act.key, act.val, act.max)}${act.stat ? `<span class="lab">${act.stat}</span>` : ''}${rocket(act.kind, act.launch)}</div>`);
+  if (v === 2)   // tall: narrow stack — toggle, stepper, and launch each on their own compact line
     return ctl(x, y, `<div class="lab">SHUTTLES</div><div class="lab">${o.inv}/${o.bays} · ⚡${o.pw}</div>`
-      + `<div class="lab">WW${o.wwStat ? ' ' + o.wwStat : ''}</div><div class="row">${steps('wildWeasel', o.ww, o.wwMax)}${rocket('ww', o.wwLaunch)}</div>`
-      + `<div class="lab">SUI${o.suiStat ? ' ' + o.suiStat : ''}</div><div class="row">${steps('suicide', o.sui, o.suiMax)}${rocket('sui', o.suiLaunch)}</div>`);
+      + `<div class="row">${modeBtns(false)}</div>`
+      + `<div class="row">${steps(act.key, act.val, act.max)}</div>`
+      + `<div class="row">${rocket(act.kind, act.launch)}${act.stat ? `<span class="lab">${act.stat}</span>` : ''}</div>`);
   const row = (tag, key, kind, val, max, stat, launch) =>
     `<div class="row"><span class="lab">${tag}</span>${steps(key, val, max)}${stat ? `<span class="lab">${stat}</span>` : ''}${rocket(kind, launch)}</div>`;
   return ctl(x, y, `<div class="lab">${hdr}</div>`
