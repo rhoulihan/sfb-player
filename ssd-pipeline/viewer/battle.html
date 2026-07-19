@@ -1594,16 +1594,19 @@ const healthColor = h => h > 0.6 ? '#16a34a' : h > 0.3 ? '#d97706' : '#C74634';
 // refire cadence: phasers reload after 8 impulses (E1.52); heavy weapons re-arm over a turn
 const PHASER_FIRE_COST = 1;   // each phaser draws 1 from the charged capacitor when fired (H6)
 const isPhaser = cls => cls === 'PH-1' || cls === 'PH-2' || cls === 'PH-3';
+const HEAVY_CLS = new Set(['PHOTON', 'DISR']);   // heavy weapons must be armed in energy allocation to fire; phasers aren't
+const armedOk = (s, id, cls) => HEAVY_CLS.has(cls) ? isArmed(cls, (s.armProgress && s.armProgress[id]) || 0) : true;   // fully armed → may fire (E4.21/FP1.21)
+// THE weapon-readiness predicate — every selection path (mount panel, alpha strike, pruning, the save projection)
+// and the resolution filter go through this, so an unready weapon can never even be SELECTED to fire.
 function isCharged(s, mountId, cls) {
+  if (!armedOk(s, mountId, cls)) return false;                    // E4.21/FP1.21: a heavy weapon still mid-arming cycle cannot fire (photons on turn 1 are 1/2 armed)
   const f = s.firedAt[mountId];
   if (!refireReady(f, clock.turn, clock.impulse)) return false;   // E1.5/E1.52: 8 impulses between shots — a weapon fired late in a turn is unavailable early the next turn (spans the boundary)
   if (firedThisTurn(f, clock.turn)) return false;                 // E2.23: each phaser (and each heavy weapon) fires at most once per turn
   if (isPhaser(cls)) return (s.capacitor || 0) >= PHASER_FIRE_COST;   // phasers also need a charged capacitor (H6)
-  return true;   // heavy weapons additionally re-arm over turns (armedOk / isArmed)
+  return true;
 }
 const chargedCount = s => s.mounts.filter(m => isCharged(s, m.id, m.cls)).length;
-const HEAVY_CLS = new Set(['PHOTON', 'DISR']);   // heavy weapons must be armed in energy allocation to fire; phasers aren't
-const armedOk = (s, id, cls) => HEAVY_CLS.has(cls) ? isArmed(cls, (s.armProgress && s.armProgress[id]) || 0) : true;   // fully armed → may fire (E4.21/FP1.21)
 
 function renderFleet() {
   document.getElementById('cmdBadge').textContent = ships.length ? '⚑ ' + (fleets[myFleet]?.name || myFleet) : '';
@@ -1666,7 +1669,7 @@ function renderPanel() {
   const alpha = g.targetShipId ? `<div style="padding:5px 12px"><button class="btn fire" id="alphaBtn" style="width:100%">⚡ Alpha Strike — all in-arc</button></div>` : '';
   const rows = s.mounts.map(mt => {
     const e = el[mt.id], a = assigned.get(mt.id), charged = isCharged(s, mt.id, mt.cls);
-    const pill = !e ? '<span class="pill no">no target</span>' : !charged ? '<span class="pill no">recharging</span>' : e.available ? '<span class="pill ok">in-arc R' + e.trueRange + '</span>' : e.inArc ? '<span class="pill rng">out-of-range</span>' : '<span class="pill arc">out-of-arc</span>';
+    const pill = !e ? '<span class="pill no">no target</span>' : !charged ? (armedOk(s, mt.id, mt.cls) ? '<span class="pill no">recharging</span>' : '<span class="pill no">arming</span>') : e.available ? '<span class="pill ok">in-arc R' + e.trueRange + '</span>' : e.inArc ? '<span class="pill rng">out-of-range</span>' : '<span class="pill arc">out-of-arc</span>';
     const otherG = a && a.assignedGroupId !== g.id ? `<span class="xg">→ ${a.assignedGroupId}</span>` : '';
     const checked = a && a.assignedGroupId === g.id ? 'checked' : '';
     const dis = !(e && e.available && charged) ? 'disabled' : '';
@@ -2151,7 +2154,7 @@ async function resolvePlanInto(p, models, log, affected) {
     return { shipId: m.shipId, mountIds: ((passiveFcOf(s) || fcReactivating(s)) && s.em) ? [] : m.mountIds.filter(id => {   // D19.26: a reactivating FC fires on PASSIVE FC (via the predicate below), not banned; D19.25: passive FC won't function while using EM → no fire
       const mt = s.mounts.find(x => x.id === id); if (!(el[id] && el[id].available)) return false;
       if (isPhaser(mt.cls)) { if (capLeft[s.id] < PHASER_FIRE_COST) return false; capLeft[s.id] -= PHASER_FIRE_COST; return true; }
-      return isCharged(s, id, mt.cls) && armedOk(s, id, mt.cls);   // heavy weapons: armed + not yet fired this turn
+      return isCharged(s, id, mt.cls);   // the one readiness gate: armed + refire cadence + once-per-turn + capacitor
     }) };
   }) })) };
   const modeFn = (sid, mid) => { const a = byId(sid)?.armed?.[mid]; return a?.overload ? 'overload' : a?.prox ? 'prox' : ''; };   // overload / proximity mode
