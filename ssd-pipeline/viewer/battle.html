@@ -1266,7 +1266,7 @@ function render() {
       : `<circle cx="${c.x}" cy="${c.y}" r="7" fill="${fill}" stroke="#fff" stroke-width="1.5"/><text x="${c.x}" y="${c.y + 3}" text-anchor="middle" font-size="9" fill="#fff" font-weight="800" style="pointer-events:none">◈</text>`;
     svg += `<g class="seeker" data-seeker="${sk.id}" opacity="0.92">${line}${body}</g>`;
   }
-  svg += plotOverlaySvg({ ships, isMine, byId, plotBase, ui });   // movement plots stay visible to their fleet commanders through impulse play (fog-filtered: own fleet only)
+  svg += plotOverlaySvg({ ships, isMine: s => settings.solo || isMine(s), byId, plotBase, ui });   // movement plots stay visible to their fleet commanders through impulse play (fog-filtered: own fleet only — but a solo player commands BOTH fleets, so both plots show)
   map.querySelector('#dyn').innerHTML = svg;
   applyPhaseUI();
   renderClock();   // both phases — the energy phase must reflect a turn wrap too
