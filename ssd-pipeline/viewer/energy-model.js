@@ -177,7 +177,7 @@ export function validateEaf(power, column, carried = 0, batteryCharge = power.ba
   if ((column.movement || 0) > 31 * power.moveCost) errors.push('movement exceeds the 31-point practical-speed maximum (C2.411)');
   // H7.41/H7.42: warp output cannot be double-committed. Warp-specific allocations (warp movement + reserve warp + HET +
   // photon arming/overload per E4.23, all drawn from the warp engines) together may not exceed the warp engine output.
-  const warpDemand = warpMove + (column.reserveWarp || 0) + (column.het ? HET_COST : 0) + weaponWarpCost;
+  const warpDemand = warpMove + (column.reserveWarp || 0) + (column.het ? HET_COST : 0) + weaponWarpCost + (column.suicide || 0);   // J2.2211: suicide-shuttle arming is WARP energy
   if (warpDemand > power.warp) errors.push('warp allocations exceed warp engine output (C2.11/H7.41/E4.23)');
   if (batteryUsed > batteryCharge) errors.push('battery draw exceeds available battery power');
   if ((column.recharge || 0) > power.batteries - batteryCharge) errors.push('recharge exceeds empty batteries');

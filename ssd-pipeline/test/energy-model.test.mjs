@@ -314,6 +314,8 @@ test('J2.2211: suicide-shuttle arming is a 0-3 energy ALLOCATION charged at its 
   assert.ok(validateEaf(bare, { ...base, suicide: 1 }, 0, 0).errors.some(e => /J1\.868/.test(e)), 'suicide arming without a shuttle is an error');
   assert.ok(validateEaf(bare, { ...base, wildWeasel: true }, 0, 0).errors.some(e => /J1\.868/.test(e)), 'weasel charging without a shuttle is an error');
   assert.ok(validateEaf(p, { ...base, suicide: 4 }, 0, 0).errors.some(e => /J2\.2211/.test(e)), 'more than 3 points in one turn is an error');
+  // J2.2211: suicide arming energy is WARP energy — it counts against warp output (H7.41-style double-commit check)
+  assert.ok(validateEaf({ ...p, warp: 2 }, { ...base, suicide: 3 }, 0, 0).errors.some(e => /warp/i.test(e)), 'suicide arming beyond warp output is an error');
   // J3.123: a ship may have ANY number of weasels charging at once — one point per weasel per turn
   assert.equal(sinkMax(p, 'wildWeasel'), p.systems.shuttles, 'weasel counter caps at the shuttles in the bay');
   assert.equal(sinkMax({ ...p, systems: { ...p.systems, shuttles: 0 } }, 'wildWeasel'), 0, 'no shuttle → no weasel charge (J1.868)');

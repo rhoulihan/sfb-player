@@ -513,9 +513,9 @@ function layMine(ship, spec = MINE) {   // C10: drop a static mine at the ship's
   saveSoon(ship.id); render();
 }
 const TRANSPORTER_ENERGY = 1;   // G8.13: one unit of energy operates a transporter (up to five crew) for one operation
-function payTransporter(ship) {   // charge the G8.13 energy from the ship's reactive pool (reserve warp, then batteries)
-  if ((ship.reserveWarp || 0) + batteryOf(ship) < TRANSPORTER_ENERGY) { alert('A transporter operation requires 1 energy point (G8.13) — no reserve or battery power is available.'); return false; }
-  const src = (ship.reserveWarp || 0) >= TRANSPORTER_ENERGY ? 'warp' : 'battery';
+async function payTransporter(ship) {   // charge the G8.13 energy from the ship's reactive pool — always confirmed with a source choice
+  const src = await askReserveSource(ship, TRANSPORTER_ENERGY, { reason: 'Transporter operation (G8.13)' });
+  if (!src) return false;
   const np = spendReserve(ship.reserveWarp || 0, batteryOf(ship), TRANSPORTER_ENERGY, src); ship.reserveWarp = np.reserveWarp; ship.batteryCharge = np.battery;
   return true;
 }
@@ -553,7 +553,7 @@ function tbombSourceFor(t) {
   if (!t || isMine(t) || !s || !isMine(s) || isDead(s) || s.cloaked || hasCrit(s.criticals, 'transporter')) return null;
   return (hexDistance(s, t) <= TRANSPORTER_RANGE && ((s.reserveWarp || 0) + batteryOf(s) >= TRANSPORTER_ENERGY)) ? s : null;
 }
-function transporterBomb(ship, tgt) {   // D15: beam a bomb onto a chosen enemy \u2014 a mine at its hex that detonates on it next impulse
+async function transporterBomb(ship, tgt) {   // D15: beam a bomb onto a chosen enemy \u2014 a mine at its hex that detonates on it next impulse
   if (!ship) return;
   if (ship.cloaked) { alert('A cloaked ship cannot use transporters (G13.51).'); return; }
   if (hasCrit(ship.criticals, 'transporter')) { alert('Transporters disabled by a critical hit (D8.2).'); return; }
@@ -562,7 +562,7 @@ function transporterBomb(ship, tgt) {   // D15: beam a bomb onto a chosen enemy 
   if (!tgt) { renderLog({ log: [{ kind: 'shot', firer: ship.id, cls: 'T-BOMB', target: '\u2014', points: 0, hit: false }] }, true); return; }
   if (shieldsNow(tgt)[exposedShield(ship, tgt) - 1] > 0) { alert('The target\u2019s facing shield is up \u2014 transporters cannot function through a shield (G8.21).'); return; }
   if (!clearFiringShield(ship, tgt)) return;   // G8.21: drop the firer's own facing shield (confirm) or cancel
-  if (!payTransporter(ship)) return;   // G8.13: the transporter operation costs 1 energy
+  if (!(await payTransporter(ship))) return;   // G8.13: the transporter operation costs 1 energy
   seekers.push({ id: `tb${++seekerSeq}`, owner: ship.id, side: ship.side, type: 'mine', q: tgt.q, r: tgt.r, facing: ship.facing, warhead: TBOMB_WARHEAD, radius: 0 });
   saveSoon(ship.id); render();
 }
@@ -581,7 +581,7 @@ function raidSourceFor(t) {
   return (hexDistance(s, t) <= TRANSPORTER_RANGE && !(shieldsNow(t)[exposedShield(s, t) - 1] > 0)) ? s : null;
 }
 const bpLeftOf = s => Math.max(0, (s._ver.groups || []).filter(g => g.family === 'boarding-party').reduce((n, g) => n + (g.boxIds || []).length, 0) - (s.bpLost || 0));   // D7.2: parties lost on raids are gone for the scenario
-function boardingRaid(ship, enemy) {   // D7.8: hit-and-run raids — EACH committed boarding party rolls the D7.81 chart, needing its own transporter
+async function boardingRaid(ship, enemy) {   // D7.8: hit-and-run raids — EACH committed boarding party rolls the D7.81 chart, needing its own transporter
   if (!ship) return;
   if (ship.cloaked) { alert('A cloaked ship cannot use transporters (G13.51).'); return; }
   if (hasCrit(ship.criticals, 'transporter')) { alert('Transporters disabled by a critical hit (D8.2).'); return; }
@@ -600,7 +600,7 @@ function boardingRaid(ship, enemy) {   // D7.8: hit-and-run raids — EACH commi
   if (!clearFiringShield(ship, enemy)) return;   // G8.21: drop the raiding ship's own facing shield (confirm) or cancel
   const log = [];
   for (let i = 0; i < n; i++) {
-    if (!payTransporter(ship)) break;   // G8.13: each transporter operation costs 1 energy
+    if (!(await payTransporter(ship))) break;   // G8.13: each transporter operation costs 1 energy
     ship._raidsUsed = (ship._raidsUsed || 0) + 1;
     const rng = makeRng((seed + rngCursor) >>> 0); rngCursor = rng.cursor();
     const res = hitAndRunResult(rng.d6());   // D7.81 NORMAL column
@@ -1228,21 +1228,45 @@ async function postSeekerResult() {   // 6A4 (designated finisher): seekers adva
   pruneUnavailable(); render(); if (seqLog.length) renderLog({ log: seqLog }, true);
   await postRound('seekerResult', { ships: ships.map(s => ({ ...serializeShip(s), rev: shipRev[s.id] ?? 0 })), seekers, rngCursor });
 }
-// H5.4: battery power is neither warp nor impulse power — warp/movement-specific uses need reserve WARP.
-// When both sources could pay, the commander chooses (Rick's rule); a single viable source is used silently.
-function askReserveSource(s, cost, warpOnly = false) {
+// EVERY reactive reserve spend is confirmed in a dialog (Rick's rule — nothing spends silently). The dialog
+// carries a warp/battery selector; an unaffordable source is disabled, and warp-only uses (H5.4: battery power
+// is neither warp nor impulse power) show why battery is unavailable. Resolves 'warp' | 'battery' | null.
+function askReserveSource(s, cost, opts = {}) {
+  const { warpOnly = false, reason = '' } = typeof opts === 'boolean' ? { warpOnly: opts } : opts;
   const w = s.reserveWarp || 0, b = batteryOf(s);
-  if (warpOnly) { if (w >= cost) return 'warp'; alert(`Needs ${cost} reserve WARP power — battery power cannot fund warp/movement functions (H5.4).`); return null; }
-  if (w + b < cost) { alert(`Not enough reserve power (${w + b} available, ${cost} needed) (H7).`); return null; }
-  if (w < cost) return 'battery';
-  if (b < cost) return 'warp';
-  return confirm(`Pay ${cost} from RESERVE WARP (OK) or BATTERY (Cancel)?\n\nreserve warp ${w} · battery ${b}`) ? 'warp' : 'battery';
+  if (warpOnly && w < cost) { alert(`Needs ${cost} reserve WARP power — battery power cannot fund warp/movement functions (H5.4).`); return Promise.resolve(null); }
+  if (w + b < cost) { alert(`Not enough reserve power (${w + b} available, ${cost} needed) (H7).`); return Promise.resolve(null); }
+  return new Promise(res => {
+    const canW = w >= cost, canB = !warpOnly && b >= cost;
+    let src = canW ? 'warp' : 'battery';
+    const m = document.createElement('div');
+    m.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:640;display:flex;align-items:center;justify-content:center';
+    const inner = document.createElement('div');
+    inner.style.cssText = 'background:#fff;border-radius:10px;padding:16px 20px;min-width:300px;max-width:380px;box-shadow:0 12px 44px rgba(0,0,0,.4)';
+    const draw = () => { inner.innerHTML = `
+      <div style="font-weight:700;margin-bottom:2px">⚡ Spend ${cost} reserve power — ${s.id}</div>
+      ${reason ? `<div style="color:#64748b;font-size:12px;margin-bottom:6px">${reason}</div>` : ''}
+      <div style="display:flex;gap:6px;margin:10px 0">
+        <button class="btn ${src === 'warp' ? 'primary' : ''}" data-src="warp"${canW ? '' : ' disabled'} style="flex:1">Reserve warp (${w})</button>
+        <button class="btn ${src === 'battery' ? 'primary' : ''}" data-src="battery"${canB ? '' : ' disabled'} style="flex:1"${warpOnly ? ' title="battery power cannot fund warp/movement functions (H5.4)"' : ''}>Battery (${b})</button>
+      </div>
+      <div style="display:flex;gap:8px"><button class="btn primary" data-ok style="flex:1">Confirm</button><button class="btn" data-cancel style="flex:1">Cancel</button></div>`; };
+    inner.addEventListener('click', e => {
+      const sb = e.target.closest('[data-src]'); if (sb && !sb.disabled) { src = sb.dataset.src; draw(); return; }
+      if (e.target.closest('[data-ok]')) { m.remove(); res(src); }
+      else if (e.target.closest('[data-cancel]')) { m.remove(); res(null); }
+    });
+    draw(); m.appendChild(inner); document.body.appendChild(m);
+  });
 }
 // impulse-play adjustment of a reserve-eligible system (H7.2). EW changes queue for the fire-decision
 // step (H7.33); capacitor (H6.22), tractor power (G7.411), reinforcement (H7.132), and EM-begin
 // (C10.11, reserve warp only) apply the moment the battery is discharged (H7.131).
-function reserveAdjust(s, key, shieldN = null) {
+async function reserveAdjust(s, key, shieldN = null) {
   const cost = key === 'genReinf' ? 2 : key === 'em' ? 6 * powerOf(s).moveCost : 1;
+  const REASONS = { ecm: 'ECM +1 — applies at the fire-decision step (H7.33)', eccm: 'ECCM +1 — applies at the fire-decision step (H7.33)',
+    phaserCap: 'Phaser capacitor +1 (H6.22)', tractor: 'Tractor power +1 (G7.411)', genReinf: 'General reinforcement +1 point (D3.341, 2 energy)',
+    spec: `Reinforce shield ${shieldN} +1 (D3.342)`, em: 'Begin Erratic Maneuvers (C10.11 — reserve warp only)' };
   if (key === 'phaserCap' && (s.capacitor || 0) >= powerOf(s).capacitorCap) { alert('The phaser capacitor is full (H6.21).'); return; }
   if (key === 'em' && s.em) return;
   if (key === 'ecm' || key === 'eccm') {
@@ -1250,10 +1274,10 @@ function reserveAdjust(s, key, shieldN = null) {
     const combined = (s.ecmLevel || 0) + (s.eccmLevel || 0) + (q.ecm || 0) + (q.eccm || 0);
     if (combined >= sensorRating(s)) { alert('ECM + ECCM already at the sensor rating (D6.310).'); return; }
     if (reserveQueueCost({ ...q, [key]: (q[key] || 0) + 1 }) > reservePoolS(s)) { alert('Not enough reserve power for the queued total (H7).'); return; }
-    const src = askReserveSource(s, cost); if (!src) return;
+    const src = await askReserveSource(s, cost, { reason: REASONS[key] }); if (!src) return;
     s.reserveQueue = { ...q, [key]: (q[key] || 0) + 1, source: src };   // H7.33: takes effect at the fire-decision step / impulse boundary
   } else {
-    const src = askReserveSource(s, cost, key === 'em'); if (!src) return;
+    const src = await askReserveSource(s, cost, { warpOnly: key === 'em', reason: REASONS[key] }); if (!src) return;
     const np = spendReserve(s.reserveWarp || 0, batteryOf(s), cost, src); s.reserveWarp = np.reserveWarp; s.batteryCharge = np.battery;
     if (key === 'phaserCap') s.capacitor = Math.min(powerOf(s).capacitorCap, (s.capacitor || 0) + 1);
     else if (key === 'tractor') { s.tractorPower = (s.tractorPower || 0) + 1; repowerTractors(s); }
@@ -1264,28 +1288,32 @@ function reserveAdjust(s, key, shieldN = null) {
   }
   saveSoon(s.id); render();
 }
-const payReserveS = (ship, n) => { const src = (ship.reserveWarp || 0) >= n ? 'warp' : 'battery'; const np = spendReserve(ship.reserveWarp || 0, batteryOf(ship), n, src); ship.reserveWarp = np.reserveWarp; ship.batteryCharge = np.battery; };
-function reserveArm(ship, key) {   // impulse-play reserve arming: J2.2213 (suicide — begin, feed, or top up any turn) / J3.122 (weasel — BEGIN only)
+const payReserveS = (ship, n, src) => { const np = spendReserve(ship.reserveWarp || 0, batteryOf(ship), n, src || ((ship.reserveWarp || 0) >= n ? 'warp' : 'battery')); ship.reserveWarp = np.reserveWarp; ship.batteryCharge = np.battery; };
+async function reserveArm(ship, key) {   // impulse-play reserve arming: J2.2213 (suicide — begin, feed, or top up any turn) / J3.122 (weasel — BEGIN only)
   if (reservePoolS(ship) < 1) { alert('No reserve/battery power available (H7).'); return; }
   if (key === 'suicide') {
     const arm = ship.suicideArm;
     if (arm && arm.lastTurn === clock.turn) {   // top up this turn's bank
       if ((arm.addedThisTurn || 0) >= 3) { alert('No more than 3 points of arming energy per turn (J2.2211).'); return; }
       if (arm.energy >= 9) { alert('A suicide shuttle holds at most 9 points total (J2.2212).'); return; }
-      payReserveS(ship, 1); arm.energy = Math.min(9, arm.energy + 1); arm.addedThisTurn = (arm.addedThisTurn || 0) + 1;
+      const src = await askReserveSource(ship, 1, { warpOnly: true, reason: 'Suicide-shuttle arming +1 (J2.2213 — WARP energy, J2.2211)' }); if (!src) return;
+      payReserveS(ship, 1, src); arm.energy = Math.min(9, arm.energy + 1); arm.addedThisTurn = (arm.addedThisTurn || 0) + 1;
     } else if (arm && arm.lastTurn === clock.turn - 1) {   // J2.2213: reserve provides this turn's feed (continuing or holding)
+      const src = await askReserveSource(ship, 1, { warpOnly: true, reason: 'Suicide-shuttle arming feed (J2.2213 — WARP energy, J2.2211)' }); if (!src) return;
       const holding = arm.turns >= 3;
-      payReserveS(ship, 1);
+      payReserveS(ship, 1, src);
       ship.suicideArm = { turns: arm.turns + 1, energy: holding ? arm.energy : Math.min(9, arm.energy + 1), lastTurn: clock.turn, addedThisTurn: 1 };
     } else {
       if (shuttlesLeftOf(ship) <= 0) { alert('No shuttle in the bay to arm (J1.868).'); return; }
-      payReserveS(ship, 1);
+      const src = await askReserveSource(ship, 1, { warpOnly: true, reason: 'Begin suicide-shuttle arming (J2.2213 — WARP energy, J2.2211)' }); if (!src) return;
+      payReserveS(ship, 1, src);
       ship.suicideArm = { turns: 1, energy: 1, lastTurn: clock.turn, addedThisTurn: 1 };   // J2.2213: reserve BEGINS the arming cycle mid-turn
     }
   } else {   // wild weasel: reserve may only BEGIN a charge (J3.122); later turns are EAF-fed
     const tracks = ship.wwCharges || (ship.wwCharges = []);
     if (tracks.filter(w => w.lastTurn >= clock.turn - 1).length >= shuttlesLeftOf(ship)) { alert('No free shuttle in the bay for another weasel charge (J1.868/J3.123).'); return; }
-    payReserveS(ship, 1);
+    const src = await askReserveSource(ship, 1, { reason: 'Begin a wild-weasel charge (J3.122)' }); if (!src) return;
+    payReserveS(ship, 1, src);
     tracks.push({ turns: 1, lastTurn: clock.turn, startAt: { turn: clock.turn, impulse: clock.impulse } });   // ready no sooner than 32 impulses from here (J3.122)
   }
   saveSoon(ship.id); render();
@@ -1418,11 +1446,10 @@ const DEFAULT_BREAKDOWN = 5;       // C6.53: per-ship breakdown rating (a roll �
 // facing; this core only charges the 5 warp energy (reserve/battery) and resolves C6.51. Returns false when the
 // HET cannot be performed (maneuver crit / no power) — the caller breaks the plot there.
 function execPlottedHet(ship) {
-  if (hasCrit(ship.criticals, 'maneuver') || (ship.reserveWarp || 0) + batteryOf(ship) < HET_ENERGY) {
+  if (hasCrit(ship.criticals, 'maneuver') || (ship.reserveWarp || 0) < HET_ENERGY) {   // C6.2/H7.42: an HET is a movement function — reserve WARP power only (H5.4: battery power cannot fund it)
     renderLog({ log: [{ kind: 'hetFail', ship: ship.id }] }, true); return false;
   }
-  const src = (ship.reserveWarp || 0) >= HET_ENERGY ? 'warp' : 'battery';
-  const np = spendReserve(ship.reserveWarp || 0, batteryOf(ship), HET_ENERGY, src); ship.reserveWarp = np.reserveWarp; ship.batteryCharge = np.battery;
+  ship.reserveWarp -= HET_ENERGY;
   const rng = makeRng((seed + rngCursor) >>> 0); rngCursor = rng.cursor();   // C6.51 breakdown roll (deterministic across clients)
   const firstUse = !ship._hetUsed; ship._hetUsed = true;
   const rating = powerOf(ship).breakdownRating || DEFAULT_BREAKDOWN;   // C6.53: per-ship breakdown rating from the MSC (verified stats)
@@ -2365,7 +2392,7 @@ createBattleMap({
   map, ui, getPhase, getShips: () => ships, byId, isMine, isFirer, COLS, ROWS, hasGhosts, groupOfShip,
   plotBase, saveSoon, render, syncMovementEnergy, onShipClick, renderFleet, pruneUnavailable,
   openCtxMenu: (shipId, e) => { ctxShip = shipId; const mine = isMine(byId(shipId)); document.querySelector('#ctxMenu [data-act="ea"]').style.display = mine ? '' : 'none'; document.querySelector('#ctxMenu [data-act="intel"]').style.display = mine ? 'none' : ''; document.querySelector('#ctxMenu [data-act="setspeed"]').style.display = (mine && getPhase() === 'energy' && !myLockedEnergy) ? '' : 'none'; const ci = document.querySelector('#ctxMenu [data-act="cloak"]'); const cShip = byId(shipId); ci.style.display = (mine && powerOf(cShip).systems.cloak) ? '' : 'none'; ci.textContent = cShip.cloaked ? '🌫 Decloak' : '🌫 Cloak'; document.querySelector('#ctxMenu [data-act="weasel"]').style.display = (mine && getPhase() !== 'energy' && shuttleBaysOf(cShip) > 0 && !cShip.cloaked) ? '' : 'none'; document.querySelector('#ctxMenu [data-act="mine"]').style.display = document.querySelector('#ctxMenu [data-act="nukemine"]').style.display = (mine && getPhase() !== 'energy' && !cShip.cloaked) ? '' : 'none';   document.querySelector('#ctxMenu [data-act="raid"]').style.display = (getPhase() !== 'energy' && raidSourceFor(cShip)) ? '' : 'none';   document.querySelector('#ctxMenu [data-act="tbomb"]').style.display = (getPhase() !== 'energy' && tbombSourceFor(cShip)) ? '' : 'none';   /* D7/D15/G8: raid + transporter bomb shown on any enemy a friendly ship can reach */ document.querySelector('#ctxMenu [data-act="admin"]').style.display = (mine && getPhase() !== 'energy' && shuttleBaysOf(cShip) > 0 && !cShip.cloaked) ? '' : 'none'; document.querySelector('#ctxMenu [data-act="tractor"]').style.display = (getPhase() !== 'energy' && tractorSourceFor(cShip)) ? '' : 'none';   /* G7.11: shown on any unit a friendly ship can tractor */ document.querySelector('#ctxMenu [data-act="release"]').style.display = (mine && tractorLinksFrom(cShip).length) ? '' : 'none'; document.querySelector('#ctxMenu [data-act="breaktractor"]').style.display = (mine && getPhase() !== 'energy' && heldBy(cShip)) ? '' : 'none'; const sd = document.querySelector('#ctxMenu [data-act="selfdestruct"]'); sd.style.display = (mine && getPhase() === 'energy' && !myLockedEnergy) ? '' : 'none'; sd.textContent = cShip.selfDestructPlot ? '💥 Cancel self-destruct' : '💥 Self-destruct (D5.1)'; const m = document.getElementById('ctxMenu'); m.style.display = 'block'; m.style.left = Math.min(e.clientX, innerWidth - 160) + 'px'; m.style.top = e.clientY + 'px'; },
-  canHet: s => !hasCrit(s.criticals, 'maneuver') && reservePoolS(s) >= HET_ENERGY,   // C6.21: 5 reserve/battery power funds an impulse-play HET
+  canHet: s => !hasCrit(s.criticals, 'maneuver') && (s.reserveWarp || 0) >= HET_ENERGY,   // C6.21/H7.42: an HET needs 5 reserve WARP power (battery cannot fund movement, H5.4)
   openSeekerMenu: (seekerId, e) => {   // FP1.611: fire the SELECTED ship's phasers at the right-clicked drone/plasma
     const sk = seekers.find(x => x.id === seekerId); const ship = selectedShip();
     if (!sk) return;
