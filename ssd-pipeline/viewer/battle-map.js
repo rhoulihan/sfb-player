@@ -128,7 +128,7 @@ export function plotOverlaySvg({ ships, isMine, byId, plotBase, ui }) {
 // mousedown listeners exactly.
 export function createBattleMap(ctx) {
   const { map, ui, getPhase, getShips, byId, isMine, isFirer, COLS, ROWS, hasGhosts, groupOfShip,
-          plotBase, saveSoon, render, syncMovementEnergy, onShipClick, renderFleet, pruneUnavailable, openCtxMenu, openSpeedMenu, openSeekerMenu } = ctx;
+          plotBase, saveSoon, render, syncMovementEnergy, onShipClick, renderFleet, pruneUnavailable, openCtxMenu, openSpeedMenu, openSeekerMenu, canHet } = ctx;
   // a dragged ship joins the virtual fire group: attacker → add as a firer (once), other side → set as target
   const joinFireGroup = s => { if (isFirer(s)) { if (!groupOfShip(s.id)) onShipClick(s); } else onShipClick(s); };
   const svgPoint = e => { const pt = map.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY; return pt.matrixTransform(map.getScreenCTM().inverse()); };
@@ -247,10 +247,16 @@ export function createBattleMap(ctx) {
     for (const ch of choices) {
       const it = document.createElement('div');
       it.textContent = ch.label;
-      it.style.cssText = 'padding:8px 14px;cursor:pointer;white-space:nowrap';
-      it.onmouseenter = () => { it.style.background = '#f1f5f9'; };
-      it.onmouseleave = () => { it.style.background = ''; };
-      it.onclick = ev => { ev.stopPropagation(); closeManChooser(); ch.apply(); };
+      if (ch.title) it.title = ch.title;
+      if (ch.disabled) {
+        it.style.cssText = 'padding:8px 14px;white-space:nowrap;color:#94a3b8;cursor:not-allowed';
+        it.onclick = ev => ev.stopPropagation();   // inert — the chooser stays open
+      } else {
+        it.style.cssText = 'padding:8px 14px;cursor:pointer;white-space:nowrap';
+        it.onmouseenter = () => { it.style.background = '#f1f5f9'; };
+        it.onmouseleave = () => { it.style.background = ''; };
+        it.onclick = ev => { ev.stopPropagation(); closeManChooser(); ch.apply(); };
+      }
       m.appendChild(it);
     }
     m.style.left = Math.min(e.clientX + 4, innerWidth - 150) + 'px';
@@ -296,8 +302,9 @@ export function createBattleMap(ctx) {
       if (doTurn && doSlip && step.facing !== cur.facing) { openManChooser(e, [{ label: '↻ Turn', apply: doTurn }, { label: '⇢ Sideslip', apply: doSlip }]); return; }   // both maneuvers legal → the player picks
       if (doTurn) { doTurn(); return; }
       if (doHet) {   // HET always asks (it costs 5 energy + a breakdown roll at execution) — with Sideslip alongside when legal
-        openManChooser(e, doSlip ? [{ label: '⚡ High Energy Turn', apply: doHet }, { label: '⇢ Sideslip', apply: doSlip }]
-                                 : [{ label: '⚡ High Energy Turn', apply: doHet }]);
+        const hetOk = ph === 'energy' || !canHet || canHet(s);   // impulse play: gray out without the 5 reserve points (C6.21); energy-phase plots pay at execution
+        const hetChoice = { label: '⚡ High Energy Turn', apply: doHet, disabled: !hetOk, title: hetOk ? '' : 'needs 5 reserve/battery power (C6.21)' };
+        openManChooser(e, doSlip ? [hetChoice, { label: '⇢ Sideslip', apply: doSlip }] : [hetChoice]);
         return;
       }
       if (doSlip) doSlip();

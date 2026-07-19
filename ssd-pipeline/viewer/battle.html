@@ -2298,6 +2298,7 @@ createBattleMap({
   map, ui, getPhase, getShips: () => ships, byId, isMine, isFirer, COLS, ROWS, hasGhosts, groupOfShip,
   plotBase, saveSoon, render, syncMovementEnergy, onShipClick, renderFleet, pruneUnavailable,
   openCtxMenu: (shipId, e) => { ctxShip = shipId; const mine = isMine(byId(shipId)); document.querySelector('#ctxMenu [data-act="ea"]').style.display = mine ? '' : 'none'; document.querySelector('#ctxMenu [data-act="intel"]').style.display = mine ? 'none' : ''; document.querySelector('#ctxMenu [data-act="setspeed"]').style.display = (mine && getPhase() === 'energy' && !myLockedEnergy) ? '' : 'none'; const ci = document.querySelector('#ctxMenu [data-act="cloak"]'); const cShip = byId(shipId); ci.style.display = (mine && powerOf(cShip).systems.cloak) ? '' : 'none'; ci.textContent = cShip.cloaked ? '🌫 Decloak' : '🌫 Cloak'; document.querySelector('#ctxMenu [data-act="weasel"]').style.display = (mine && getPhase() !== 'energy' && shuttleBaysOf(cShip) > 0 && !cShip.cloaked) ? '' : 'none'; document.querySelector('#ctxMenu [data-act="mine"]').style.display = document.querySelector('#ctxMenu [data-act="nukemine"]').style.display = (mine && getPhase() !== 'energy' && !cShip.cloaked) ? '' : 'none';   document.querySelector('#ctxMenu [data-act="raid"]').style.display = (getPhase() !== 'energy' && raidSourceFor(cShip)) ? '' : 'none';   document.querySelector('#ctxMenu [data-act="tbomb"]').style.display = (getPhase() !== 'energy' && tbombSourceFor(cShip)) ? '' : 'none';   /* D7/D15/G8: raid + transporter bomb shown on any enemy a friendly ship can reach */ document.querySelector('#ctxMenu [data-act="admin"]').style.display = (mine && getPhase() !== 'energy' && shuttleBaysOf(cShip) > 0 && !cShip.cloaked) ? '' : 'none'; document.querySelector('#ctxMenu [data-act="tractor"]').style.display = (getPhase() !== 'energy' && tractorSourceFor(cShip)) ? '' : 'none';   /* G7.11: shown on any unit a friendly ship can tractor */ document.querySelector('#ctxMenu [data-act="release"]').style.display = (mine && tractorLinksFrom(cShip).length) ? '' : 'none'; document.querySelector('#ctxMenu [data-act="breaktractor"]').style.display = (mine && getPhase() !== 'energy' && heldBy(cShip)) ? '' : 'none'; const sd = document.querySelector('#ctxMenu [data-act="selfdestruct"]'); sd.style.display = (mine && getPhase() === 'energy' && !myLockedEnergy) ? '' : 'none'; sd.textContent = cShip.selfDestructPlot ? '💥 Cancel self-destruct' : '💥 Self-destruct (D5.1)'; const m = document.getElementById('ctxMenu'); m.style.display = 'block'; m.style.left = Math.min(e.clientX, innerWidth - 160) + 'px'; m.style.top = e.clientY + 'px'; },
+  canHet: s => !hasCrit(s.criticals, 'maneuver') && reservePoolS(s) >= HET_ENERGY,   // C6.21: 5 reserve/battery power funds an impulse-play HET
   openSeekerMenu: (seekerId, e) => {   // FP1.611: fire the SELECTED ship's phasers at the right-clicked drone/plasma
     const sk = seekers.find(x => x.id === seekerId); const ship = selectedShip();
     if (!sk) return;
@@ -2650,10 +2651,16 @@ function showCodes() {
 }
 document.getElementById('codesEnter').onclick = () => { document.getElementById('codesModal').style.display = 'none'; };
 document.getElementById('nbStart').onclick = async () => {
-  const defs = []; let fi = 0, ei = 0;
-  for (const side of ['friendly', 'enemy']) for (const s of nbShips[side]) {
+  // ship ids ARE the race-shipType (FED-CA, KLI-D7); a numeric suffix disambiguates duplicates
+  // (FED-CA-1/-2 …) — counted battle-wide so mirror matches stay unique for byId/plans/sync
+  const defs = [], rows = [];
+  for (const side of ['friendly', 'enemy']) for (const s of nbShips[side]) rows.push({ side, s });
+  const totals = {}; rows.forEach(x => { totals[x.s.code] = (totals[x.s.code] || 0) + 1; });
+  const seq = {};
+  for (const { side, s } of rows) {
     const q = Math.max(0, Math.min(COLS - 1, (parseInt(s.hexId.slice(0, 2)) || 1) - 1)), r = Math.max(0, Math.min(ROWS - 1, (parseInt(s.hexId.slice(2)) || 1) - 1));
-    defs.push({ id: side === 'friendly' ? 'F' + (++fi) : 'E' + (++ei), code: s.code, name: s.code, side, q, r, facing: s.facing, speed: s.speed });
+    const id = totals[s.code] > 1 ? `${s.code}-${(seq[s.code] = (seq[s.code] || 0) + 1)}` : s.code;
+    defs.push({ id, code: s.code, name: s.code, side, q, r, facing: s.facing, speed: s.speed });
   }
   const nm = side => document.querySelector(`.nbname[data-name="${side}"]`).value.trim();
   fleets = { friendly: { name: nm('friendly') || 'Fleet 1', code: genCode() }, enemy: { name: nm('enemy') || 'Fleet 2', code: genCode() } };
