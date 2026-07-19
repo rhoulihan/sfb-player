@@ -184,6 +184,7 @@ export function validateEaf(power, column, carried = 0, batteryCharge = power.ba
   // J1.868: energy cannot be allocated to arm a shuttle (SS or WW) unless there is a shuttle in the bay
   if ((column.wildWeasel || (column.suicide || 0) > 0) && !((power.systems.shuttles || 0) > 0)) errors.push('no shuttle in the bay to arm (J1.868)');
   if ((column.suicide || 0) > 3) errors.push('suicide-shuttle arming exceeds 3 points per turn (J2.2211)');
+  if ((column.suicide || 0) > 0 && (column.suicide || 0) < 1) errors.push('suicide-shuttle arming needs at least 1 point per turn (J2.2211)');
   const status = used > produced ? 'over' : free > 0 ? 'under' : 'balanced';
   return { produced, used, batteryUsed, free, status, errors };
 }
@@ -207,7 +208,7 @@ export function foldEaf(power, column, carried = 0, progress = {}) {
     capacitor: carried + column.phaserCap,
     reinforce: { gen: Math.floor((column.genReinf || 0) / 2), spec: { ...column.specReinf } },   // D3.341: general reinforcement energy ÷2 = points (2 energy = 1 point)
     ecmLevel: column.ecm, eccmLevel: column.eccm,
-    wildWeasel: !!column.wildWeasel, suicide: column.suicide | 0,   // J3.12 weasel charge turn; J2.2211 arming energy applied this turn
+    wildWeasel: !!column.wildWeasel, suicide: +column.suicide || 0,   // J3.12 weasel charge turn; J2.2211 arming energy applied this turn (half-points preserved)
     reserveWarp: column.reserveWarp || 0,   // held for reactive use during the turn (H7.4); unused → batteries (H7.36)
   };
 }

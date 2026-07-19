@@ -303,6 +303,9 @@ test('J2.2211: suicide-shuttle arming is a 0-3 energy ALLOCATION charged at its 
   assert.equal(sinkMax(p, 'suicide'), 3, 'J2.2211: no more than 3 points per turn (FED-CA has shuttles)');
   assert.equal(sinkMax({ ...p, systems: { ...p.systems, shuttles: 0 } }, 'suicide'), 0, 'no shuttles in inventory → nothing to arm');
   assert.equal(foldEaf(p, { ...base, suicide: 2 }, 0, {}).suicide, 2, 'the fold carries the allocated arming energy');
+  // J2.2211: arming energy moves in HALF-POINT increments (1.0-3.0) — fractional allocations charge and fold exactly
+  assert.equal(validateEaf(p, { ...base, suicide: 1.5 }, 0, 0).used, used0 + 1.5, 'half-point arming charges 1.5');
+  assert.equal(foldEaf(p, { ...base, suicide: 2.5 }, 0, {}).suicide, 2.5, 'the fold keeps the half-point (no truncation)');
   // J1.868: shuttle-arming energy (SS or WW) cannot be allocated without a shuttle in the bay
   const bare = { ...p, systems: { ...p.systems, shuttles: 0 } };
   assert.ok(validateEaf(bare, { ...base, suicide: 1 }, 0, 0).errors.some(e => /J1\.868/.test(e)), 'suicide arming without a shuttle is an error');

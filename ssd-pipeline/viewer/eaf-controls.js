@@ -35,8 +35,11 @@ const SHUTTLE_TITLES = {
   sui: 'Launch the armed suicide shuttle (J2.2211) at the attack-group target — click an enemy ship to target, as with drones',
 };
 export const shuttleCtl = (x, y, o) => {
-  const steps = (key, val, max) =>
-    `<button class="stepbtn" data-ea="step" data-key="${key}" data-d="-1"${val <= 0 ? ' disabled' : ''}>−</button><span class="val">${val}</span><button class="stepbtn" data-ea="step" data-key="${key}" data-d="1"${val >= max ? ' disabled' : ''}>+</button>`;
+  const steps = (key, val, max) => {
+    // J2.2211: suicide arming moves in half-point increments but never below the 1-point minimum (0 ↔ 1 ↔ 1.5 … 3)
+    const dn = key === 'suicide' && val > 1 ? 0.5 : 1, up = key === 'suicide' && val >= 1 ? 0.5 : 1;
+    return `<button class="stepbtn" data-ea="step" data-key="${key}" data-d="-${dn}"${val <= 0 ? ' disabled' : ''}>−</button><span class="val">${val}</span><button class="stepbtn" data-ea="step" data-key="${key}" data-d="${up}"${val >= max ? ' disabled' : ''}>+</button>`;
+  };
   const rocket = (kind, launch) => `<button data-ea="shlaunch" data-kind="${kind}"${launch ? '' : ' disabled'} title="${SHUTTLE_TITLES[kind]}">🚀</button>`;
   const hdr = `SHUTTLES ${o.inv}/${o.bays} · ⚡${o.pw}`;
   const v = o.variant | 0;

@@ -2136,7 +2136,7 @@ async function resolveEnergy(allEaf) {                        // fold each locke
     // J2.2211/J2.2212: suicide-shuttle arming — 1-3 warp/turn for three CONSECUTIVE turns. A missed turn (or missed
     // 1-point hold on turn 4+) deactivates the shuttle and all arming energy is lost. On hold turns the first point is
     // the holding cost and any extra keeps arming, up to the 9-point (warhead 18) cap.
-    { const sAll = ts.suicide | 0, prevSA = (s.suicideArm && s.suicideArm.lastTurn === clock.turn - 1) ? s.suicideArm : null;
+    { const sAll = +ts.suicide || 0, prevSA = (s.suicideArm && s.suicideArm.lastTurn === clock.turn - 1) ? s.suicideArm : null;
       if (sAll > 0 && shuttlesLeftOf(s) > 0) {
         const holding = prevSA && prevSA.turns >= 3;
         s.suicideArm = { turns: (prevSA ? prevSA.turns : 0) + 1, energy: Math.min(9, (prevSA ? prevSA.energy : 0) + (holding ? sAll - 1 : sAll)), lastTurn: clock.turn };

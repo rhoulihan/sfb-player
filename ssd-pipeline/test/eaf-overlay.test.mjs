@@ -119,7 +119,7 @@ test('shuttleCtl: one control set — inventory header, power summary, WW + SUI 
   assert.match(h, /1\/2/, 'weasel arming status');
   assert.match(h, /2\/3/, 'suicide arming status');
   // at max, the + buttons disable; at 0, the − buttons disable
-  assert.equal((h.match(/data-d="1" disabled|data-d="1"[^>]*disabled/g) || []).length, 2, 'both + disabled at max');
+  assert.equal((h.match(/data-d="(?:1|0\.5)"[^>]*disabled/g) || []).length, 2, 'both + disabled at max (suicide steps by 0.5 above the J2.2211 1-point minimum)');
   const h0 = shuttleCtl(40, 90, { inv: 0, bays: 4, pw: 0, ww: 0, wwMax: 0, wwStat: '', sui: 0, suiMax: 0, suiStat: '' });
   assert.match(h0, /SHUTTLES 0\/4/);
   assert.equal((h0.match(/data-d="-1"[^>]*disabled/g) || []).length, 2, 'both − disabled at 0');
