@@ -1503,7 +1503,7 @@ function kliShieldSvg(s, p, L) {
     const raw = rawOf(n), d = ovDims(raw);
     const deg = (raw.length > 2 && d.deg != null) ? d.deg : Math.atan2(q[1] - rcy, q[0] - rcx) * 180 / Math.PI + 90;   // explicit editor facing wins
     const max = p.shields[n - 1] || 1, t = Math.max(0, Math.min(1, (sn[n - 1] || 0) / max));
-    items.push({ n, cx: q[0], cy: q[1], deg, len: d.len, wid: d.wid, shape: d.shape, t, reinf: (col.specReinf[n] || 0) + genPts });
+    items.push({ n, cx: q[0], cy: q[1], deg, len: d.len, wid: d.wid, shape: d.shape, taper: d.taper || 0, t, reinf: (col.specReinf[n] || 0) + genPts });   // taper too — without it the in-game hexes diverge from the authored shapes
   }
   return shieldOverlaySvg(items);
 }
