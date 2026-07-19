@@ -654,6 +654,10 @@ function eafControlList(p){ const L=[];
   L.push({id:"erratic",label:"Erratic (EM)",render:(x,y)=>toggleCtl(x,y,"ERRATIC","em",false)});
   L.push({id:"fc-passive",label:"FC Passive",render:(x,y)=>toggleCtl(x,y,"FC PASSIVE","fcPassive",false)});
   L.push({id:"emergency-decel",label:"Emergency Decel",render:(x,y)=>toggleCtl(x,y,"EMERG DECEL","emDecel",false)});   // C8.10: declared during impulse play from the console
+  if(p.systems.shuttles){   // J1.868: shuttle-arming controls only make sense on a ship with a shuttle bay
+    L.push({id:"ww-arm",label:"Weasel Arm",render:(x,y)=>toggleCtl(x,y,`WEASEL ${p.systems.shuttles}sh`,"wildWeasel",false)});   // J3.12: 1 point/turn × 2 consecutive turns
+    L.push({id:"suicide-arm",label:"Suicide Arm",render:(x,y)=>stackCtl(x,y,`SUICIDE ARM · ${p.systems.shuttles}sh`,"suicide",0,3)});   // J2.2211: 1-3 points/turn × 3 turns
+  }
   if(p.systems.labs) L.push({id:"edr",label:"EDR (labs)",render:(x,y)=>stackCtl(x,y,"EDR (labs)","edr",0,p.systems.labs)});
   L.push({id:"repair-target",label:"Repair Target",render:(x,y)=>ctl(x,y,`<button data-ea="dctarget">🛠 SYS</button>`)});
   return L; }

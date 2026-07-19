@@ -288,3 +288,19 @@ test('Phase B: shipPower brings plasma launchers into the EA weapon list (GOR-CA
   const s = plasma.find(w => w.cls === 'PLASMA-S');
   assert.equal(armTurns(s.cls), 3);
 });
+
+test('J2.2211: suicide-shuttle arming is a 0-3 energy ALLOCATION charged at its value (not a flat flag)', () => {
+  const p = load('FED-CA');
+  const base = disarmed(newEafColumn(p, 0));
+  const used0 = validateEaf(p, base, 0, 0).used;
+  assert.equal(validateEaf(p, { ...base, suicide: 3 }, 0, 0).used, used0 + 3, '3 points of arming energy charge 3');
+  assert.equal(validateEaf(p, { ...base, suicide: 1 }, 0, 0).used, used0 + 1, '1 point charges 1');
+  assert.equal(sinkMax(p, 'suicide'), 3, 'J2.2211: no more than 3 points per turn (FED-CA has shuttles)');
+  assert.equal(sinkMax({ ...p, systems: { ...p.systems, shuttles: 0 } }, 'suicide'), 0, 'no shuttles in inventory → nothing to arm');
+  assert.equal(foldEaf(p, { ...base, suicide: 2 }, 0, {}).suicide, 2, 'the fold carries the allocated arming energy');
+  // J1.868: shuttle-arming energy (SS or WW) cannot be allocated without a shuttle in the bay
+  const bare = { ...p, systems: { ...p.systems, shuttles: 0 } };
+  assert.ok(validateEaf(bare, { ...base, suicide: 1 }, 0, 0).errors.some(e => /J1\.868/.test(e)), 'suicide arming without a shuttle is an error');
+  assert.ok(validateEaf(bare, { ...base, wildWeasel: true }, 0, 0).errors.some(e => /J1\.868/.test(e)), 'weasel charging without a shuttle is an error');
+  assert.ok(validateEaf(p, { ...base, suicide: 4 }, 0, 0).errors.some(e => /J2\.2211/.test(e)), 'more than 3 points in one turn is an error');
+});

@@ -84,6 +84,7 @@ export function sinkMax(p, key) {
     case 'edr': return p.systems.labs || 0;                   // D14: one EDR attempt per powered lab box
     case 'damageControl': return p.dcRating || (p.systems.damageControl || 0);// D9.21: ceiling = highest number on the DC track (the rating); fall back to intact-box count until captured (D14.13)
     case 'genReinf': return p.total + p.batteries;            // limited only by available power (D3.341)
+    case 'suicide': return (p.systems.shuttles || 0) > 0 ? 3 : 0;   // J2.2211: 1-3 warp points/turn; J1.868: nothing to arm without a shuttle in the bay
     default: return p.total + p.batteries;
   }
 }
@@ -113,13 +114,13 @@ export function newEafColumn(power, prevSpeed = 0, carried = 0, progress = {}) {
     ecm: 0, eccm: 0, labs: 0,
     em: false, fcPassive: false, edr: 0,   // C10 erratic maneuvers, D19 passive fire control, D14 emergency damage repair
     repairShield: 0,   // D9.21: 0 = damage-control repairs systems (D9.7); 1-6 = repair that shield (2 energy/box)
-    wildWeasel: false, suicide: false, cloak: false,
+    wildWeasel: false, suicide: 0, cloak: false,   // suicide = J2.2211 arming energy this turn (0-3)
   };
 }
 
 // fixed line costs (calibration-flagged). Shields are up for free in v1 — the paid shield allocation
 // is reinforcement (genReinf/specReinf, variable). Fire control cost is the value itself (0/0.5/1).
-export const SHIELD_COST = 0, HET_COST = 5, WW_COST = 1, SUICIDE_COST = 1, CLOAK_COST = 0;   // HET = 5 hexes of warp energy (C6.21)
+export const SHIELD_COST = 0, HET_COST = 5, WW_COST = 1, CLOAK_COST = 0;   // HET = 5 hexes of warp energy (C6.21); WW = 1/turn × 2 turns (J3.12)
 
 // the balance referee. carried = phaser-capacitor charge left from last turn (H6 carry-over). prevOverload[id] = the
 // weapon was already committed to overload coming into this turn (from last turn's fold) — used to price the E4.412
@@ -157,7 +158,7 @@ export function validateEaf(power, column, carried = 0, batteryCharge = power.ba
     + column.damageControl + column.recharge + (column.reserveWarp || 0) + column.tractor + column.transporter
     + column.ecm + column.eccm + column.labs
     + (column.em ? 6 * power.moveCost : 0) + (column.edr ? 3 * column.edr : 0)   // C10.11 EM = six hexes of movement; D14.12 EDR = 3 per powered lab
-    + (column.wildWeasel ? WW_COST : 0) + (column.suicide ? SUICIDE_COST : 0) + (column.cloak ? (power.cloakCost || CLOAK_COST) : 0);   // G13.21: per-ship cloak cost
+    + (column.wildWeasel ? WW_COST : 0) + (column.suicide || 0) + (column.cloak ? (power.cloakCost || CLOAK_COST) : 0);   // J2.2211: suicide arming charges its value; G13.21: per-ship cloak cost
   const produced = power.total + batteryCharge;            // only the current battery charge is available
   const free = produced - used;
   const batteryUsed = Math.max(0, used - power.total);
@@ -178,6 +179,9 @@ export function validateEaf(power, column, carried = 0, batteryCharge = power.ba
   if (warpDemand > power.warp) errors.push('warp allocations exceed warp engine output (C2.11/H7.41/E4.23)');
   if (batteryUsed > batteryCharge) errors.push('battery draw exceeds available battery power');
   if ((column.recharge || 0) > power.batteries - batteryCharge) errors.push('recharge exceeds empty batteries');
+  // J1.868: energy cannot be allocated to arm a shuttle (SS or WW) unless there is a shuttle in the bay
+  if ((column.wildWeasel || (column.suicide || 0) > 0) && !((power.systems.shuttles || 0) > 0)) errors.push('no shuttle in the bay to arm (J1.868)');
+  if ((column.suicide || 0) > 3) errors.push('suicide-shuttle arming exceeds 3 points per turn (J2.2211)');
   const status = used > produced ? 'over' : free > 0 ? 'under' : 'balanced';
   return { produced, used, batteryUsed, free, status, errors };
 }
@@ -201,7 +205,7 @@ export function foldEaf(power, column, carried = 0, progress = {}) {
     capacitor: carried + column.phaserCap,
     reinforce: { gen: Math.floor((column.genReinf || 0) / 2), spec: { ...column.specReinf } },   // D3.341: general reinforcement energy ÷2 = points (2 energy = 1 point)
     ecmLevel: column.ecm, eccmLevel: column.eccm,
-    wildWeasel: column.wildWeasel, suicide: column.suicide,
+    wildWeasel: !!column.wildWeasel, suicide: column.suicide | 0,   // J3.12 weasel charge turn; J2.2211 arming energy applied this turn
     reserveWarp: column.reserveWarp || 0,   // held for reactive use during the turn (H7.4); unused → batteries (H7.36)
   };
 }

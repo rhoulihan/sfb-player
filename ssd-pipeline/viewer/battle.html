@@ -323,7 +323,7 @@ import { movesOnImpulse, neighbor, turnMode, turnModeFor, accelCap, pseudoSpeed 
 const SHIP_TURN_CATEGORY = { 'FED-CA': 'D', 'FED-CL': 'C', 'FED-NCL': 'C', 'GOR-CA': 'D', 'KLI-D7': 'B', 'ROM-KR': 'B', 'KZIN-CS': 'C' };
 const turnCategoryOf = code => SHIP_TURN_CATEGORY[code] || 'C';
 const turnModeOf = s => turnModeFor(s.turnCat || turnCategoryOf(s.code), s.speed) + (hasCrit(s.criticals, 'maneuver') ? 1 : 0);   // D8.2 maneuver crit: turn mode +1 at all speeds
-import { shipPower, newEafColumn, validateEaf, foldEaf, sinkMax, specReinfMax, plasmaClsOf, ewFieldMax, WW_COST } from './energy-model.js';   // ewFieldMax: D6.310 combined ECM+ECCM cap; WW_COST: J3.12 wild-weasel charge
+import { shipPower, newEafColumn, validateEaf, foldEaf, sinkMax, specReinfMax, plasmaClsOf, ewFieldMax } from './energy-model.js';   // ewFieldMax: D6.310 combined ECM+ECCM cap
 import { armLabel, isArmed, canHold, canRoll, armTurns, rollCost, reserveCompletionCost, firedThisTurn, refireReady, impulsesSince } from './weapon-arming.js';   // multi-turn arming: label, fire-gate, holdability, rolling delay (E4.21/E3.24/FP1.311/FP1.221); E2.23 frequency; E1.52 refire cadence
 import { ctl, stepPair, stackCtl, barCtl, sysCtl, batteryCtl, ewCtl, toggleCtl, shieldCtl, weaponCtl, capCtl, segCtl, ovDims, shieldOverlaySvg, applyCtlParts, applyCtlText } from './eaf-controls.js';   // shared EA control renderers (also used by the verify.html EAF layout editor)
 import { reservePool as reservePoolOf, spendReserve, reserveCost } from './reserve-power.js';   // reactive power (H5/H7)
@@ -406,23 +406,21 @@ const baseShuttleBays = s => (s._ver.groups || []).filter(g => g.family === 'shu
 const jammedBaySet = s => new Set((s.criticals || []).filter(c => c.type === 'shuttleBay' && c.bay != null).map(c => c.bay));   // bay indices jammed by D8.2 #10 crits
 const rackInJammedBay = (s, i) => { const nb = baseShuttleBays(s); return nb > 0 && jammedBaySet(s).has(i % nb); };   // drone racks are split across the bays by index — a rack in a jammed bay can't fire (D8.24)
 const shuttleBaysOf = s => Math.max(0, baseShuttleBays(s) - (s.criticals || []).filter(c => c.type === 'shuttleBay').length);   // D8.2 #10: each shuttle-bay crit jams one bay (D8.24)
-const shuttlesLeftOf = s => Math.min(shuttleBaysOf(s), s.shuttlesLeft == null ? (s.shuttlesLeft = shuttleBaysOf(s)) : s.shuttlesLeft);   // a mid-turn bay crit immediately caps the launches still available
-function launchShuttle(firer, target) {   // suicide shuttle (J2.22): three CONSECUTIVE turns of arming (J2.2211), then launch with a variable warhead
+const shuttlesLeftOf = s => Math.min(shuttleBaysOf(s), s.shuttlesLeft == null ? (s.shuttlesLeft = shuttleBaysOf(s) - (s.shuttlesGone || 0)) : s.shuttlesLeft);   // a mid-turn bay crit immediately caps the launches still available
+const spendShuttle = s => { s.shuttlesGone = (s.shuttlesGone || 0) + 1; s.shuttlesLeft = shuttlesLeftOf(s) - 1; };   // J1.5/J2.2: a launched shuttle leaves the bay — inventory persists across turns (shuttlesGone), unlike the per-turn launch counter
+function launchShuttle(firer, target) {   // suicide shuttle (J2.22): launch requires a warhead armed on the EAF over three consecutive turns (J2.2211)
   if (!firer || !target || shuttlesLeftOf(firer) <= 0 || !canControlMore(firer)) return;   // F3.21 control limit
   if (heldBy(firer)) { alert('A ship held in a tractor beam cannot launch a shuttle (G7.941).'); return; }
-  // J2.2211: arming takes three turns; energy must be applied every turn or arming aborts and the energy is lost. Each
-  // arming turn applies the maximum 3 warp points here (a variable-per-turn slider is backlogged). Warhead = 2 × energy.
-  const prev = (firer.suicideArm && firer.suicideArm.lastTurn === clock.turn - 1) ? firer.suicideArm : { turns: 0, energy: 0 };
-  const turns = prev.turns + 1, energy = Math.min(9, prev.energy + 3);
-  if (turns < 3) {   // not yet fully armed — bank this turn's arming and wait for the next turn
-    firer.suicideArm = { turns, energy, lastTurn: clock.turn };
-    saveSoon(firer.id); render();
-    alert(`Suicide shuttle arming ${turns}/3 (J2.2211) — apply arming energy again next turn to continue.`);
+  // J2.2211/J2.2212: arming energy comes from the EAF SUICIDE control (1-3 points/turn, three consecutive turns; the
+  // third arming turn can be the launch turn). The fold in resolveEnergy banks it in firer.suicideArm.
+  const arm = firer.suicideArm;
+  if (!(arm && arm.turns >= 3 && arm.lastTurn === clock.turn)) {
+    alert(arm ? `Suicide shuttle is still arming (turn ${arm.turns}/3, J2.2211) — keep allocating SUICIDE energy on the EAF each turn.`
+              : 'No armed suicide shuttle — allocate 1-3 points/turn to SUICIDE on the EAF for three consecutive turns (J2.2211).');
     return;
   }
-  // J2.2212: the third arming turn can be the launch turn → launch now, warhead = 2 × energy applied (min 6, max 18)
-  firer.shuttlesLeft = shuttlesLeftOf(firer) - 1;
-  const warhead = Math.max(6, Math.min(18, 2 * energy));
+  spendShuttle(firer);
+  const warhead = Math.max(6, Math.min(18, 2 * arm.energy));   // J2.2211: warhead = 2 × arming energy (min 6, max 18)
   const shHp = shuttleMaxHp('admin', settings.advancedShuttles);
   seekers.push({ ...launchSeeker({ id: `sh${++seekerSeq}`, owner: firer.id, q: firer.q, r: firer.r, facing: firer.facing, targetId: target.id, ...SUICIDE_SHUTTLE, warhead }), hp: shHp, maxHp: shHp });
   firer.suicideArm = null;
@@ -462,7 +460,7 @@ function firePhasersAtSeeker(ship, sk) {
 function launchScatterPack(firer, target) {   // C6: a shuttle releases a burst of drones at the target
   if (!firer || !target || shuttlesLeftOf(firer) <= 0 || !canControlMore(firer)) return;
   if (!launchGate(firer, target)) return;   // D6.121 lock-on + D19.22 passive-FC gate (the released drones are seeking weapons)
-  firer.shuttlesLeft = shuttlesLeftOf(firer) - 1;
+  spendShuttle(firer);
   for (let i = 0; i < SCATTER_PACK && canControlMore(firer); i++) seekers.push(launchSeeker({ id: `dr${++seekerSeq}`, owner: firer.id, q: firer.q, r: firer.r, facing: firer.facing, targetId: target.id, ...droneSpec() }));   // release drones up to the control limit (F3.21)
   saveSoon(firer.id); render();
 }
@@ -470,7 +468,7 @@ function launchAdminShuttle(ship) {   // C6: a non-combat shuttle (0 warhead) se
   if (!ship || shuttlesLeftOf(ship) <= 0) return;
   if (heldBy(ship)) { alert('A ship held in a tractor beam cannot launch a shuttle (G7.941).'); return; }
   const tgt = ships.filter(s => s.side !== ship.side && !isDead(s)).sort((a, b) => hexDistance(ship, a) - hexDistance(ship, b))[0];
-  ship.shuttlesLeft = shuttlesLeftOf(ship) - 1;
+  spendShuttle(ship);
   const asHp = shuttleMaxHp('admin', settings.advancedShuttles);
   seekers.push({ ...launchSeeker({ id: `as${++seekerSeq}`, owner: ship.id, q: ship.q, r: ship.r, facing: ship.facing, targetId: tgt ? tgt.id : ship.id, ...ADMIN_SHUTTLE }), hp: asHp, maxHp: asHp });
   saveSoon(ship.id); render();
@@ -479,10 +477,17 @@ const hasActiveWeasel = s => !!s && seekers.some(w => w.type === 'weasel' && w.o
 function launchWeasel(ship) {   // wild weasel (J3): a stationary decoy that diverts incoming seekers away from the ship
   if (!ship || shuttlesLeftOf(ship) <= 0 || hasActiveWeasel(ship)) return;
   if (heldBy(ship)) { alert('A ship held in a tractor beam cannot launch a shuttle (G7.941).'); return; }
-  const cost = 2 * WW_COST;   // J3.12: a WW is charged with one point of energy on each of two consecutive turns before launch (here paid at once from reserve/battery, H7.2)
-  if (reservePoolS(ship) < cost) { alert(`Charging a wild weasel needs ${cost} reserve/battery power (J3.12); ${reservePoolS(ship)} available.`); return; }
-  const np = spendReserve(ship.reserveWarp || 0, batteryOf(ship), cost, (ship.reserveWarp || 0) >= batteryOf(ship) ? 'warp' : 'battery'); ship.reserveWarp = np.reserveWarp; ship.batteryCharge = np.battery;
-  ship.shuttlesLeft = shuttlesLeftOf(ship) - 1;
+  // J3.12/J3.121: the weasel must have been charged on the EAF — 1 point on each of two consecutive turns (the second
+  // can be this turn), and the rolling delay maintained through the current turn. Reserve power may only BEGIN a charge
+  // (J3.122), so there is no pay-at-launch path.
+  const w = ship.wwArm;
+  if (!(w && w.turns >= 2 && w.lastTurn === clock.turn)) {
+    alert(w ? 'The wild weasel is still charging (turn 1 of 2, J3.12) — keep the WEASEL toggle allocated next turn.'
+            : 'No charged wild weasel — toggle WEASEL on the EAF (1 point/turn on two consecutive turns, J3.12/J3.121).');
+    return;
+  }
+  ship.wwArm = null;   // the charged shuttle is expended
+  spendShuttle(ship);
   ship.fcReactAt = { turn: clock.turn, impulse: clock.impulse };   // J3.132: the launching ship deactivates fire control on launch
   seekers.push({ id: `ww${++seekerSeq}`, owner: ship.id, type: 'weasel', q: ship.q, r: ship.r, facing: ship.facing, speed: 0, warhead: 0, fade: 0, endurance: 8, travelled: 0 });
   saveSoon(ship.id); render();
@@ -920,7 +925,7 @@ function applyRemote(data) {
     s.firedAt = {}; for (const [mid, w] of Object.entries(sd.weapons || {})) if (w && w.firedAt) s.firedAt[mid] = w.firedAt;
     if (sd.criticals !== undefined) s.criticals = sd.criticals; if (sd.critRolledTurn !== undefined) s._critRolledTurn = sd.critRolledTurn;   // D8 crit state
     if (sd.tractorPower !== undefined) s.tractorPower = sd.tractorPower; if (sd.edr !== undefined) s.edr = sd.edr;   // G7 tractor + D14 EDR allocation
-    if (sd.armed !== undefined) s.armed = sd.armed; if (sd.armProgress !== undefined) s.armProgress = sd.armProgress; if (sd.capacitor !== undefined) s.capacitor = sd.capacitor; if (sd.batteryCharge !== undefined) s.batteryCharge = sd.batteryCharge; if (sd.reserveWarp !== undefined) s.reserveWarp = sd.reserveWarp; if (sd.reserveQueue !== undefined) s.reserveQueue = sd.reserveQueue; if (sd.addAmmo !== undefined) s.addAmmo = sd.addAmmo; if (sd.addMag !== undefined) s.addMag = sd.addMag; if (sd.reinforce !== undefined) { s.reinforce = sd.reinforce; s.reinfLeft = null; }
+    if (sd.armed !== undefined) s.armed = sd.armed; if (sd.armProgress !== undefined) s.armProgress = sd.armProgress; if (sd.capacitor !== undefined) s.capacitor = sd.capacitor; if (sd.batteryCharge !== undefined) s.batteryCharge = sd.batteryCharge; if (sd.reserveWarp !== undefined) s.reserveWarp = sd.reserveWarp; if (sd.reserveQueue !== undefined) s.reserveQueue = sd.reserveQueue; if (sd.addAmmo !== undefined) s.addAmmo = sd.addAmmo; if (sd.addMag !== undefined) s.addMag = sd.addMag; if (sd.reinforce !== undefined) { s.reinforce = sd.reinforce; s.reinfLeft = null; } if (sd.suicideArm !== undefined) s.suicideArm = sd.suicideArm; if (sd.wwArm !== undefined) s.wwArm = sd.wwArm; if (sd.shuttlesGone !== undefined) s.shuttlesGone = sd.shuttlesGone;
     if (sd.course !== undefined) s.course = sd.course; if (sd.speedPlot !== undefined) s.speedPlot = sd.speedPlot; if (sd.autopilot !== undefined) s.autopilot = sd.autopilot;
     s.model = null;
   }
@@ -1018,7 +1023,7 @@ function resolveFinalActivity(skLog) {   // Final Activity Phase (7): reload, no
       else if (cost > 0) { s.cloaked = false; s.fcReactAt = { turn: clock.turn, impulse: 1 }; skLog.push({ kind: 'decloak', ship: s.id, reason: 'no cloak power (G13.21)' }); }
       else s.cloakPaidTurn = clock.turn;
     }
-    if (s.drones) s.drones.racks = s.drones.racks.map(r => (loadoutSpaces(r.loaded) < r.capacity && r.reloadsLeft > 0 && r.firedTurn !== clock.turn - 1) ? reloadStep(r) : r); s.shuttlesLeft = shuttleBaysOf(s);   // FD2.421: reload 2 spaces/turn from the magazine, only if the rack did not fire the turn just ended; plasma re-arms through the EAF (FP1.21)
+    if (s.drones) s.drones.racks = s.drones.racks.map(r => (loadoutSpaces(r.loaded) < r.capacity && r.reloadsLeft > 0 && r.firedTurn !== clock.turn - 1) ? reloadStep(r) : r); s.shuttlesLeft = Math.max(0, shuttleBaysOf(s) - (s.shuttlesGone || 0));   // FD2.421: reload 2 spaces/turn from the magazine, only if the rack did not fire the turn just ended; plasma re-arms through the EAF (FP1.21); expended shuttles stay gone (J1.5)
     for (const w of powerOf(s).weapons) if (!canHold(w.cls) && s.armProgress && isArmed(w.cls, s.armProgress[w.id] || 0)) s.armProgress[w.id] = 0;   // non-holdable weapon armed but not fired → discharge (E3.24 disruptor, FP1.311 plasma-R)
     if (s.reserveWarp) { if (!hasCrit(s.criticals, 'battery')) s.batteryCharge = Math.min(powerOf(s).batteries, batteryOf(s) + s.reserveWarp); s.reserveWarp = 0; }   // H7.36: unused reserve warp drains into the batteries at end of turn — but a battery crit means they can't hold power (D8.2), so it is simply lost
     if (addRacksOf(s) > 0 && addAmmoOf(s) < addCapOf(s)) { const mag = s.addMag ?? (s.addMag = ADD_RELOAD_SETS * addCapOf(s)); const add = Math.min(ADD_RELOAD_RATE, addCapOf(s) - s.addAmmo, mag); s.addAmmo += add; s.addMag = mag - add; }   // E5.74/E5.71: reload ≤4 anti-drones/turn from two reload sets
@@ -1554,6 +1559,16 @@ function renderEnergy() {
     if (at('erratic') && !hasCrit(s.criticals, 'maneuver')) h += toggleCtl(at('erratic')[0], at('erratic')[1], 'ERRATIC', 'em', col.em);
     if (at('fc-passive')) h += toggleCtl(at('fc-passive')[0], at('fc-passive')[1], 'FC PASSIVE', 'fcPassive', col.fcPassive);
     if (at('emergency-decel')) h += toggleCtl(at('emergency-decel')[0], at('emergency-decel')[1], 'EMERG DECEL', 'emDecel', !!s.emDecelAt);   // C8.10: declared during impulse play; lit while the stop is pending
+    const shLeft = shuttlesLeftOf(s);   // J1.868: shuttle-arming allocations need a shuttle in the bay
+    if (at('ww-arm') && p.systems.shuttles) {   // J3.12: 1 point/turn on two consecutive turns; J3.121 rolling delay keeps it ready
+      const ww = (s.wwArm && s.wwArm.lastTurn >= clock.turn - 1) ? s.wwArm : null;
+      h += toggleCtl(at('ww-arm')[0], at('ww-arm')[1], `WEASEL ${ww ? (ww.turns >= 2 ? '✓' : ww.turns + '/2') + ' · ' : ''}${shLeft}sh`, 'wildWeasel', col.wildWeasel);
+    }
+    if (at('suicide-arm') && p.systems.shuttles) {   // J2.2211: 1-3 points/turn, three consecutive turns; warhead = 2 × energy
+      const sa = (s.suicideArm && s.suicideArm.lastTurn >= clock.turn - 1) ? s.suicideArm : null;
+      const lab = sa ? (sa.turns >= 3 ? `SUICIDE ✓ W${Math.max(6, Math.min(18, 2 * sa.energy))}` : `SUICIDE ${sa.turns}/3`) : 'SUICIDE ARM';
+      h += stackCtl(at('suicide-arm')[0], at('suicide-arm')[1], `${lab} · ${shLeft}sh`, 'suicide', col.suicide || 0, shLeft > 0 ? 3 : 0);
+    }
     if (at('edr') && p.systems.labs && !hasCrit(s.criticals, 'labs')) h += stackCtl(at('edr')[0], at('edr')[1], 'EDR (labs)', 'edr', col.edr, sinkMax(p, 'edr'));
   } else {   // legacy layout: shields map + ordered bay slots + fixed system strip
     for (const n of [1, 2, 3, 4, 5, 6]) { const [x, y] = L.shields[n]; h += shieldCtl(n, x, y, sn[n - 1], col.specReinf[n] || 0, specReinfMax(p, n, sn[n - 1]), genPts); }
@@ -1837,9 +1852,11 @@ epanel.addEventListener('click', e => {
     if (what === 'prox' && st.prox) { st.overload = false; st.armed = true; }
     render(); return; }
   const seg = e.target.closest('[data-ea="seg"]'); if (seg) { col[seg.dataset.key] = +seg.dataset.val; render(); return; }
-  const tg = e.target.closest('[data-ea="toggle"]'); if (tg) { col[tg.dataset.key] = tg.dataset.num ? (col[tg.dataset.key] ? 0 : 1) : !col[tg.dataset.key]; render(); return; }
+  const tg = e.target.closest('[data-ea="toggle"]'); if (tg) {
+    if (tg.dataset.key === 'wildWeasel' && !col.wildWeasel && shuttlesLeftOf(s) <= 0) { alert('No shuttle in the bay to charge as a wild weasel (J1.868).'); return; }
+    col[tg.dataset.key] = tg.dataset.num ? (col[tg.dataset.key] ? 0 : 1) : !col[tg.dataset.key]; render(); return; }
   const dct = e.target.closest('[data-ea="dctarget"]'); if (dct) { col.repairShield = ((col.repairShield || 0) + 1) % 7; render(); return; }   // D9.21: cycle the damage-control repair target (SYS / SH 1-6)
-  const stp = e.target.closest('[data-ea="step"]'); if (stp) { const k = stp.dataset.key, max = k === 'phaserCap' ? p.capacitorCap - carriedOf(s) : k === 'recharge' ? p.batteries - batteryOf(s) : (k === 'ecm' || k === 'eccm') ? ewFieldMax(sensorRating(s), col[k === 'ecm' ? 'eccm' : 'ecm'] || 0) : sinkMax(p, k); col[k] = Math.max(0, Math.min(max, (col[k] || 0) + (+stp.dataset.d))); render(); return; }   // D6.310: ECM+ECCM combined ≤ sensor rating
+  const stp = e.target.closest('[data-ea="step"]'); if (stp) { const k = stp.dataset.key, max = k === 'phaserCap' ? p.capacitorCap - carriedOf(s) : k === 'recharge' ? p.batteries - batteryOf(s) : (k === 'ecm' || k === 'eccm') ? ewFieldMax(sensorRating(s), col[k === 'ecm' ? 'eccm' : 'ecm'] || 0) : k === 'suicide' ? (shuttlesLeftOf(s) > 0 ? 3 : 0) : sinkMax(p, k); col[k] = Math.max(0, Math.min(max, (col[k] || 0) + (+stp.dataset.d))); render(); return; }   // D6.310: ECM+ECCM combined ≤ sensor rating
   const sp = e.target.closest('[data-ea="specstep"]'); if (sp) { const n = +sp.dataset.shield, max = specReinfMax(p, n, shieldsNow(s)[n - 1]); col.specReinf[n] = Math.max(0, Math.min(max, (col.specReinf[n] || 0) + (+sp.dataset.d))); render(); return; }   // D3.343: a down shield can't be specific-reinforced (max 0)
 });
 function onEaInput(e) {   // range sliders: live-update value + header meter without rebuilding (would kill the drag)
@@ -1887,6 +1904,18 @@ async function resolveEnergy(allEaf) {                        // fold each locke
     s._priorDamage = new Set(Object.keys(s.status || {}));   // D9.73: snapshot damage present at turn start — only these boxes are repairable this turn (not damage taken during it)
     { const m = s.model || (s.model = buildShipModel(s._ver, s._det)); s._priorShieldDown = {}; for (const n of [1, 2, 3, 4, 5, 6]) s._priorShieldDown[n] = (m.shields[n] && m.shields[n].down) || 0; }   // D9.22: shield boxes down at turn start (only these are repairable this turn)
     s.edr = hasCrit(s.criticals, 'labs') ? 0 : Math.floor(col.edr || 0);   // D14: powered labs for emergency damage repair (labs crit → none)
+    // J2.2211/J2.2212: suicide-shuttle arming — 1-3 warp/turn for three CONSECUTIVE turns. A missed turn (or missed
+    // 1-point hold on turn 4+) deactivates the shuttle and all arming energy is lost. On hold turns the first point is
+    // the holding cost and any extra keeps arming, up to the 9-point (warhead 18) cap.
+    { const sAll = ts.suicide | 0, prevSA = (s.suicideArm && s.suicideArm.lastTurn === clock.turn - 1) ? s.suicideArm : null;
+      if (sAll > 0 && shuttlesLeftOf(s) > 0) {
+        const holding = prevSA && prevSA.turns >= 3;
+        s.suicideArm = { turns: (prevSA ? prevSA.turns : 0) + 1, energy: Math.min(9, (prevSA ? prevSA.energy : 0) + (holding ? sAll - 1 : sAll)), lastTurn: clock.turn };
+      } else s.suicideArm = null;
+      // J3.12/J3.121: weasel charge = 1 point on each of two consecutive turns; the rolling delay (keep the toggle on)
+      // holds it ready. Dropping the allocation cancels the charge — energy lost, shuttle freed.
+      if (ts.wildWeasel && shuttlesLeftOf(s) > 0) s.wwArm = { turns: ((s.wwArm && s.wwArm.lastTurn === clock.turn - 1) ? s.wwArm.turns : 0) + 1, lastTurn: clock.turn };
+      else s.wwArm = null; }
     // movement: the plotted speed schedule (base + mid-turn changes) drives execution; no plot → constant speed
     s.speedPlot = s.speedPlot ? { base: s.speedPlot.base, changes: s.speedPlot.changes } : { base: ts.speed, changes: [] };
     s.speed = speedAt(s.speedPlot, 1); s.hexesSinceTurn = turnModeOf(s); s._autoIdx = 0;   // autopilot restarts each turn
@@ -1917,6 +1946,7 @@ const serializeShip = s => ({
   selfDestructPlot: s.selfDestructPlot || false,   // D5.1: EAF marked "self-destruct" → resolves in Phase 3
   tractorPower: s.tractorPower || 0, edr: s.edr || 0,   // G7.15 tractor points + D14 EDR labs allocated this turn
   armed: s.armed || {}, armProgress: s.armProgress || {}, capacitor: s.capacitor ?? 0, batteryCharge: s.batteryCharge, reserveWarp: s.reserveWarp || 0, reserveQueue: s.reserveQueue || null, addAmmo: s.addAmmo, addMag: s.addMag, reinforce: s.reinforce || null,   // folded energy-allocation + ammo state
+  suicideArm: s.suicideArm || null, wwArm: s.wwArm || null, shuttlesGone: s.shuttlesGone || 0,   // J2.2211 suicide arming bank + J3.12 weasel charge + expended-shuttle inventory
   course: s.course || null, speedPlot: s.speedPlot || null, autopilot: !!s.autopilot,   // tactical course plot
   weapons: Object.fromEntries(s.mounts.map(m => [m.id, { cls: m.cls, arc: (m.arc.arcs || []), charged: isCharged(s, m.id, m.cls), firedAt: s.firedAt[m.id] || null }])),
 });
