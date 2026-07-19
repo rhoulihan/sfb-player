@@ -1846,6 +1846,16 @@ function updateMeter() {   // light header-meter refresh during slider drag (no 
   document.getElementById('epMeter').innerHTML = `<b style="color:${stColor(v.status)}">${v.used}</b>/${v.produced} · ${v.free} free`;
   document.getElementById('epLock').disabled = myLockedEnergy || ships.filter(isMine).some(x => validateShip(x).status === 'over');
 }
+function eaTry(s, mutate) {   // hard ceiling: an allocation may never exceed produced power + charged batteries (H5/H7)
+  const col = eaColOf(s), snap = JSON.stringify(col);
+  mutate();
+  if (validateShip(s).status === 'over') {
+    const back = JSON.parse(snap); Object.keys(col).forEach(k => delete col[k]); Object.assign(col, back);
+    alert('Not enough power — the allocation may not exceed produced power plus charged batteries.');
+    return false;
+  }
+  return true;
+}
 epanel.addEventListener('click', e => {
   const tab = e.target.closest('[data-eatab]'); if (tab) { ui.eaSelected = ui.plotShipId = tab.dataset.eatab; render(); return; }
   const edc = e.target.closest('[data-ea="toggle"][data-key="emDecel"]');   // C8.10: emergency decel is an impulse-play declaration, usable even in the read-only EA view
@@ -1867,19 +1877,20 @@ epanel.addEventListener('click', e => {
   if (e.target.id === 'epAuto') { const s = byId(ui.eaSelected); if (s) { s.autopilot = !s.autopilot; s._autoIdx = 0; saveSoon(s.id); render(); } return; }
   if (myLockedEnergy) return; const s = byId(ui.eaSelected); if (!s) return; const p = powerOf(s), col = eaColOf(s);
   const w = e.target.closest('[data-ea="weap"]');
-  if (w) { const st = col.weapons[w.dataset.wid], what = w.dataset.what; st[what] = !st[what];
+  if (w) { eaTry(s, () => { const st = col.weapons[w.dataset.wid], what = w.dataset.what; st[what] = !st[what];
     if (what === 'overload' && st.overload) { st.prox = false; st.armed = true; }   // overload & proximity are exclusive modes
-    if (what === 'prox' && st.prox) { st.overload = false; st.armed = true; }
+    if (what === 'prox' && st.prox) { st.overload = false; st.armed = true; } });
     render(); return; }
-  const seg = e.target.closest('[data-ea="seg"]'); if (seg) { col[seg.dataset.key] = +seg.dataset.val; render(); return; }
-  const tg = e.target.closest('[data-ea="toggle"]'); if (tg) { col[tg.dataset.key] = tg.dataset.num ? (col[tg.dataset.key] ? 0 : 1) : !col[tg.dataset.key]; render(); return; }
+  const seg = e.target.closest('[data-ea="seg"]'); if (seg) { eaTry(s, () => { col[seg.dataset.key] = +seg.dataset.val; }); render(); return; }
+  const tg = e.target.closest('[data-ea="toggle"]'); if (tg) { eaTry(s, () => { col[tg.dataset.key] = tg.dataset.num ? (col[tg.dataset.key] ? 0 : 1) : !col[tg.dataset.key]; }); render(); return; }
   const dct = e.target.closest('[data-ea="dctarget"]'); if (dct) { col.repairShield = ((col.repairShield || 0) + 1) % 7; render(); return; }   // D9.21: cycle the damage-control repair target (SYS / SH 1-6)
-  const stp = e.target.closest('[data-ea="step"]'); if (stp) { const k = stp.dataset.key, max = k === 'phaserCap' ? p.capacitorCap - carriedOf(s) : k === 'recharge' ? p.batteries - batteryOf(s) : (k === 'ecm' || k === 'eccm') ? ewFieldMax(sensorRating(s), col[k === 'ecm' ? 'eccm' : 'ecm'] || 0) : k === 'suicide' ? (shuttlesLeftOf(s) > 0 ? 3 : 0) : k === 'wildWeasel' ? (shuttlesLeftOf(s) > 0 ? 1 : 0) : sinkMax(p, k); col[k] = Math.max(0, Math.min(max, (col[k] || 0) + (+stp.dataset.d))); render(); return; }   // D6.310: ECM+ECCM combined ≤ sensor rating
-  const sp = e.target.closest('[data-ea="specstep"]'); if (sp) { const n = +sp.dataset.shield, max = specReinfMax(p, n, shieldsNow(s)[n - 1]); col.specReinf[n] = Math.max(0, Math.min(max, (col.specReinf[n] || 0) + (+sp.dataset.d))); render(); return; }   // D3.343: a down shield can't be specific-reinforced (max 0)
+  const stp = e.target.closest('[data-ea="step"]'); if (stp) { const k = stp.dataset.key, max = k === 'phaserCap' ? p.capacitorCap - carriedOf(s) : k === 'recharge' ? p.batteries - batteryOf(s) : (k === 'ecm' || k === 'eccm') ? ewFieldMax(sensorRating(s), col[k === 'ecm' ? 'eccm' : 'ecm'] || 0) : k === 'suicide' ? (shuttlesLeftOf(s) > 0 ? 3 : 0) : k === 'wildWeasel' ? (shuttlesLeftOf(s) > 0 ? 1 : 0) : sinkMax(p, k); eaTry(s, () => { col[k] = Math.max(0, Math.min(max, (col[k] || 0) + (+stp.dataset.d))); }); render(); return; }   // D6.310: ECM+ECCM combined ≤ sensor rating
+  const sp = e.target.closest('[data-ea="specstep"]'); if (sp) { const n = +sp.dataset.shield, max = specReinfMax(p, n, shieldsNow(s)[n - 1]); eaTry(s, () => { col.specReinf[n] = Math.max(0, Math.min(max, (col.specReinf[n] || 0) + (+sp.dataset.d))); }); render(); return; }   // D3.343: a down shield can't be specific-reinforced (max 0)
 });
 function onEaInput(e) {   // range sliders: live-update value + header meter without rebuilding (would kill the drag)
   if (myLockedEnergy || ui.viewEA) return; const t = e.target, s = ui.eaSelected ? byId(ui.eaSelected) : null; if (!s || t.dataset.ea !== 'num') return;
-  { const k = t.dataset.key, col = eaColOf(s), cap = (k === 'ecm' || k === 'eccm') ? ewFieldMax(sensorRating(s), col[k === 'ecm' ? 'eccm' : 'ecm'] || 0) : sinkMax(powerOf(s), k); col[k] = Math.min(cap, Math.max(0, +t.value || 0)); }   // D6.310: ECM+ECCM combined ≤ sensor rating
+  { const k = t.dataset.key, col = eaColOf(s), cap = (k === 'ecm' || k === 'eccm') ? ewFieldMax(sensorRating(s), col[k === 'ecm' ? 'eccm' : 'ecm'] || 0) : sinkMax(powerOf(s), k); col[k] = Math.min(cap, Math.max(0, +t.value || 0));
+    while ((col[k] || 0) > 0 && validateShip(s).status === 'over') col[k]--; }   // D6.310 ECM+ECCM cap; hard power ceiling: a drag stops where produced + batteries run out
   const val = t.closest('.ctl')?.querySelector('.val'); if (val) val.firstChild && (val.firstChild.textContent = t.value);
   updateMeter();
 }

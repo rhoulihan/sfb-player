@@ -119,6 +119,11 @@ test('foldEaf applies a locked column to turn state', () => {
 test('sinkMax enforces rule-based slider ceilings', () => {
   const fed = load('FED-CA');   // moveCost 1, capacitor 9, 4 batteries
   assert.equal(sinkMax(fed, 'movement'), 31, '30-hex cap + 1 impulse point (Fed CA has impulse engines)');
+  // C2.11/C2.112: movement energy is warp-funded (+ the single impulse point) — the allocation may never
+  // exceed available warp + 1, e.g. after warp damage or on warp-poor hulls
+  assert.equal(sinkMax({ ...fed, warp: 20 }, 'movement'), 21, 'warp 20 + the impulse point');
+  assert.equal(sinkMax({ ...fed, warp: 20, impulse: 0 }, 'movement'), 20, 'no impulse engines → warp only');
+  assert.equal(sinkMax({ ...fed, moveCost: 2 }, 'movement'), 31, 'moveCost 2: the 62-energy practical cap still cannot outrun 30 warp + 1');
   assert.equal(sinkMax(fed, 'ecm'), 6); assert.equal(sinkMax(fed, 'eccm'), 6);
   assert.equal(sinkMax(fed, 'phaserCap'), 9, 'capacitor room');
   assert.equal(sinkMax(fed, 'recharge'), 4, 'no more than battery capacity');
